@@ -17,4 +17,16 @@ public interface SeckillActivityJpaRepository extends JpaRepository<SeckillActiv
             order by a.startAt asc
             """)
     List<SeckillActivityEntity> findOnline(@Param("now") Instant now);
+
+    /**
+     * 需要對帳的活動：已上架，且結束時間仍在保留窗口內。
+     *
+     * <p>刻意涵蓋剛結束的活動——庫存洩漏最常在活動尾聲才浮現。
+     */
+    @Query("""
+            select a from SeckillActivityEntity a
+            where a.status = 'ONLINE' and a.endAt > :endedAfter
+            order by a.id asc
+            """)
+    List<SeckillActivityEntity> findForReconciliation(@Param("endedAfter") Instant endedAfter);
 }

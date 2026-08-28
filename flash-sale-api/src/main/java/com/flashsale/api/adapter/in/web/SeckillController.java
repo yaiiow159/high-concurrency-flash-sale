@@ -2,6 +2,7 @@ package com.flashsale.api.adapter.in.web;
 
 import com.flashsale.api.adapter.in.web.dto.ApiResponse;
 import com.flashsale.api.adapter.in.web.dto.SeckillRequest;
+import com.flashsale.api.adapter.in.web.security.CurrentUser;
 import com.flashsale.application.port.in.OrderQueryUseCase;
 import com.flashsale.application.port.in.SeckillUseCase;
 import com.flashsale.application.port.in.dto.OrderView;
@@ -21,7 +22,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -67,7 +67,7 @@ public class SeckillController {
     @RateLimiter(name = RESILIENCE_INSTANCE, fallbackMethod = "seckillFallback")
     @CircuitBreaker(name = RESILIENCE_INSTANCE, fallbackMethod = "seckillFallback")
     public ResponseEntity<ApiResponse<SeckillTicket>> seckill(
-            @RequestHeader("X-User-Id") Long userId,
+            @CurrentUser Long userId,
             @Valid @RequestBody SeckillRequest request) {
 
         SeckillTicket ticket = seckillUseCase.attempt(request.toCommand(userId));
@@ -98,7 +98,7 @@ public class SeckillController {
     @GetMapping("/orders/{orderNo}")
     @Operation(summary = "查詢訂單", description = "訂單仍在非同步建立中時回傳 PROCESSING，前端應繼續輪詢")
     public ApiResponse<OrderView> queryOrder(
-            @RequestHeader("X-User-Id") Long userId,
+            @CurrentUser Long userId,
             @PathVariable String orderNo) {
 
         return ApiResponse.ok(orderQueryUseCase.findByOrderNo(orderNo, userId));

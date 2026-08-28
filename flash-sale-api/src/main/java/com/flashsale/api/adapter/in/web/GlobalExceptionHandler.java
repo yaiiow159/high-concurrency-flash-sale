@@ -39,6 +39,8 @@ public class GlobalExceptionHandler {
     private static final Map<ErrorCode, HttpStatus> STATUS_MAPPING = Map.of(
             ErrorCode.INVALID_PARAMETER, HttpStatus.BAD_REQUEST,
             ErrorCode.RATE_LIMITED, HttpStatus.TOO_MANY_REQUESTS,
+            ErrorCode.UNAUTHENTICATED, HttpStatus.UNAUTHORIZED,
+            ErrorCode.FORBIDDEN, HttpStatus.FORBIDDEN,
             ErrorCode.ACTIVITY_NOT_FOUND, HttpStatus.NOT_FOUND,
             ErrorCode.ORDER_NOT_FOUND, HttpStatus.NOT_FOUND,
             ErrorCode.SOLD_OUT, HttpStatus.CONFLICT,

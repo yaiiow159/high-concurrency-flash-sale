@@ -37,6 +37,8 @@ api → infrastructure → application → domain
 - ❌ **禁止用分散式鎖包住庫存扣減**——Lua 已保證原子性，加鎖只會把並行度壓成 1
 - ❌ **禁止新增同步遠端呼叫**——目前只有 Redis 與 Kafka 各一次，這是上限
 - ❌ **禁止在迴圈中呼叫 Redis**——要批次就寫進 Lua
+- ❌ **禁止為了取得使用者資料而查資料庫**——JWT 能待在熱路徑上的唯一理由
+  就是驗證純 CPU 運算、零遠端呼叫。需要的資訊必須全放在 claim 裡
 
 需要新增遠端呼叫時，先問：能不能移到 MQ 消費端的慢車道？
 
@@ -65,6 +67,10 @@ api → infrastructure → application → domain
 改了任何一邊，**另一邊與 `RedisStockRepositoryTest` 都必須同步更新**。
 （`.claude/skills/seckill-lua-script/` 有完整流程）
 
+**扣減憑證的格式也是契約**：`orderNo|userId|quantity`，由 `StockBindingCodec` 編解碼。
+不可簡化成只存 `orderNo`——對帳發現孤兒扣減時沒有訂單可查數量，
+憑證若不自帶，那筆洩漏就變成偵測得到卻修不掉的死結。
+
 ### 6. `@Transactional` 不可自我呼叫
 
 Spring 的交易是動態代理，同一個 Bean 內部呼叫 `this.method()` **不會經過代理**，
@@ -73,7 +79,30 @@ Spring 的交易是動態代理，同一個 Bean 內部呼叫 `this.method()` **
 參考 `OutboxRelayScheduler` 與 `OutboxRelayer` 的拆分——
 排程觸發器與交易方法刻意分成兩個 Bean，就是為了避開這個陷阱。
 
-### 7. 時間一律注入 `Clock`
+### 7. 身分一律來自令牌，不可來自請求內容
+
+使用者 ID 取自 JWT 的 `sub` claim（`@CurrentUser` 注入），
+**不得**從 `X-User-Id` 這類標頭或請求體讀取——那等於讓呼叫端自己宣告身分。
+
+這不只是認證問題：單一使用者限流若以呼叫端自填的 ID 為維度，
+攻擊者每次換一個號碼就能完全繞過，那道限流等於不存在。
+
+管理端點（預熱、對帳觸發）需要 `seckill:admin` scope。
+新增端點時預設就是「需要認證」——`SecurityConfig` 以 `anyRequest().authenticated()` 收尾，
+要開放必須明確加進放行清單。
+
+### 8. 對帳的自動修復預設關閉
+
+`StockReconciliationService` 只在能被證明安全的情況下才退庫：
+**孤兒扣減**（訂單不存在 + 已超過寬限期）。
+
+- 寬限期**必須明顯長於**付款期限與 MQ 最大重試時間。設太短會把還在佇列
+  排隊的請求誤判為孤兒而退庫，等訊息被消費時就從少賣變成超賣
+- `OVERSELL_RISK` 方向**一律不自動處理**。下修餘量會讓進行中的合法請求無故失敗
+- 改動對帳邏輯時，`StockReconciliationServiceTest` 的「什麼情況絕不自動修」
+  那幾條測試不可放寬
+
+### 9. 時間一律注入 `Clock`
 
 不得直接呼叫 `Instant.now()` 或 `System.currentTimeMillis()`。
 理由是可測試性：驗證「活動結束後不能下單」應該注入固定時鐘，
@@ -101,6 +130,7 @@ mvn test -pl flash-sale-domain,flash-sale-application # 快速回饋（無需 Do
 mvn test -pl flash-sale-infrastructure                # Redis 整合測試（需 Docker）
 mvn test -pl flash-sale-api -Dtest=ArchitectureTest -Dsurefire.failIfNoSpecifiedTests=false
 docker compose up -d                                  # 啟動依賴
+curl -X POST "localhost:8080/api/v1/auth/dev-token?userId=1001"  # 取開發用令牌
 mvn spring-boot:run -pl flash-sale-api                # 啟動應用
 ```
 
@@ -119,5 +149,6 @@ mvn spring-boot:run -pl flash-sale-api                # 啟動應用
 | 「這裡應該加分散式鎖」 | [ADR-0003](docs/adr/0003-lua-atomicity-over-distributed-lock.md) |
 | 「應該用 Seata 做分散式交易」 | [ADR-0004](docs/adr/0004-outbox-saga-over-seata.md) |
 | 「應該拆成微服務」 | [ADR-0001](docs/adr/0001-modular-monolith-hexagonal.md) |
+| 「認證改用 Session 比較簡單」 | [ADR-0005](docs/adr/0005-jwt-resource-server-over-custom-filter.md) |
 
 若確實有新的理由推翻既有決策，**請新增一份 ADR 說明前提變化**，而不是直接改程式碼。

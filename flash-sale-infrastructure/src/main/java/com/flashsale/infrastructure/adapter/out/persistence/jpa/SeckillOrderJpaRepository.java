@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -31,4 +32,20 @@ public interface SeckillOrderJpaRepository extends JpaRepository<SeckillOrderEnt
             order by o.createdAt asc
             """)
     List<SeckillOrderEntity> findExpiredPending(@Param("deadline") Instant deadline, Limit limit);
+
+    /**
+     * 統計仍佔用庫存的訂單總量。
+     *
+     * <p>{@code coalesce} 不可省略：沒有任何訂單時 {@code sum} 回傳 null，
+     * 拆箱成 long 會直接 NPE——而「活動剛開始還沒有訂單」正是最常見的情況。
+     */
+    @Query("""
+            select coalesce(sum(o.quantity), 0) from SeckillOrderEntity o
+            where o.activityId = :activityId and o.status in ('PENDING_PAYMENT', 'PAID')
+            """)
+    long sumActiveQuantity(@Param("activityId") Long activityId);
+
+    /** 批次查詢存在的訂單號，供對帳比對孤兒扣減。 */
+    @Query("select o.orderNo from SeckillOrderEntity o where o.orderNo in :orderNos")
+    List<String> findExistingOrderNos(@Param("orderNos") Collection<String> orderNos);
 }

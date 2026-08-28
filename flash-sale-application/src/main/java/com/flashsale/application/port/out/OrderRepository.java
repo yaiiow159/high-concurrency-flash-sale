@@ -4,8 +4,10 @@ import com.flashsale.domain.order.OrderNo;
 import com.flashsale.domain.order.SeckillOrder;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 /** 訂單持久化埠（出站）。 */
 public interface OrderRepository {
@@ -30,6 +32,24 @@ public interface OrderRepository {
     Optional<SeckillOrder> findByOrderNo(OrderNo orderNo);
 
     Optional<SeckillOrder> findByRequestId(String requestId);
+
+    /**
+     * 統計某活動「仍佔用庫存」的訂單總數量（{@code PENDING_PAYMENT} + {@code PAID}）。
+     *
+     * <p>對帳恆等式的右半邊：{@code Redis 餘量 + 本方法回傳值 = 活動總庫存}。
+     * 已取消／已失敗的訂單不計入——它們的庫存理應已被補償退回。
+     */
+    long sumActiveQuantity(Long activityId);
+
+    /**
+     * 批次查詢哪些訂單號確實存在於資料庫。
+     *
+     * <p>刻意設計成批次而非逐筆 {@code exists}：對帳要掃描的綁定可能有數十萬筆，
+     * 逐筆查詢就是數十萬次往返。這裡一次帶入一整批，讓資料庫用單次索引掃描解決。
+     *
+     * @return 傳入的訂單號中，實際存在的那些
+     */
+    Set<String> findExistingOrderNos(Collection<String> orderNos);
 
     /**
      * 撈出逾期未付款的訂單，供補償排程批次關單。

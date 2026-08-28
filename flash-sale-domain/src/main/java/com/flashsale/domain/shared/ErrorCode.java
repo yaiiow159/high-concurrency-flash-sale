@@ -12,6 +12,8 @@ public enum ErrorCode {
     INVALID_PARAMETER("A0001", "請求參數不合法"),
     RATE_LIMITED("A0002", "請求過於頻繁，請稍後再試"),
     DUPLICATE_REQUEST("A0003", "重複的請求"),
+    UNAUTHENTICATED("A0004", "尚未登入或憑證已失效"),
+    FORBIDDEN("A0005", "沒有執行此操作的權限"),
 
     // ---- B：業務規則拒絕 ----
     ACTIVITY_NOT_FOUND("B0001", "活動不存在"),

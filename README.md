@@ -122,8 +122,16 @@ mvn spring-boot:run -pl flash-sale-api
 
 ### 試一次搶購
 
+先取一個開發用令牌（此端點僅在 `DEV_TOKEN_ENABLED=true` 時存在）：
+
 ```bash
-curl -X POST http://localhost:8080/api/v1/seckill/orders -H "Content-Type: application/json" -H "X-User-Id: 1001" -d "{\"activityId\":1001,\"quantity\":1,\"requestId\":\"demo-req-001\"}"
+curl -X POST "http://localhost:8080/api/v1/auth/dev-token?userId=1001"
+```
+
+用它發起搶購：
+
+```bash
+curl -X POST http://localhost:8080/api/v1/seckill/orders -H "Content-Type: application/json" -H "Authorization: Bearer <accessToken>" -d "{\"activityId\":1001,\"quantity\":1,\"requestId\":\"demo-req-001\"}"
 ```
 
 回應 `202 Accepted`：
@@ -135,7 +143,7 @@ curl -X POST http://localhost:8080/api/v1/seckill/orders -H "Content-Type: appli
 再以訂單號輪詢結果（訂單尚未落庫時回 `PROCESSING`，而非 404）：
 
 ```bash
-curl http://localhost:8080/api/v1/seckill/orders/123456789 -H "X-User-Id: 1001"
+curl http://localhost:8080/api/v1/seckill/orders/123456789 -H "Authorization: Bearer <accessToken>"
 ```
 
 **重送相同的 `requestId` 會拿到同一張訂單**，庫存只扣一次。
@@ -144,16 +152,29 @@ curl http://localhost:8080/api/v1/seckill/orders/123456789 -H "X-User-Id: 1001"
 
 ## API
 
-| 方法 | 路徑 | 說明 |
-|------|------|------|
-| `POST` | `/api/v1/seckill/orders` | 發起搶購，回 202 + 訂單號 |
-| `GET` | `/api/v1/seckill/orders/{orderNo}` | 查詢訂單，非同步處理中回 `PROCESSING` |
-| `GET` | `/api/v1/activities` | 已上架活動列表 |
-| `GET` | `/api/v1/activities/{id}` | 活動詳情（庫存餘量取自 Redis 即時值） |
-| `POST` | `/api/v1/activities/{id}/warm-up` | 手動預熱庫存（維運用） |
+| 方法 | 路徑 | 認證 | 說明 |
+|------|------|------|------|
+| `POST` | `/api/v1/seckill/orders` | Bearer | 發起搶購，回 202 + 訂單號 |
+| `GET` | `/api/v1/seckill/orders/{orderNo}` | Bearer | 查詢訂單，非同步處理中回 `PROCESSING` |
+| `GET` | `/api/v1/activities` | 匿名 | 已上架活動列表 |
+| `GET` | `/api/v1/activities/{id}` | 匿名 | 活動詳情（庫存餘量取自 Redis 即時值） |
+| `POST` | `/api/v1/activities/{id}/warm-up` | `seckill:admin` | 手動預熱庫存（維運用） |
+| `POST` | `/api/v1/auth/dev-token` | 匿名 | **僅開發環境**，取得測試令牌 |
 
-身分以 `X-User-Id` 標頭傳遞——這是為了讓專案聚焦在併發主題而簡化的做法，
-正式環境應換成 JWT 或 OAuth2 Resource Server。
+### 認證
+
+採 **OAuth2 Resource Server + JWT**，使用者身分取自標準的 `sub` claim
+（詳見 [ADR-0005](docs/adr/0005-jwt-resource-server-over-custom-filter.md)）。
+
+選 JWT 而非 Session 只有一個理由：**驗證是純 CPU 運算，不需要遠端呼叫**。
+Session 每個請求都要讀一次 Redis，等於在熱路徑上憑空增加一次往返，
+與整個削峰設計直接衝突。
+
+由此推論出一條鐵則：**絕不可為了取得使用者資料而在認證環節查資料庫**——
+一旦開始回查，JWT 的唯一優勢就消失了。
+
+商品頁開放匿名瀏覽（不該逼使用者先登入才能看商品），
+寫入操作一律需要令牌，管理端點另需 `seckill:admin` scope。
 
 ---
 
@@ -174,9 +195,55 @@ mvn test -pl flash-sale-api -Dtest=ArchitectureTest  # 架構約束
 | `RedisStockRepositoryTest$Compensation` | 退庫冪等——重複退只生效一次 |
 | `SeckillApplicationServiceTest` | 投遞失敗必須退庫；補償失敗不可掩蓋原始錯誤 |
 | `ArchitectureTest` | 7 條分層與依賴規則，違規在 CI 就被擋下 |
+| `SeckillControllerSecurityTest` | 沒帶令牌必須被擋；身分取自令牌而非請求內容 |
+| `StockReconciliationServiceTest` | 偏差方向判定、孤兒寬限期、「什麼情況絕不自動修」 |
 
 併發測試對著**真實的 Redis**（Testcontainers）執行。
 這一段用 mock 等於 mock 掉唯一要驗證的東西——測試會全綠，超賣照樣發生。
+
+---
+
+## 庫存對帳
+
+最終一致的系統沒有資料庫交易兜底，**偏差不會自癒，只會累積**。
+補償失敗、訊息遺失、人為誤操作，每一次都在帳上留下差額，
+而且沒有任何東西會主動告訴你。
+
+`StockReconciliationService` 每 10 分鐘核對一次恆等式：
+
+```
+Redis 餘量 + Σ(PENDING_PAYMENT + PAID 訂單的數量) = 活動總庫存
+```
+
+| 偏差方向 | 判定 | 後果 | 處置 |
+|---|---|---|---|
+| 實際 < 應有 | `STOCK_LEAKED` | 少賣，庫存被鎖住 | 可自動修復（孤兒扣減） |
+| 實際 > 應有 | `OVERSELL_RISK` | **超賣，不可逆** | 一律人工介入 |
+
+### 孤兒扣減
+
+最危險的一種洩漏：**庫存扣了、訂單卻不存在**。
+資料庫裡沒有任何紀錄會提醒你這裡有庫存被鎖住，只有主動掃描才找得到。
+
+判定需同時滿足兩個條件：資料庫查無此訂單號，**且**訂單號的產生時間已超過寬限期。
+第二個條件不可省略——剛產生幾秒的訂單很可能只是還在 MQ 佇列裡排隊，
+此時退庫，等訊息真的被消費時訂單仍會建立，那就從少賣變成了超賣。
+
+寬限期能成立，靠的是 Snowflake 訂單號**自帶產生時間**。
+這也是當初選它而非 UUID 的附帶好處：孤兒扣減沒有訂單可查，
+時間資訊只能從 ID 本身取得。
+
+### 為什麼自動修復預設關閉
+
+因為「自動修復」與「自動破壞」之間只隔著一個 bug。
+若對帳邏輯本身算錯，自動修復會拿著錯誤的結論去改動正確的資料。
+
+只有能被證明安全的偏差才納入自動修復：孤兒扣減有明確判定依據，
+且修復方向只會「歸還」庫存，不會憑空製造可賣量。
+反方向的偏差一律不自動處理——下修餘量會讓進行中的合法請求無故失敗。
+
+啟用方式：`RECONCILIATION_AUTO_REPAIR=true`。建議先觀察一段時間，
+確認 `seckill_orphan_binding_total{action="detected"}` 的內容都符合預期後再開。
 
 ---
 
@@ -190,6 +257,8 @@ mvn test -pl flash-sale-api -Dtest=ArchitectureTest  # 架構約束
 | `seckill_rejection_total{code}` | 拒絕原因分佈，區分「賣太好」與「壞掉了」 |
 | `seckill_compensation_total{result}` | **`result="failure"` 必須恆為 0**，非零代表庫存被永久鎖住 |
 | `seckill_order_persist_total{result}` | 消費端落庫速率與冪等命中數 |
+| `seckill_stock_drift{activity}` | **對帳偏差，恆為 0 才健康**；> 0 代表超賣風險 |
+| `seckill_orphan_binding_total{action}` | 孤兒扣減的偵測與修復結果 |
 
 標籤只用 `activityId` 與錯誤碼，**絕不放 `userId`**——那會讓時間序列數量爆炸。
 

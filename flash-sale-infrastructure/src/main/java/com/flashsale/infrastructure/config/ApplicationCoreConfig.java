@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.flashsale.application.config.ReconciliationPolicy;
 import com.flashsale.application.config.SeckillPolicy;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -41,6 +42,15 @@ public class ApplicationCoreConfig {
                 properties.order().paymentWindow(),
                 properties.stock().keyTtlBuffer(),
                 properties.order().compensationBatchSize());
+    }
+
+    /** 把設定綁定結果轉為應用層的對帳策略值物件。 */
+    @Bean
+    public ReconciliationPolicy reconciliationPolicy(FlashSaleProperties properties) {
+        return new ReconciliationPolicy(
+                properties.reconciliation().orphanGracePeriod(),
+                properties.reconciliation().scanBatchSize(),
+                properties.reconciliation().autoRepairOrphans());
     }
 
     /**

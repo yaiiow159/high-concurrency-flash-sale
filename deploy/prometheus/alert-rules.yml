@@ -25,6 +25,43 @@ groups:
           summary: "Outbox 事件停止投遞"
           description: "訂單持續建立但事件未投遞，補償鏈已斷，逾期訂單的庫存不會回退"
 
+      # 對帳偏差：最終一致系統唯一能主動發現「悄悄對不上」的機制
+      - alert: StockDriftOversellRisk
+        expr: seckill_stock_drift > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "活動 {{ $labels.activity }} 的 Redis 餘量多於應有值（偏差 {{ $value }}）"
+          description: "餘量 + 未取消訂單數量 > 總庫存，會賣出不存在的商品。不可自動修復，需人工核對後處置"
+
+      - alert: StockDriftLeaked
+        expr: seckill_stock_drift < -10
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "活動 {{ $labels.activity }} 有庫存被鎖住（偏差 {{ $value }}）"
+          description: "庫存已扣但查無對應訂單，造成少賣。檢查 DLQ 與 outbox_event 的 DEAD 紀錄"
+
+      - alert: OrphanBindingsAccumulating
+        expr: increase(seckill_orphan_binding_total{action="detected"}[30m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "偵測到孤兒扣減，活動 {{ $labels.activity }}"
+          description: "庫存已扣、訂單不存在且已超過寬限期。確認 auto-repair-orphans 是否該啟用"
+
+      - alert: ReconciliationNotRunning
+        expr: increase(seckill_reconciliation_total[30m]) == 0
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "庫存對帳已停止執行"
+          description: "對帳是最終一致系統唯一的體檢機制，停擺代表偏差正在無人察覺地累積"
+
   - name: flash-sale-availability
     rules:
       - alert: SeckillLatencyDegraded

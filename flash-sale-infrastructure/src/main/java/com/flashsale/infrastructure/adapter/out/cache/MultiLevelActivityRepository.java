@@ -19,6 +19,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Repository;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ThreadLocalRandom;
@@ -112,6 +113,18 @@ public class MultiLevelActivityRepository implements ActivityRepository {
         // 列表查詢不在秒殺熱路徑上（只有首頁會呼叫），單層本機快取已足夠。
         // 不為了對稱而硬套三級結構——沒有必要的複雜度就是負債。
         return onlineListCache.get(RedisKeys.onlineActivitiesCache(), key -> delegate.findOnlineActivities());
+    }
+
+    /**
+     * 對帳查詢<b>刻意不走快取</b>，直接回源。
+     *
+     * <p>對帳的整個意義就是核對真實狀態。若讀到的是幾分鐘前的快取，
+     * 核對出來的偏差是假的——可能報出根本不存在的問題，也可能漏掉真正的偏差。
+     * 這類低頻的正確性檢查，不該為了省一次查詢而犧牲資料新鮮度。
+     */
+    @Override
+    public List<SeckillActivity> findForReconciliation(Instant endedAfter) {
+        return delegate.findForReconciliation(endedAfter);
     }
 
     /**
