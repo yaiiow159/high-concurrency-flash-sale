@@ -1,0 +1,57 @@
+# 告警規則。
+#
+# 設計原則：每一條告警都必須對應一個「有人要在半夜起床處理」的狀況。
+# 會響但沒人需要行動的告警，只會訓練團隊忽略所有告警。
+groups:
+  - name: flash-sale-correctness
+    rules:
+      # 最高優先：庫存補償失敗代表有庫存被永久鎖住，是實際的營收損失
+      - alert: StockCompensationFailing
+        expr: increase(seckill_compensation_total{result="failure"}[5m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "庫存補償失敗，活動 {{ $labels.activity }} 有庫存被鎖住"
+          description: "退庫失敗會造成永久少賣，需人工核對 Redis 餘量與訂單狀態"
+
+      - alert: OutboxEventsStuck
+        expr: increase(seckill_order_persist_total{result="created"}[10m]) > 0
+             and on() rate(kafka_producer_record_send_total[10m]) == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Outbox 事件停止投遞"
+          description: "訂單持續建立但事件未投遞，補償鏈已斷，逾期訂單的庫存不會回退"
+
+  - name: flash-sale-availability
+    rules:
+      - alert: SeckillLatencyDegraded
+        expr: histogram_quantile(0.99,
+              sum(rate(seckill_attempt_duration_seconds_bucket[2m])) by (le)) > 0.5
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "搶購 P99 延遲超過 500ms"
+          description: "熱路徑應在 50ms 內完成，超過 500ms 代表 Redis 或 Kafka 已出現壓力"
+
+      - alert: CircuitBreakerOpen
+        expr: resilience4j_circuitbreaker_state{state="open"} == 1
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: "熔斷器 {{ $labels.name }} 已開啟"
+          description: "下游依賴故障，搶購功能正在降級"
+
+      - alert: SystemErrorRateHigh
+        expr: sum(rate(seckill_rejection_total{code=~"C.*"}[2m]))
+             / sum(rate(seckill_attempt_duration_seconds_count[2m])) > 0.01
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "系統類錯誤（C 開頭）佔比超過 1%"
+          description: "業務拒絕（售罄、限購）屬正常，此告警只計入基礎設施故障"

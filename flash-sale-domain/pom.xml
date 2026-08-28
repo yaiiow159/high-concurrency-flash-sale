@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.flashsale</groupId>
+        <artifactId>flash-sale-parent</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>flash-sale-domain</artifactId>
+    <name>flash-sale-domain</name>
+    <description>領域層：純 Java 業務模型，刻意不引入任何框架依賴</description>
+
+    <!--
+      本模組不得新增 Spring / JPA / Redis 等任何技術框架依賴。
+      這條規則由 ArchitectureTest（ArchUnit）在 CI 強制驗證。
+    -->
+</project>

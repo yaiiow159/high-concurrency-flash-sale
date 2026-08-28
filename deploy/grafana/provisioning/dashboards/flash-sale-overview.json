@@ -1,0 +1,132 @@
+{
+  "uid": "flash-sale-overview",
+  "title": "秒殺系統總覽",
+  "tags": ["flash-sale"],
+  "timezone": "browser",
+  "refresh": "5s",
+  "time": { "from": "now-15m", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "搶購吞吐（依結果分類）",
+      "description": "success 與 rejected 分開看。秒殺開賣瞬間 rejected 遠高於 success 是正常的，真正要盯的是兩者的總和是否貼齊壓測得出的容量上限。",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "reqps" } },
+      "targets": [
+        {
+          "expr": "sum by (result) (rate(seckill_attempt_duration_seconds_count[1m]))",
+          "legendFormat": "{{result}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "搶購延遲 P50 / P95 / P99",
+      "description": "熱路徑不含資料庫寫入，正常 P99 應在 50ms 以內。P99 抬升通常先於錯誤率上升，是最早的預警訊號。",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(seckill_attempt_duration_seconds_bucket[1m])) by (le))",
+          "legendFormat": "P50"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(seckill_attempt_duration_seconds_bucket[1m])) by (le))",
+          "legendFormat": "P95"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(seckill_attempt_duration_seconds_bucket[1m])) by (le))",
+          "legendFormat": "P99"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "拒絕原因分佈",
+      "description": "B 開頭（售罄、限購）是正常的業務結果；C 開頭（基礎設施故障）才是需要介入的訊號。把兩者放在同一張圖，是為了讓值班的人一眼看出「今天的異常是賣太好還是壞掉了」。",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "targets": [
+        {
+          "expr": "sum by (code) (rate(seckill_rejection_total[1m]))",
+          "legendFormat": "{{code}}"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "訂單落庫（MQ 消費端）",
+      "description": "created 的速率若持續低於搶購成功速率，代表消費端已經跟不上，佇列正在堆積。duplicate 出現是正常的——那是 at-least-once 語意下冪等機制正在生效的證據。",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "targets": [
+        {
+          "expr": "sum by (result) (rate(seckill_order_persist_total[1m]))",
+          "legendFormat": "{{result}}"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "庫存補償失敗數（1 小時）",
+      "description": "此數字必須恆為 0。任何非零值都代表有庫存被永久鎖住，是直接的營收損失，需人工核對。",
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 16 },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(increase(seckill_compensation_total{result=\"failure\"}[1h]))",
+          "legendFormat": "補償失敗"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "熔斷器狀態",
+      "description": "1 = 該狀態生效。open 代表搶購已降級；half_open 代表正在試探下游是否恢復。",
+      "gridPos": { "h": 6, "w": 8, "x": 8, "y": 16 },
+      "targets": [
+        {
+          "expr": "resilience4j_circuitbreaker_state",
+          "legendFormat": "{{name}} - {{state}}"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "JVM 與連線池",
+      "description": "Hikari 的 pending 若持續大於 0，代表消費端的資料庫連線不足，此時提高消費並行度只會讓情況更糟。",
+      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 16 },
+      "targets": [
+        {
+          "expr": "hikaricp_connections_active",
+          "legendFormat": "DB 使用中連線"
+        },
+        {
+          "expr": "hikaricp_connections_pending",
+          "legendFormat": "DB 等待中請求"
+        },
+        {
+          "expr": "sum(jvm_threads_live_threads)",
+          "legendFormat": "JVM 執行緒"
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 39,
+  "version": 1
+}

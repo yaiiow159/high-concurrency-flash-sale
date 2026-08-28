@@ -1,0 +1,15 @@
+global:
+  scrape_interval: 5s      # 秒殺活動往往只持續幾分鐘，預設 15s 的取樣會錯過整段尖峰
+  evaluation_interval: 10s
+
+rule_files:
+  - /etc/prometheus/alert-rules.yml
+
+scrape_configs:
+  - job_name: flash-sale
+    metrics_path: /actuator/prometheus
+    static_configs:
+      # host.docker.internal 讓容器內的 Prometheus 能抓到跑在宿主機上的應用
+      - targets: ["host.docker.internal:8080"]
+        labels:
+          service: flash-sale

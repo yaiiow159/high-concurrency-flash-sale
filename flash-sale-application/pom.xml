@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.flashsale</groupId>
+        <artifactId>flash-sale-parent</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>flash-sale-application</artifactId>
+    <name>flash-sale-application</name>
+    <description>應用層：Use Case 編排與 Port 介面定義</description>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.flashsale</groupId>
+            <artifactId>flash-sale-domain</artifactId>
+        </dependency>
+
+        <!--
+          僅允許 spring-context / spring-tx（註解與交易邊界）。
+          嚴禁 spring-web、spring-data-*、redis、kafka 等技術細節依賴，
+          否則 Use Case 將無法脫離基礎設施被測試。此規則由 ArchUnit 強制。
+        -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-context</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-tx</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-core</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>
