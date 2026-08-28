@@ -1,0 +1,21 @@
+target/
+!.mvn/wrapper/maven-wrapper.jar
+*.class
+*.jar
+*.war
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.settings/
+.classpath
+.project
+logs/
+*.log
+.DS_Store
+.env
+
+# hook 測試時產生的 Python 快取
+__pycache__/
+*.pyc
