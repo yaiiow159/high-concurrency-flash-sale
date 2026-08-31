@@ -8,6 +8,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.time.Clock;
+import java.time.Instant;
+import java.util.Optional;
 
 /**
  * Snowflake 訂單號產生器。
@@ -88,6 +90,28 @@ public class SnowflakeOrderNoGenerator implements OrderNoGenerator {
                 | (nodeId << NODE_ID_SHIFT)
                 | sequence;
         return OrderNo.of(Long.toString(id));
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>把時間戳位元段移回來再加上紀元即可還原。這也是選 Snowflake 而非 UUID 的
+     * 附帶好處之一：ID 自帶時間資訊，對帳時不必為了知道「這筆多久以前產生的」
+     * 而去查資料庫——而查資料庫正是孤兒扣減這個場景做不到的事（訂單根本不存在）。
+     */
+    @Override
+    public Optional<Instant> issuedAt(OrderNo orderNo) {
+        try {
+            long id = Long.parseLong(orderNo.value());
+            if (id <= 0) {
+                return Optional.empty();
+            }
+            return Optional.of(Instant.ofEpochMilli((id >>> TIMESTAMP_SHIFT) + EPOCH_MILLIS));
+        } catch (NumberFormatException e) {
+            // 訂單號不是本產生器發的（例如資料遷移自舊系統）——回報無法解析，
+            // 讓呼叫端保守處理，而不是猜一個時間出來。
+            return Optional.empty();
+        }
     }
 
     private long awaitNextValidTimestamp() {

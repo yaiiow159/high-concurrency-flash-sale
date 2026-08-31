@@ -8,6 +8,7 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -39,6 +40,14 @@ public class JpaActivityRepository implements ActivityRepository {
     @Transactional(readOnly = true)
     public List<SeckillActivity> findOnlineActivities() {
         return jpaRepository.findOnline(clock.instant()).stream()
+                .map(ActivityMapper::toDomain)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<SeckillActivity> findForReconciliation(Instant endedAfter) {
+        return jpaRepository.findForReconciliation(endedAfter).stream()
                 .map(ActivityMapper::toDomain)
                 .toList();
     }

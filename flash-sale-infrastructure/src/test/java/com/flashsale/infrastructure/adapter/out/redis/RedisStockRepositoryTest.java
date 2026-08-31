@@ -1,5 +1,6 @@
 package com.flashsale.infrastructure.adapter.out.redis;
 
+import com.flashsale.domain.stock.StockBinding;
 import com.flashsale.domain.stock.StockDeductionOutcome;
 import com.flashsale.domain.stock.StockDeductionResult;
 import org.junit.jupiter.api.AfterAll;
@@ -20,6 +21,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -241,6 +243,91 @@ class RedisStockRepositoryTest {
 
             assertThat(stockRepository.restore(ACTIVITY_ID, 1L, 5, "never-existed")).isFalse();
             assertThat(stockRepository.availableStock(ACTIVITY_ID)).isEqualTo(10);
+        }
+    }
+
+    @Nested
+    @DisplayName("扣減憑證與對帳掃描")
+    class BindingScan {
+
+        @Test
+        @DisplayName("憑證需攜帶 userId 與數量——否則孤兒扣減發現了也退不回去")
+        void bindingCarriesEnoughDataToBeReversed() {
+            stockRepository.initialize(ACTIVITY_ID, 100, Duration.ofMinutes(10), true);
+            stockRepository.deduct(ACTIVITY_ID, 88L, 2, PER_USER_LIMIT, "req-1", "ORDER-1");
+
+            List<StockBinding> scanned = scanAll();
+
+            assertThat(scanned).singleElement().satisfies(binding -> {
+                assertThat(binding.requestId()).isEqualTo("req-1");
+                assertThat(binding.orderNo()).isEqualTo("ORDER-1");
+                assertThat(binding.userId()).isEqualTo(88L);
+                assertThat(binding.quantity()).isEqualTo(2);
+                assertThat(binding.isReversible()).isTrue();
+            });
+        }
+
+        @Test
+        @DisplayName("重複請求仍只回傳訂單號，不把內部憑證格式洩漏給呼叫端")
+        void duplicateStillReturnsPlainOrderNo() {
+            stockRepository.initialize(ACTIVITY_ID, 100, Duration.ofMinutes(10), true);
+            stockRepository.deduct(ACTIVITY_ID, 88L, 2, PER_USER_LIMIT, "req-1", "ORDER-1");
+
+            StockDeductionResult replayed =
+                    stockRepository.deduct(ACTIVITY_ID, 88L, 2, PER_USER_LIMIT, "req-1", "ORDER-2");
+
+            assertThat(replayed.outcome()).isEqualTo(StockDeductionOutcome.DUPLICATE_REQUEST);
+            assertThat(replayed.orderNo()).isEqualTo("ORDER-1");
+        }
+
+        @Test
+        @DisplayName("掃描分批進行，且涵蓋所有憑證")
+        void scansAllBindingsInBatches() {
+            int deductions = 250;
+            stockRepository.initialize(ACTIVITY_ID, 1000, Duration.ofMinutes(10), true);
+            for (int i = 0; i < deductions; i++) {
+                stockRepository.deduct(ACTIVITY_ID, (long) i, 1, PER_USER_LIMIT, "req-" + i, "ORDER-" + i);
+            }
+
+            List<Integer> batchSizes = new ArrayList<>();
+            List<StockBinding> collected = new ArrayList<>();
+            stockRepository.scanBindings(ACTIVITY_ID, 50, batch -> {
+                batchSizes.add(batch.size());
+                collected.addAll(batch);
+            });
+
+            assertThat(collected).hasSize(deductions);
+            assertThat(collected).extracting(StockBinding::requestId).doesNotHaveDuplicates();
+            // 分批的意義在於記憶體上限固定；單批不該超過設定值
+            assertThat(batchSizes).allSatisfy(size -> assertThat(size).isLessThanOrEqualTo(50));
+        }
+
+        @Test
+        @DisplayName("退庫後憑證即消失——這正是重複退庫不會生效的原因")
+        void restoreRemovesBinding() {
+            stockRepository.initialize(ACTIVITY_ID, 100, Duration.ofMinutes(10), true);
+            stockRepository.deduct(ACTIVITY_ID, 88L, 2, PER_USER_LIMIT, "req-1", "ORDER-1");
+
+            stockRepository.restore(ACTIVITY_ID, 88L, 2, "req-1");
+
+            assertThat(scanAll()).isEmpty();
+        }
+
+        @Test
+        @DisplayName("沒有任何憑證時，回呼不應被呼叫")
+        void doesNotInvokeConsumerWhenEmpty() {
+            stockRepository.initialize(ACTIVITY_ID, 100, Duration.ofMinutes(10), true);
+
+            AtomicInteger invocations = new AtomicInteger();
+            stockRepository.scanBindings(ACTIVITY_ID, 50, batch -> invocations.incrementAndGet());
+
+            assertThat(invocations.get()).isZero();
+        }
+
+        private List<StockBinding> scanAll() {
+            List<StockBinding> collected = new ArrayList<>();
+            stockRepository.scanBindings(ACTIVITY_ID, 100, collected::addAll);
+            return collected;
         }
     }
 

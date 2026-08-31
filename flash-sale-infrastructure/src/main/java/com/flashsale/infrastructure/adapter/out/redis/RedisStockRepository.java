@@ -3,6 +3,7 @@ package com.flashsale.infrastructure.adapter.out.redis;
 import com.flashsale.application.port.out.StockRepository;
 import com.flashsale.domain.shared.BusinessException;
 import com.flashsale.domain.shared.ErrorCode;
+import com.flashsale.domain.stock.StockBinding;
 import com.flashsale.domain.stock.StockDeductionOutcome;
 import com.flashsale.domain.stock.StockDeductionResult;
 import com.github.benmanes.caffeine.cache.Cache;
@@ -10,12 +11,17 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataAccessException;
+import org.springframework.data.redis.core.Cursor;
+import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Repository;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Consumer;
 
 /**
  * 庫存埠的 Redis 實作——防超賣的核心。
@@ -70,7 +76,8 @@ public class RedisStockRepository implements StockRepository {
                 requestId, orderNo, ttlSeconds);
 
         StockDeductionOutcome outcome = StockDeductionOutcome.fromCode(((Number) raw.get(0)).longValue());
-        String boundOrderNo = asNullableString(raw.get(1));
+        // Lua 回傳的是完整憑證（orderNo|userId|quantity），對外只暴露訂單號。
+        String boundOrderNo = StockBindingCodec.extractOrderNo(asNullableString(raw.get(1)));
 
         return switch (outcome) {
             case SUCCESS -> StockDeductionResult.success(boundOrderNo);
@@ -165,6 +172,39 @@ public class RedisStockRepository implements StockRepository {
     private long queryStockKeyTtlSeconds(Long activityId) {
         Long ttl = redisTemplate.getExpire(RedisKeys.stock(activityId));
         return (ttl == null || ttl <= 0) ? FALLBACK_AUXILIARY_TTL.toSeconds() : ttl;
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>以 {@code HSCAN} 漸進式掃描。<b>絕不可改用 {@code HGETALL}</b>——
+     * 後者會阻塞 Redis 單執行緒直到整個 hash 讀完，
+     * 在一場有數十萬筆綁定的活動進行中執行，等同對自己發動一次阻斷攻擊。
+     */
+    @Override
+    public void scanBindings(Long activityId, int batchSize, Consumer<List<StockBinding>> batchConsumer) {
+        String key = RedisKeys.requestBinding(activityId);
+        ScanOptions options = ScanOptions.scanOptions().count(batchSize).build();
+
+        List<StockBinding> batch = new ArrayList<>(batchSize);
+        try (Cursor<Map.Entry<Object, Object>> cursor = redisTemplate.opsForHash().scan(key, options)) {
+            while (cursor.hasNext()) {
+                Map.Entry<Object, Object> entry = cursor.next();
+                batch.add(StockBindingCodec.decode(
+                        String.valueOf(entry.getKey()), String.valueOf(entry.getValue())));
+
+                if (batch.size() >= batchSize) {
+                    batchConsumer.accept(List.copyOf(batch));
+                    batch.clear();
+                }
+            }
+        } catch (DataAccessException e) {
+            throw new BusinessException(ErrorCode.STOCK_SERVICE_UNAVAILABLE,
+                    "掃描扣減憑證失敗 activityId=" + activityId, e);
+        }
+        if (!batch.isEmpty()) {
+            batchConsumer.accept(List.copyOf(batch));
+        }
     }
 
     private static String asNullableString(Object value) {

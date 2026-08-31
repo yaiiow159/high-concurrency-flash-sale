@@ -101,6 +101,36 @@ flash-sale:
     retention-days: 7
     relay-interval-ms: 1000
     cleanup-cron: "0 30 3 * * *"
+  reconciliation:
+    # 每 10 分鐘核對一次「Redis 餘量 + 未取消訂單數量 = 活動總庫存」
+    interval-ms: 600000
+    # 啟動後先等 2 分鐘：此時預熱未完成、MQ 積壓未消化，太早對帳只會報出假偏差
+    initial-delay-ms: 120000
+    # 必須明顯長於 order.payment-window(15m) 與 MQ 重試總時長，
+    # 否則會把還在佇列中排隊的請求誤判為孤兒而退庫 —— 那就是超賣
+    orphan-grace-period: 30m
+    scan-batch-size: 500
+    # 預設關閉：有 bug 的自動修復，破壞力大於它要修的問題。
+    # 觀察一段時間確認偵測邏輯無誤後再考慮開啟。
+    auto-repair-orphans: ${RECONCILIATION_AUTO_REPAIR:false}
+
+  security:
+    jwt:
+      # HS256 要求金鑰至少 256 bits（32 個 ASCII 字元）。
+      # 這個預設值只供本機開發，正式環境務必以 JWT_SECRET 覆寫。
+      # 服務數量變多後應改用非對稱簽章：設定 spring.security.oauth2.resourceserver.jwt.jwk-set-uri
+      # 指向 IdP，並刪除 SecurityConfig 中的 jwtDecoder Bean 即可。
+      secret: ${JWT_SECRET:dev-only-secret-change-me-in-production-0123456789abcdef}
+      issuer: flash-sale
+      # 受眾驗證：少了它，同一個 IdP 簽給其他服務的令牌也能存取本服務
+      audience: flash-sale-api
+      ttl: 2h
+    dev-token:
+      # 開發用發證端點，不做任何身分驗證。
+      # 設為 false 時整個 Controller Bean 都不會註冊，端點根本不存在。
+      # 正式部署不要帶這個環境變數即可。
+      enabled: ${DEV_TOKEN_ENABLED:true}
+
   rate-limit:
     # 單一使用者：桶容量 5、每秒補 1 個。容許手滑連點，擋得住腳本刷單。
     capacity: 5
@@ -178,3 +208,5 @@ logging:
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
+    # 讓 Swagger UI 記住輸入過的令牌，不必每次重貼
+    persist-authorization: true

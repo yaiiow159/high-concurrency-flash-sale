@@ -7,7 +7,7 @@
 
   KEYS[1]  庫存餘量鍵     seckill:{a<id>}:stock
   KEYS[2]  使用者已購量   seckill:{a<id>}:user
-  KEYS[3]  請求→訂單映射  seckill:{a<id>}:req
+  KEYS[3]  請求→扣減憑證 seckill:{a<id>}:req
 
   ARGV[1]  userId
   ARGV[2]  退回數量

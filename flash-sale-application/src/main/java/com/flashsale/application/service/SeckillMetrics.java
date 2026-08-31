@@ -1,13 +1,18 @@
 package com.flashsale.application.service;
 
+import com.flashsale.application.port.in.dto.ActivityReconciliation;
 import com.flashsale.domain.shared.ErrorCode;
 import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * 秒殺鏈路的業務指標。
@@ -26,8 +31,19 @@ public class SeckillMetrics {
     private static final String REJECTION_COUNTER = "seckill.rejection.total";
     private static final String COMPENSATION_COUNTER = "seckill.compensation.total";
     private static final String ORDER_PERSIST_COUNTER = "seckill.order.persist.total";
+    private static final String RECONCILIATION_COUNTER = "seckill.reconciliation.total";
+    private static final String ORPHAN_COUNTER = "seckill.orphan.binding.total";
+    private static final String DRIFT_GAUGE = "seckill.stock.drift";
 
     private final MeterRegistry registry;
+
+    /**
+     * 各活動的庫存偏差值。
+     *
+     * <p>Micrometer 的 Gauge 只持有弱參考，若不自己保存這些 {@link AtomicLong}，
+     * 它們會被 GC 回收，面板上的指標就會靜默消失——這是 Gauge 最常見的踩雷點。
+     */
+    private final Map<Long, AtomicLong> driftGauges = new ConcurrentHashMap<>();
 
     public SeckillMetrics(MeterRegistry registry) {
         this.registry = registry;
@@ -63,6 +79,40 @@ public class SeckillMetrics {
                 .tag("activity", String.valueOf(activityId))
                 .tag("result", result)
                 .description("MQ 消費端訂單落庫結果")
+                .register(registry)
+                .increment();
+    }
+
+    /**
+     * 記錄一次對帳結果。
+     *
+     * <p>偏差以 Gauge 呈現而非 Counter：它是一個「當下的狀態」而非累計事件，
+     * 且需要能回到 0（修復後）。用 Counter 會讓修復後的面板仍停在歷史高點。
+     */
+    public void recordReconciliation(ActivityReconciliation result) {
+        Counter.builder(RECONCILIATION_COUNTER)
+                .tag("activity", String.valueOf(result.activityId()))
+                .tag("verdict", result.verdict().name())
+                .description("庫存對帳執行次數，依判定結果分類")
+                .register(registry)
+                .increment();
+
+        driftGauges.computeIfAbsent(result.activityId(), activityId -> {
+            AtomicLong holder = new AtomicLong();
+            Gauge.builder(DRIFT_GAUGE, holder, AtomicLong::get)
+                    .tag("activity", String.valueOf(activityId))
+                    .description("Redis 實際餘量與依訂單推算的應有餘量之差；恆為 0 才是健康")
+                    .register(registry);
+            return holder;
+        }).set(result.drift());
+    }
+
+    /** 孤兒扣減的偵測與修復結果。{@code action} 為 detected / repaired / repair-failed 等。 */
+    public void recordOrphanBinding(Long activityId, String action) {
+        Counter.builder(ORPHAN_COUNTER)
+                .tag("activity", String.valueOf(activityId))
+                .tag("action", action)
+                .description("庫存已扣但查無訂單的孤兒扣減")
                 .register(registry)
                 .increment();
     }

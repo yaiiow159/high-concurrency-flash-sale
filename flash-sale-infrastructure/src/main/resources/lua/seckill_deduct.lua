@@ -7,7 +7,7 @@
 
   KEYS[1]  庫存餘量鍵          seckill:{a<id>}:stock   (String)
   KEYS[2]  使用者已購量        seckill:{a<id>}:user    (Hash: userId -> qty)
-  KEYS[3]  請求→訂單映射       seckill:{a<id>}:req     (Hash: requestId -> orderNo)
+  KEYS[3]  請求→扣減憑證       seckill:{a<id>}:req     (Hash: requestId -> orderNo|userId|quantity)
 
   ARGV[1]  userId
   ARGV[2]  本次購買數量
@@ -16,12 +16,16 @@
   ARGV[5]  本次預先產生的 orderNo
   ARGV[6]  附屬鍵的 TTL 秒數
 
-  回傳 { code, orderNo }
-     1 = 扣減成功，orderNo 為本次綁定的訂單號
+  回傳 { code, binding }
+     1 = 扣減成功，binding 為本次寫入的憑證（orderNo|userId|quantity）
      0 = 庫存不足
     -1 = 超過個人限購
     -2 = 庫存未預熱（鍵不存在）
-    -3 = 重複請求，orderNo 為首次扣減時綁定的訂單號
+    -3 = 重複請求，binding 為首次扣減時寫入的憑證
+
+  憑證刻意記錄 userId 與 quantity 而非只記 orderNo：
+  對帳發現孤兒扣減（庫存已扣、訂單不存在）時，沒有訂單可查數量，
+  唯有憑證自身攜帶足夠資訊，那筆洩漏才退得回去。
 --]]
 
 local stockKey   = KEYS[1]
@@ -36,9 +40,9 @@ local orderNo      = ARGV[5]
 local ttlSeconds   = tonumber(ARGV[6])
 
 -- 1. 冪等判重：同一個 requestId 只會扣一次，重送直接回放首次的訂單號。
-local boundOrderNo = redis.call('HGET', requestKey, requestId)
-if boundOrderNo then
-    return { -3, boundOrderNo }
+local existingBinding = redis.call('HGET', requestKey, requestId)
+if existingBinding then
+    return { -3, existingBinding }
 end
 
 -- 2. 庫存必須已預熱。刻意不在此建立鍵：查不到就是預熱漏了，
@@ -61,7 +65,8 @@ end
 -- 4. 扣減並落下冪等痕跡。三個寫入在同一次腳本執行內，要嘛全成功要嘛全不發生。
 redis.call('DECRBY', stockKey, quantity)
 redis.call('HINCRBY', userKey, userId, quantity)
-redis.call('HSET', requestKey, requestId, orderNo)
+local binding = orderNo .. '|' .. userId .. '|' .. quantity
+redis.call('HSET', requestKey, requestId, binding)
 
 -- 5. 附屬鍵首次建立時補上 TTL，避免活動結束後留下永不過期的殘骸。
 if redis.call('TTL', userKey) < 0 then
@@ -71,4 +76,4 @@ if redis.call('TTL', requestKey) < 0 then
     redis.call('EXPIRE', requestKey, ttlSeconds)
 end
 
-return { 1, orderNo }
+return { 1, binding }

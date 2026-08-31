@@ -1,8 +1,11 @@
 package com.flashsale.application.port.out;
 
+import com.flashsale.domain.stock.StockBinding;
 import com.flashsale.domain.stock.StockDeductionResult;
 
 import java.time.Duration;
+import java.util.List;
+import java.util.function.Consumer;
 
 /**
  * 庫存埠（出站）。
@@ -43,4 +46,20 @@ public interface StockRepository {
 
     /** 目前可用餘量；活動未預熱時回傳 {@code -1}（與「餘量為 0」明確區分）。 */
     long availableStock(Long activityId);
+
+    /**
+     * 分批掃描此活動所有「已扣減庫存」的請求綁定，供對帳找出孤兒扣減。
+     *
+     * <p><b>設計成回呼而非回傳整份清單</b>：一場大促的綁定數量等同訂單數，
+     * 可能有數十萬筆。一次全撈進記憶體，對帳排程自己就會變成故障源。
+     * 回呼讓記憶體用量固定在單批大小，與活動規模無關。
+     *
+     * <p>實作必須使用漸進式掃描（Redis 的 {@code HSCAN}），
+     * <b>不可用 {@code HGETALL}</b>——後者會阻塞 Redis 單執行緒直到整個 hash 讀完，
+     * 在秒殺進行中執行等同一次自我攻擊。
+     *
+     * @param batchSize     單批筆數
+     * @param batchConsumer 每批的處理邏輯
+     */
+    void scanBindings(Long activityId, int batchSize, Consumer<List<StockBinding>> batchConsumer);
 }

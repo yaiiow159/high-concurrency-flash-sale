@@ -16,8 +16,10 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import org.springframework.data.domain.Limit;
 
 /** 訂單持久化埠的 JPA 實作。 */
@@ -75,6 +77,22 @@ public class JpaOrderRepository implements OrderRepository {
     @Transactional(readOnly = true)
     public Optional<SeckillOrder> findByRequestId(String requestId) {
         return jpaRepository.findByRequestId(requestId).map(OrderMapper::toDomain);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long sumActiveQuantity(Long activityId) {
+        return jpaRepository.sumActiveQuantity(activityId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Set<String> findExistingOrderNos(Collection<String> orderNos) {
+        if (orderNos.isEmpty()) {
+            // 空集合會產生 `in ()` 這種在部分資料庫上非法的 SQL，先擋掉。
+            return Set.of();
+        }
+        return Set.copyOf(jpaRepository.findExistingOrderNos(orderNos));
     }
 
     @Override

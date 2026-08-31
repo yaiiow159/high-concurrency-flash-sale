@@ -20,7 +20,8 @@ public record FlashSaleProperties(
         @DefaultValue Order order,
         @DefaultValue Stock stock,
         @DefaultValue Snowflake snowflake,
-        @DefaultValue Outbox outbox
+        @DefaultValue Outbox outbox,
+        @DefaultValue Reconciliation reconciliation
 ) {
 
     /**
@@ -62,5 +63,19 @@ public record FlashSaleProperties(
             @DefaultValue("200") int batchSize,
             @DefaultValue("5") int maxRetry,
             @DefaultValue("7") int retentionDays) {
+    }
+
+    /**
+     * @param orphanGracePeriod 孤兒扣減的寬限期。<b>必須明顯長於付款期限與 MQ 最大重試時間</b>，
+     *                          否則會把還在佇列中正常排隊的請求誤判為孤兒而退庫，
+     *                          等訊息真的被消費時就成了超賣
+     * @param scanBatchSize     掃描扣減憑證的單批筆數
+     * @param autoRepairOrphans 是否自動退回孤兒扣減。<b>預設關閉</b>：
+     *                          有 bug 的自動修復，破壞力大於它要修的問題
+     */
+    public record Reconciliation(
+            @DefaultValue("30m") Duration orphanGracePeriod,
+            @DefaultValue("500") int scanBatchSize,
+            @DefaultValue("false") boolean autoRepairOrphans) {
     }
 }

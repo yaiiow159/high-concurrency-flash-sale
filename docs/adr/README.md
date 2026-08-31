@@ -12,6 +12,7 @@
 | [0002](0002-stock-in-redis-not-database.md) | 庫存餘量放 Redis，不放聚合根與資料庫 | 已採納 |
 | [0003](0003-lua-atomicity-over-distributed-lock.md) | 以 Lua 原子性取代分散式鎖 | 已採納 |
 | [0004](0004-outbox-saga-over-seata.md) | Outbox + Saga 取代 Seata 分散式交易 | 已採納 |
+| [0005](0005-jwt-resource-server-over-custom-filter.md) | 以 OAuth2 Resource Server 承載認證 | 已採納 |
 
 ## 撰寫格式
 
