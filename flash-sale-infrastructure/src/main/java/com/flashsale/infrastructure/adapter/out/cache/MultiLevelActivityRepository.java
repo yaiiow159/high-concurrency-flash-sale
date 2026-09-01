@@ -127,6 +127,12 @@ public class MultiLevelActivityRepository implements ActivityRepository {
         return delegate.findForReconciliation(endedAfter);
     }
 
+    /** 同樣繞過快取：釋放會實際改動庫存數字，依據不可以是舊資料。 */
+    @Override
+    public List<SeckillActivity> findEndedBefore(Instant endedBefore) {
+        return delegate.findEndedBefore(endedBefore);
+    }
+
     /**
      * 回源重建快取，以分散式鎖防擊穿。
      *

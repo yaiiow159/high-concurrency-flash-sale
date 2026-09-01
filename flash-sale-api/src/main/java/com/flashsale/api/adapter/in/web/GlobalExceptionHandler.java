@@ -63,6 +63,12 @@ public class GlobalExceptionHandler {
             Map.entry(ErrorCode.INVALID_CALLBACK_SIGNATURE, HttpStatus.UNAUTHORIZED),
             Map.entry(ErrorCode.PRODUCT_NOT_FOUND, HttpStatus.NOT_FOUND),
             Map.entry(ErrorCode.SKU_NOT_FOUND, HttpStatus.NOT_FOUND),
+            // 庫存維運的兩種拒絕都是「目前的狀態不允許這個操作」，不是請求寫錯
+            Map.entry(ErrorCode.INVENTORY_NOT_FOUND, HttpStatus.NOT_FOUND),
+            Map.entry(ErrorCode.INSUFFICIENT_INVENTORY_TO_ALLOCATE, HttpStatus.CONFLICT),
+            Map.entry(ErrorCode.INVENTORY_RELEASE_EXCEEDS_ALLOCATION, HttpStatus.CONFLICT),
+            Map.entry(ErrorCode.ACTIVITY_STOCK_ALREADY_RELEASED, HttpStatus.CONFLICT),
+            Map.entry(ErrorCode.ACTIVITY_NOT_COOLED_DOWN, HttpStatus.CONFLICT),
             Map.entry(ErrorCode.CATEGORY_NOT_FOUND, HttpStatus.NOT_FOUND),
             Map.entry(ErrorCode.PRODUCT_NOT_PURCHASABLE, HttpStatus.CONFLICT)
     );

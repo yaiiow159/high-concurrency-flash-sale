@@ -1,7 +1,9 @@
 package com.flashsale.infrastructure.scheduler;
 
+import com.flashsale.application.port.in.InventoryReconciliationUseCase;
 import com.flashsale.application.port.in.StockReconciliationUseCase;
 import com.flashsale.application.port.in.dto.ActivityReconciliation;
+import com.flashsale.application.port.in.dto.SkuReconciliation;
 import com.flashsale.application.port.out.DistributedLock;
 import com.flashsale.domain.stock.ReconciliationVerdict;
 import org.slf4j.Logger;
@@ -36,11 +38,14 @@ public class StockReconciliationScheduler {
     private static final Duration LOCK_LEASE = Duration.ofMinutes(10);
 
     private final StockReconciliationUseCase reconciliationUseCase;
+    private final InventoryReconciliationUseCase inventoryReconciliationUseCase;
     private final DistributedLock distributedLock;
 
     public StockReconciliationScheduler(StockReconciliationUseCase reconciliationUseCase,
+                                        InventoryReconciliationUseCase inventoryReconciliationUseCase,
                                         DistributedLock distributedLock) {
         this.reconciliationUseCase = reconciliationUseCase;
+        this.inventoryReconciliationUseCase = inventoryReconciliationUseCase;
         this.distributedLock = distributedLock;
     }
 
@@ -55,12 +60,25 @@ public class StockReconciliationScheduler {
         distributedLock.tryExecuteWithLock(LOCK_KEY, LOCK_LEASE, this::runSafely);
     }
 
+    /**
+     * 兩種對帳各自獨立 try-catch。
+     *
+     * <p>秒殺對帳失敗<b>不可</b>讓一般庫存對帳跟著不跑：
+     * 雙模型的兩套機制失效方式不同，一邊出問題正是另一邊更該被檢查的時候。
+     * 把兩者包在同一個 try 裡，等於讓故障沿著監控本身擴散。
+     */
     private void runSafely() {
         try {
             List<ActivityReconciliation> results = reconciliationUseCase.reconcileAll();
             summarize(results);
         } catch (RuntimeException e) {
-            log.error("庫存對帳執行失敗，下一輪將重試", e);
+            log.error("秒殺庫存對帳執行失敗，下一輪將重試", e);
+        }
+        try {
+            List<SkuReconciliation> unbalanced = inventoryReconciliationUseCase.reconcileAll();
+            unbalanced.forEach(result -> log.error("  {}", result.summary()));
+        } catch (RuntimeException e) {
+            log.error("一般庫存對帳執行失敗，下一輪將重試", e);
         }
     }
 

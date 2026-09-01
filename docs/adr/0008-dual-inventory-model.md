@@ -103,8 +103,8 @@ inventory
 ### 庫存流水表是必要的，不是加分項
 
 ```
-inventory_transaction
-  id, sku_id, type, quantity, ref_type, ref_no, created_at
+inventory_movement
+  id, sku_id, type, available_delta, allocated_delta, ref_type, ref_no, created_at
   type: DEDUCT / RESTORE / ALLOCATE / RELEASE / ADJUST
 ```
 
@@ -114,6 +114,17 @@ inventory_transaction
 這與秒殺 Redis 的扣減憑證機制（`orderNo|userId|quantity`）解決的是同一個問題，
 只是換到關聯式資料庫的表述。
 
+**記兩個增減量而不是一個數量**，是實作時修正的一點。庫存有兩個欄位，
+而異動對兩者的影響不是同一個數字：釋放時「回到可售池的量」與
+「從劃撥中扣掉的量」根本是兩個值，兩者之差才是實際銷量。
+只記一個 `quantity` 的流水無法重建出現在的庫存——
+而重建正是流水存在的唯一理由。一份重建不出結果的流水，
+只是一堆看起來很像稽核紀錄的字串。
+
+唯一鍵是 `(ref_type, ref_no, type, sku_id)`。`sku_id` 不可省：
+多品項訂單的第二行有同樣的 `orderNo` 與同樣的 `DEDUCT`，
+漏掉那一欄，一般下單就只能買一種商品。
+
 ### 刻意不引入 `reserved` 欄位
 
 「已下單未付款」的佔用量看似該有個欄位記錄，但它**可以從訂單表推導**
@@ -121,6 +132,39 @@ inventory_transaction
 
 多一個反正規化欄位就多一種不一致的可能。下單直接扣 `available`、
 取消時退回，與秒殺的語意一致，狀態也更少。
+
+### 實作時才浮現的一條路徑：釋放之後又被預熱
+
+規劃這份 ADR 時只想到「劃撥時 MySQL 成功而 Redis 失敗」這種單次失敗。
+實作完成後做端到端驗證時，撞到一條更難發現的：
+
+```
+00:54:30  活動釋放完成（劃撥 50，收回 50），Redis 鍵已丟棄
+00:54:44  預熱排程定期補跑 → 活動庫存初始化：寫入 50
+```
+
+預熱排程每分鐘補跑一次，**它在釋放後 14 秒就把庫存寫回 Redis**。
+此時 `allocated` 已經歸零，於是 Redis 握著 50 件 `available` 從沒為它付過帳的貨——
+秒殺賣一次、一般通道再賣一次。
+
+劃撥流水的唯一索引擋不住這件事：它讓「重新劃撥」被視為冪等而安靜略過，
+但 `stockRepository.initialize` 不受那道索引管。**冪等保護的是它自己那一步，
+不是整條流程。**
+
+兩處都補了：
+
+| 位置 | 規則 |
+|------|------|
+| 預熱 | 活動的庫存已釋放過就拒絕預熱（`ACTIVITY_STOCK_ALREADY_RELEASED`）。要重新開賣同一批貨，正確做法是建立新活動走完整劃撥 |
+| 釋放 | 未過緩衝期不可釋放（`ACTIVITY_NOT_COOLED_DOWN`）。排程本來就會過濾，但維運端點不會 |
+| 對帳 | 新增第三條檢查：**Redis 有庫存但無劃撥支撐**，一律判 `OVERSELL_RISK` |
+
+第三條是重點。這個狀態下，前兩條恆等式**都會回報帳平**：
+Redis 餘量與訂單數對得上，`available`／`allocated` 與流水也對得上——
+兩邊各自都沒錯，而那批貨仍然不屬於任何人。
+
+> 對帳不能只依賴「寫入端不會出錯」。對帳存在的理由，
+> 正是「總會有某個寫入路徑出錯」。加了守門之後仍要加這條檢查，原因就在這裡。
 
 ## 代價
 

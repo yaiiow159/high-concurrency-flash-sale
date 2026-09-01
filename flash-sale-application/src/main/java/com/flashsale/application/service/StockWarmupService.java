@@ -4,6 +4,7 @@ import com.flashsale.application.config.SeckillPolicy;
 import com.flashsale.application.port.in.StockWarmupUseCase;
 import com.flashsale.application.port.out.ActivityRepository;
 import com.flashsale.application.port.out.DistributedLock;
+import com.flashsale.application.port.out.InventoryRepository;
 import com.flashsale.application.port.out.SoldOutMarker;
 import com.flashsale.application.port.out.StockRepository;
 import com.flashsale.domain.activity.SeckillActivity;
@@ -38,6 +39,8 @@ public class StockWarmupService implements StockWarmupUseCase {
 
     private final ActivityRepository activityRepository;
     private final StockRepository stockRepository;
+    private final InventoryRepository inventoryRepository;
+    private final InventoryAllocator inventoryAllocator;
     private final DistributedLock distributedLock;
     private final SoldOutMarker soldOutMarker;
     private final SeckillPolicy policy;
@@ -45,12 +48,16 @@ public class StockWarmupService implements StockWarmupUseCase {
 
     public StockWarmupService(ActivityRepository activityRepository,
                               StockRepository stockRepository,
+                              InventoryRepository inventoryRepository,
+                              InventoryAllocator inventoryAllocator,
                               DistributedLock distributedLock,
                               SoldOutMarker soldOutMarker,
                               SeckillPolicy policy,
                               Clock clock) {
         this.activityRepository = activityRepository;
         this.stockRepository = stockRepository;
+        this.inventoryRepository = inventoryRepository;
+        this.inventoryAllocator = inventoryAllocator;
         this.distributedLock = distributedLock;
         this.soldOutMarker = soldOutMarker;
         this.policy = policy;
@@ -83,7 +90,28 @@ public class StockWarmupService implements StockWarmupUseCase {
         return warmed;
     }
 
+    /**
+     * 劃撥 + 預熱。
+     *
+     * <p><b>順序不可對調：先動 MySQL，再寫 Redis。</b>
+     * 兩者無法原子化（ADR-0008 已接受這個代價），因此順序決定了失敗時往哪邊倒：
+     *
+     * <ul>
+     *   <li>MySQL 成功、Redis 失敗 → 可售量已扣但 Redis 沒有額度，
+     *       表現為<b>少賣</b>，由對帳發現（{@code allocated > 0} 卻無對應鍵）</li>
+     *   <li>反過來先寫 Redis → Redis 有額度但可售量沒扣，
+     *       同一批貨被兩條通道各賣一次，就是<b>超賣</b></li>
+     * </ul>
+     *
+     * <p>少賣可以事後補救，超賣不能。這與整個系統對 Redis 故障採 fail-closed
+     * 是同一條原則：選擇代價較小的失敗方向。
+     */
     private long doWarmUp(SeckillActivity activity, boolean force) {
+        requireNotAlreadyReleased(activity);
+
+        inventoryAllocator.allocate(activity.id(), activity.skuId(),
+                activity.totalStock(), clock.instant());
+
         Duration ttl = calculateTtl(activity, clock.instant());
         stockRepository.initialize(activity.id(), activity.totalStock(), ttl, force);
         soldOutMarker.clear(activity.id());
@@ -91,6 +119,24 @@ public class StockWarmupService implements StockWarmupUseCase {
         long available = stockRepository.availableStock(activity.id());
         log.info("活動 {} 預熱完成：可用庫存={}, TTL={}", activity.id(), available, ttl);
         return available;
+    }
+
+    /**
+     * 擋住「釋放後又重新預熱」。
+     *
+     * <p>這是雙模型最隱蔽的一種超賣：劃撥流水的唯一索引會讓重新劃撥被安靜略過
+     * （視為冪等），但 {@code stockRepository.initialize} 不受那道索引管，
+     * 它會照樣把庫存寫回 Redis。結果是 Redis 有一批可賣的量，
+     * 而 MySQL 的 {@code available} 從沒為它付過帳——同一批貨賣了兩次。
+     *
+     * <p>要重新開賣同一批商品，正確做法是建立新活動，
+     * 讓它走完整的劃撥流程；而不是把一場已結算的活動叫醒。
+     */
+    private void requireNotAlreadyReleased(SeckillActivity activity) {
+        if (inventoryRepository.isReleased(activity.id(), activity.skuId())) {
+            throw new BusinessException(ErrorCode.ACTIVITY_STOCK_ALREADY_RELEASED,
+                    "活動 %d 的庫存已釋放回可售池，不可重新預熱".formatted(activity.id()));
+        }
     }
 
     /**
