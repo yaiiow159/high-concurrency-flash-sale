@@ -8,7 +8,7 @@ import java.time.Instant;
 /** 活動詳情，供商品頁展示；{@code availableStock} 取自 Redis 即時餘量。 */
 public record ActivityView(
         Long activityId,
-        Long productId,
+        Long skuId,
         String productName,
         BigDecimal seckillPrice,
         int totalStock,
@@ -35,7 +35,7 @@ public record ActivityView(
     public static ActivityView of(SeckillActivity activity, long availableStock, Instant now) {
         return new ActivityView(
                 activity.id(),
-                activity.productId(),
+                activity.skuId(),
                 activity.productName(),
                 activity.seckillPrice(),
                 activity.totalStock(),

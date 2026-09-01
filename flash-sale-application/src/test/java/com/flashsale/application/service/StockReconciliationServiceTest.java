@@ -322,7 +322,7 @@ class StockReconciliationServiceTest {
     private static SeckillActivity.Builder activityBuilder() {
         return SeckillActivity.builder()
                 .id(ACTIVITY_ID)
-                .productId(2001L)
+                .skuId(2001L)
                 .productName("對帳測試商品")
                 .seckillPrice(new BigDecimal("100.00"))
                 .totalStock(TOTAL_STOCK)

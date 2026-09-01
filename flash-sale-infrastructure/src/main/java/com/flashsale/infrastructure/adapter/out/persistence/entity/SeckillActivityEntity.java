@@ -24,8 +24,9 @@ public class SeckillActivityEntity {
     @Column(name = "id")
     private Long id;
 
-    @Column(name = "product_id", nullable = false)
-    private Long productId;
+    /** 指向 SKU 而非 SPU：庫存與價格都掛在 SKU 上（見 Catalog 脈絡）。 */
+    @Column(name = "sku_id", nullable = false)
+    private Long skuId;
 
     @Column(name = "product_name", nullable = false, length = 128)
     private String productName;
@@ -60,8 +61,8 @@ public class SeckillActivityEntity {
         return id;
     }
 
-    public Long getProductId() {
-        return productId;
+    public Long getSkuId() {
+        return skuId;
     }
 
     public String getProductName() {

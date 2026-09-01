@@ -223,7 +223,7 @@ class SeckillApplicationServiceTest {
     private static SeckillActivity.Builder activityBuilder() {
         return SeckillActivity.builder()
                 .id(ACTIVITY_ID)
-                .productId(2001L)
+                .skuId(2001L)
                 .productName("測試商品")
                 .seckillPrice(new BigDecimal("29900.00"))
                 .totalStock(1000)

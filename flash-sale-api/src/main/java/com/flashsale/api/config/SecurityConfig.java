@@ -95,8 +95,12 @@ public class SecurityConfig {
                         // 否則會被 /api/v1/activities/** 的規則先攔截。
                         .requestMatchers(HttpMethod.POST, "/api/v1/activities/*/warm-up")
                         .hasAuthority(SCOPE_ADMIN)
-                        // 商品頁要能匿名瀏覽，但只開放 GET
-                        .requestMatchers(HttpMethod.GET, "/api/v1/activities", "/api/v1/activities/**")
+                        // 商品頁要能匿名瀏覽，但只開放 GET。
+                        // 這也是這些端點能被 CDN 快取的前提——
+                        // 帶 Authorization 的請求無法共用快取。
+                        .requestMatchers(HttpMethod.GET,
+                                "/api/v1/activities", "/api/v1/activities/**",
+                                "/api/v1/catalog/**")
                         .permitAll()
                         // 其餘一律需要認證。用 anyRequest() 收尾而非逐條列舉，
                         // 新增端點時預設是「受保護」而非「開放」——安全的預設值。

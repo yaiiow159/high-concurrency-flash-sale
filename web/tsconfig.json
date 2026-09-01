@@ -1,0 +1,11 @@
+{
+  // Nuxt 在 `nuxt prepare` 時產生 .nuxt/tsconfig.json，
+  // 內含自動 import、模組別名與 srcDir 的解析規則。
+  // 少了這個檔案，`nuxt typecheck` 會直接找不到設定而中止——
+  // 也就是前端完全沒有型別把關。
+  "extends": "./.nuxt/tsconfig.json",
+  "compilerOptions": {
+    // nuxt.config.ts 與 server/ 跑在 Node 上，會用到 process.env
+    "types": ["node"]
+  }
+}

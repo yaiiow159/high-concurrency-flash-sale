@@ -31,6 +31,22 @@ export function useSeckill(activityId: number) {
 
   let stockTimer: ReturnType<typeof setTimeout> | null = null
 
+  /**
+   * 以 SSR 取得的活動作為初始畫面，避免首屏空白。
+   *
+   * 存在的理由是 `activity` 對外是 readonly——只有這個 composable
+   * 能改它的狀態。頁面若能直接賦值，庫存輪詢與使用者操作就多了一個
+   * 不受控的寫入點，而那正是「畫面數字和實際庫存對不上」的來源。
+   *
+   * <b>不覆寫已載入的資料</b>：SSR 那份可能來自 ISR 快取，
+   * 有可能比客戶端剛抓到的還舊。
+   */
+  function seedFromServerRender(view: ActivityView): void {
+    if (activity.value === null) {
+      activity.value = view
+    }
+  }
+
   /** 讀取活動，並順手校正時鐘偏移。 */
   async function loadActivity(): Promise<void> {
     const sentAt = Date.now()
@@ -152,6 +168,7 @@ export function useSeckill(activityId: number) {
     outcome: readonly(outcome),
     submitting: readonly(submitting),
     serverNow: now,
+    seedFromServerRender,
     loadActivity,
     startStockPolling,
     stopStockPolling,
