@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.flashsale.application.config.AuthPolicy;
 import com.flashsale.application.config.ReconciliationPolicy;
 import com.flashsale.application.config.SeckillPolicy;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -20,7 +21,7 @@ import java.time.Clock;
  * 把 {@code @ConfigurationProperties} 綁定的結果，轉成應用層自己定義的純值物件。
  */
 @Configuration
-@EnableConfigurationProperties(FlashSaleProperties.class)
+@EnableConfigurationProperties({FlashSaleProperties.class, JwtProperties.class})
 public class ApplicationCoreConfig {
 
     /**
@@ -42,6 +43,16 @@ public class ApplicationCoreConfig {
                 properties.order().paymentWindow(),
                 properties.stock().keyTtlBuffer(),
                 properties.order().compensationBatchSize());
+    }
+
+    /**
+     * 把 JWT 設定轉為應用層的認證策略值物件。
+     *
+     * <p>應用層只關心「令牌各活多久」，不需要知道簽章金鑰或演算法。
+     */
+    @Bean
+    public AuthPolicy authPolicy(JwtProperties jwtProperties) {
+        return new AuthPolicy(jwtProperties.accessTokenTtl(), jwtProperties.refreshTokenTtl());
     }
 
     /** 把設定綁定結果轉為應用層的對帳策略值物件。 */

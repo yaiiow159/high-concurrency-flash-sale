@@ -118,18 +118,19 @@ flash-sale:
     jwt:
       # HS256 要求金鑰至少 256 bits（32 個 ASCII 字元）。
       # 這個預設值只供本機開發，正式環境務必以 JWT_SECRET 覆寫。
-      # 服務數量變多後應改用非對稱簽章：設定 spring.security.oauth2.resourceserver.jwt.jwk-set-uri
-      # 指向 IdP，並刪除 SecurityConfig 中的 jwtDecoder Bean 即可。
+      # 服務數量變多後應改用非對稱簽章：設定
+      # spring.security.oauth2.resourceserver.jwt.jwk-set-uri 指向 IdP，
+      # 並刪除 SecurityConfig 中的 jwtDecoder Bean 即可。
       secret: ${JWT_SECRET:dev-only-secret-change-me-in-production-0123456789abcdef}
       issuer: flash-sale
       # 受眾驗證：少了它，同一個 IdP 簽給其他服務的令牌也能存取本服務
       audience: flash-sale-api
-      ttl: 2h
-    dev-token:
-      # 開發用發證端點，不做任何身分驗證。
-      # 設為 false 時整個 Controller Bean 都不會註冊，端點根本不存在。
-      # 正式部署不要帶這個環境變數即可。
-      enabled: ${DEV_TOKEN_ENABLED:true}
+      # 刻意設短：access token 無法撤銷，停權或登出後仍會在這段時間內有效
+      access-token-ttl: 15m
+      # 決定「多久沒用就要重新登入」。每次續期都會輪替，舊的立即失效
+      refresh-token-ttl: 7d
+    # 過期令牌的清理排程；已過期的紀錄仍保留 30 天供安全事件調查
+    token-cleanup-cron: "0 15 4 * * *"
 
   rate-limit:
     # 單一使用者：桶容量 5、每秒補 1 個。容許手滑連點，擋得住腳本刷單。

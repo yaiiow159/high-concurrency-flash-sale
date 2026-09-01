@@ -122,13 +122,17 @@ mvn spring-boot:run -pl flash-sale-api
 
 ### 試一次搶購
 
-先取一個開發用令牌（此端點僅在 `DEV_TOKEN_ENABLED=true` 時存在）：
+先註冊並登入：
 
 ```bash
-curl -X POST "http://localhost:8080/api/v1/auth/dev-token?userId=1001"
+curl -X POST http://localhost:8080/api/v1/auth/register -H "Content-Type: application/json" -d "{\"email\":\"alice@example.com\",\"password\":\"correct-horse\",\"displayName\":\"Alice\"}"
 ```
 
-用它發起搶購：
+```bash
+curl -X POST http://localhost:8080/api/v1/auth/login -H "Content-Type: application/json" -d "{\"email\":\"alice@example.com\",\"password\":\"correct-horse\"}"
+```
+
+用回傳的 `accessToken` 發起搶購：
 
 ```bash
 curl -X POST http://localhost:8080/api/v1/seckill/orders -H "Content-Type: application/json" -H "Authorization: Bearer <accessToken>" -d "{\"activityId\":1001,\"quantity\":1,\"requestId\":\"demo-req-001\"}"
@@ -159,12 +163,28 @@ curl http://localhost:8080/api/v1/seckill/orders/123456789 -H "Authorization: Be
 | `GET` | `/api/v1/activities` | 匿名 | 已上架活動列表 |
 | `GET` | `/api/v1/activities/{id}` | 匿名 | 活動詳情（庫存餘量取自 Redis 即時值） |
 | `POST` | `/api/v1/activities/{id}/warm-up` | `seckill:admin` | 手動預熱庫存（維運用） |
-| `POST` | `/api/v1/auth/dev-token` | 匿名 | **僅開發環境**，取得測試令牌 |
+| `POST` | `/api/v1/auth/register` | 匿名 | 註冊 |
+| `POST` | `/api/v1/auth/login` | 匿名 | 登入，回傳 access + refresh token |
+| `POST` | `/api/v1/auth/refresh` | 匿名 | 續期；舊 refresh token 立即失效 |
+| `POST` | `/api/v1/auth/logout` | 匿名 | 撤銷 refresh token |
+| `GET` | `/api/v1/auth/me` | Bearer | 目前登入的使用者 |
 
 ### 認證
 
 採 **OAuth2 Resource Server + JWT**，使用者身分取自標準的 `sub` claim
 （詳見 [ADR-0005](docs/adr/0005-jwt-resource-server-over-custom-filter.md)）。
+
+**令牌採雙軌設計**，因為無狀態與可撤銷是互斥的：
+
+| | Access token | Refresh token |
+|---|---|---|
+| 形式 | JWT（自包含） | 不透明隨機字串 |
+| 有效期 | 15 分鐘 | 7 天 |
+| 驗證 | 純 CPU，零遠端呼叫 | 查資料庫 |
+| 可撤銷 | ❌ | ✅ |
+
+每次續期都會**輪替**——舊的 refresh token 立即失效。若已輪替過的 token
+再度出現，代表該憑證曾外洩，系統會撤銷**整條輪替鏈**逼雙方重新登入。
 
 選 JWT 而非 Session 只有一個理由：**驗證是純 CPU 運算，不需要遠端呼叫**。
 Session 每個請求都要讀一次 Redis，等於在熱路徑上憑空增加一次往返，

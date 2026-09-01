@@ -80,6 +80,22 @@
             <artifactId>spring-security-test</artifactId>
             <scope>test</scope>
         </dependency>
+
+        <!--
+          整合測試用真實的 MySQL 與 Redis。
+          認證流程的關鍵風險是「交易邊界」，那是 mock 結構上就看不到的東西——
+          mock 會顯示 revokeFamily 被呼叫了，但攔不到交易回滾。
+        -->
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>mysql</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>

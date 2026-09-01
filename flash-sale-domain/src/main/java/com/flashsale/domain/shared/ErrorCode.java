@@ -14,6 +14,10 @@ public enum ErrorCode {
     DUPLICATE_REQUEST("A0003", "重複的請求"),
     UNAUTHENTICATED("A0004", "尚未登入或憑證已失效"),
     FORBIDDEN("A0005", "沒有執行此操作的權限"),
+    // 登入失敗一律用同一個錯誤碼與訊息，不區分「信箱不存在」與「密碼錯誤」——
+    // 區分開來等於提供一支帳號枚舉的 API。
+    INVALID_CREDENTIALS("A0006", "帳號或密碼錯誤"),
+    INVALID_REFRESH_TOKEN("A0007", "登入憑證已失效，請重新登入"),
 
     // ---- B：業務規則拒絕 ----
     ACTIVITY_NOT_FOUND("B0001", "活動不存在"),
@@ -24,6 +28,9 @@ public enum ErrorCode {
     USER_PURCHASE_LIMIT_EXCEEDED("B0006", "已達個人限購數量"),
     ORDER_NOT_FOUND("B0007", "訂單不存在"),
     ILLEGAL_ORDER_STATE_TRANSITION("B0008", "訂單狀態不允許此操作"),
+    EMAIL_ALREADY_REGISTERED("B0009", "此電子郵件已被註冊"),
+    ACCOUNT_SUSPENDED("B0010", "帳號已停權"),
+    USER_NOT_FOUND("B0011", "使用者不存在"),
 
     // ---- C：系統/依賴故障 ----
     STOCK_SERVICE_UNAVAILABLE("C0001", "庫存服務暫時不可用"),

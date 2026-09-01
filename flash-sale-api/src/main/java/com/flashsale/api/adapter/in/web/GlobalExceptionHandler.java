@@ -36,15 +36,26 @@ public class GlobalExceptionHandler {
      *
      * <p>未列出的錯誤碼依前綴決定：{@code C}（系統故障）→ 503，其餘 → 409。
      */
-    private static final Map<ErrorCode, HttpStatus> STATUS_MAPPING = Map.of(
-            ErrorCode.INVALID_PARAMETER, HttpStatus.BAD_REQUEST,
-            ErrorCode.RATE_LIMITED, HttpStatus.TOO_MANY_REQUESTS,
-            ErrorCode.UNAUTHENTICATED, HttpStatus.UNAUTHORIZED,
-            ErrorCode.FORBIDDEN, HttpStatus.FORBIDDEN,
-            ErrorCode.ACTIVITY_NOT_FOUND, HttpStatus.NOT_FOUND,
-            ErrorCode.ORDER_NOT_FOUND, HttpStatus.NOT_FOUND,
-            ErrorCode.SOLD_OUT, HttpStatus.CONFLICT,
-            ErrorCode.USER_PURCHASE_LIMIT_EXCEEDED, HttpStatus.CONFLICT
+    // 用 Map.ofEntries 而非 Map.of：後者上限 10 組，加到第 11 個錯誤碼時
+    // 會是一個難以一眼看出原因的編譯錯誤。
+    private static final Map<ErrorCode, HttpStatus> STATUS_MAPPING = Map.ofEntries(
+            Map.entry(ErrorCode.INVALID_PARAMETER, HttpStatus.BAD_REQUEST),
+            Map.entry(ErrorCode.RATE_LIMITED, HttpStatus.TOO_MANY_REQUESTS),
+            Map.entry(ErrorCode.UNAUTHENTICATED, HttpStatus.UNAUTHORIZED),
+            // 認證失敗一律 401：前端攔截器靠這個狀態碼決定要不要觸發續期或導向登入。
+            // 回 409 會讓自動續期邏輯完全失效。
+            Map.entry(ErrorCode.INVALID_CREDENTIALS, HttpStatus.UNAUTHORIZED),
+            Map.entry(ErrorCode.INVALID_REFRESH_TOKEN, HttpStatus.UNAUTHORIZED),
+            Map.entry(ErrorCode.FORBIDDEN, HttpStatus.FORBIDDEN),
+            // 帳號停權是「知道你是誰但不讓你進」，屬於 403 而非 401——
+            // 回 401 會讓前端誤以為重新登入就能解決。
+            Map.entry(ErrorCode.ACCOUNT_SUSPENDED, HttpStatus.FORBIDDEN),
+            Map.entry(ErrorCode.ACTIVITY_NOT_FOUND, HttpStatus.NOT_FOUND),
+            Map.entry(ErrorCode.ORDER_NOT_FOUND, HttpStatus.NOT_FOUND),
+            Map.entry(ErrorCode.USER_NOT_FOUND, HttpStatus.NOT_FOUND),
+            Map.entry(ErrorCode.SOLD_OUT, HttpStatus.CONFLICT),
+            Map.entry(ErrorCode.USER_PURCHASE_LIMIT_EXCEEDED, HttpStatus.CONFLICT),
+            Map.entry(ErrorCode.EMAIL_ALREADY_REGISTERED, HttpStatus.CONFLICT)
     );
 
     @ExceptionHandler(BusinessException.class)
