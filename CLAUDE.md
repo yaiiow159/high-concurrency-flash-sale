@@ -89,7 +89,18 @@ Spring 的交易是動態代理，同一個 Bean 內部呼叫 `this.method()` **
 
 管理端點（預熱、對帳觸發）需要 `seckill:admin` scope。
 新增端點時預設就是「需要認證」——`SecurityConfig` 以 `anyRequest().authenticated()` 收尾，
-要開放必須明確加進放行清單。
+要開放必須明確加進放行清單。**放行清單逐一列出路徑，不可用 `/**` 一次放行**——
+那會連還沒寫的端點也一起開放。
+
+### 7-1. 撤銷令牌必須走獨立交易
+
+重用偵測的流程是「撤銷整條輪替鏈 → 拋例外拒絕請求」。
+但 `BusinessException` 會讓外層交易回滾，**把撤銷一起還原掉**——
+偵測到外洩卻什麼都沒撤銷。
+
+因此撤銷一律經由 `RefreshTokenRevoker`（`REQUIRES_NEW`），
+與 `OutboxRelayer` 拆分同理。**這個 bug 是實機驗證才發現的，
+mock 單元測試看到 `revokeFamily` 有被呼叫就會判定通過。**
 
 ### 8. 對帳的自動修復預設關閉
 
@@ -130,7 +141,8 @@ mvn test -pl flash-sale-domain,flash-sale-application # 快速回饋（無需 Do
 mvn test -pl flash-sale-infrastructure                # Redis 整合測試（需 Docker）
 mvn test -pl flash-sale-api -Dtest=ArchitectureTest -Dsurefire.failIfNoSpecifiedTests=false
 docker compose up -d                                  # 啟動依賴
-curl -X POST "localhost:8080/api/v1/auth/dev-token?userId=1001"  # 取開發用令牌
+curl -X POST localhost:8080/api/v1/auth/register -H "Content-Type: application/json" -d '{"email":"a@b.com","password":"password123","displayName":"A"}'
+curl -X POST localhost:8080/api/v1/auth/login    -H "Content-Type: application/json" -d '{"email":"a@b.com","password":"password123"}'
 mvn spring-boot:run -pl flash-sale-api                # 啟動應用
 ```
 

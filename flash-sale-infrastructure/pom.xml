@@ -66,6 +66,21 @@
             <optional>true</optional>
         </dependency>
 
+        <!--
+          認證的「出站」部分：簽發 access token 與雜湊密碼。
+          刻意只引入 crypto 與 jose 兩個細顆粒模組，不引入
+          spring-boot-starter-security —— 過濾鏈是入站配接器的職責，
+          屬於 api 模組，基礎設施層不該把它拉進來。
+        -->
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-crypto</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-oauth2-jose</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>

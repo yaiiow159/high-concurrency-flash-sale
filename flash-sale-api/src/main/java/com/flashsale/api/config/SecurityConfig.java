@@ -2,6 +2,7 @@ package com.flashsale.api.config;
 
 import com.flashsale.api.adapter.in.web.security.ApiAccessDeniedHandler;
 import com.flashsale.api.adapter.in.web.security.ApiAuthenticationEntryPoint;
+import com.flashsale.infrastructure.config.JwtProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -39,7 +40,10 @@ import java.nio.charset.StandardCharsets;
  */
 @Configuration
 @EnableWebSecurity
-@EnableConfigurationProperties(SecurityProperties.class)
+// 自己宣告所需的設定，而不倚賴別的 @Configuration 剛好也註冊了它。
+// 少了這行，@WebMvcTest 切片會因為找不到 JwtProperties 而整組起不來——
+// 這正是切片測試的價值：它會逼出「只在完整 context 下才成立」的隱性依賴。
+@EnableConfigurationProperties(JwtProperties.class)
 public class SecurityConfig {
 
     /** 管理端操作所需的權限。Spring Security 會把 scope claim 轉為 {@code SCOPE_} 前綴的權限。 */
@@ -47,8 +51,19 @@ public class SecurityConfig {
 
     private static final String[] PUBLIC_ENDPOINTS = {
             "/actuator/health", "/actuator/health/**", "/actuator/info", "/actuator/prometheus",
-            "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**",
-            "/api/v1/auth/**"
+            "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**"
+    };
+
+    /**
+     * 不需登入即可呼叫的認證端點。
+     *
+     * <p>刻意逐一列出，<b>不用 {@code /api/v1/auth/**} 一次放行</b>——
+     * 那會連 {@code /me} 也一起開放，而它必須要有身分才有意義。
+     * 日後新增 {@code /auth} 底下的端點時，預設是受保護的，要開放得明確加進來。
+     */
+    private static final String[] PUBLIC_AUTH_ENDPOINTS = {
+            "/api/v1/auth/register", "/api/v1/auth/login",
+            "/api/v1/auth/refresh", "/api/v1/auth/logout"
     };
 
     @Bean
@@ -65,6 +80,7 @@ public class SecurityConfig {
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(PUBLIC_ENDPOINTS).permitAll()
+                        .requestMatchers(HttpMethod.POST, PUBLIC_AUTH_ENDPOINTS).permitAll()
                         // 順序關鍵：預熱是管理操作，必須排在下面的活動查詢放行規則之前，
                         // 否則會被 /api/v1/activities/** 的規則先攔截。
                         .requestMatchers(HttpMethod.POST, "/api/v1/activities/*/warm-up")
@@ -95,15 +111,15 @@ public class SecurityConfig {
      * 服務數量一多就必須換成非對稱。此處採用它僅為了讓本專案不必額外架 IdP。
      */
     @Bean
-    public JwtDecoder jwtDecoder(SecurityProperties properties) {
+    public JwtDecoder jwtDecoder(JwtProperties properties) {
         SecretKeySpec key = new SecretKeySpec(
-                properties.jwt().secret().getBytes(StandardCharsets.UTF_8), "HmacSHA256");
+                properties.secret().getBytes(StandardCharsets.UTF_8), "HmacSHA256");
 
         NimbusJwtDecoder decoder = NimbusJwtDecoder.withSecretKey(key).build();
         decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
                 // 預設驗證器負責 exp / nbf
-                JwtValidators.createDefaultWithIssuer(properties.jwt().issuer()),
-                audienceValidator(properties.jwt().audience())));
+                JwtValidators.createDefaultWithIssuer(properties.issuer()),
+                audienceValidator(properties.audience())));
         return decoder;
     }
 
