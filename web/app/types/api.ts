@@ -76,3 +76,73 @@ export type SeckillOutcome =
   | { kind: 'success'; orderNo: string; order: OrderView }
   | { kind: 'timeout'; orderNo: string }
   | { kind: 'rejected'; code: string; message: string }
+
+// ---------------------------------------------------------------------------
+// 商品目錄
+//
+// 這些型別目前是手寫的，會與後端漂移——實測已經發生過一次
+// （ActivityView.productId 改成 skuId 時，這裡安靜地留在舊欄位上）。
+// 下一步應改由 OpenAPI 產生，讓契約變動在編譯期就失敗。
+// ---------------------------------------------------------------------------
+
+export interface SkuView {
+  skuId: number
+  /** 規格屬性，保序。後端以 LinkedHashMap 序列化，JS 物件也保留插入順序 */
+  spec: Record<string, string>
+  specDisplay: string
+  price: number
+  purchasable: boolean
+}
+
+export interface ProductView {
+  productId: number
+  categoryId: number
+  name: string
+  brand: string | null
+  /** 列表回應為精簡版，這兩個欄位只有詳情才有 */
+  description: string | null
+  status: string
+  /** 列表顯示「NT$ 990 起」用的最低 SKU 價 */
+  lowestPrice: number
+  skus: SkuView[]
+}
+
+export interface CategoryView {
+  categoryId: number
+  name: string
+  level: number
+  children: CategoryView[]
+}
+
+// ---------------------------------------------------------------------------
+// 一般下單
+// ---------------------------------------------------------------------------
+
+export interface OrderLineView {
+  skuId: number
+  skuSnapshot: string
+  unitPrice: number
+  quantity: number
+  subtotal: number
+}
+
+export interface OrderDetailView {
+  orderNo: string
+  userId: number | null
+  /** NORMAL 或 SECKILL */
+  channel: string | null
+  lines: OrderLineView[]
+  totalAmount: number | null
+  status: string
+  closeReason: string | null
+  createdAt: string | null
+  paidAt: string | null
+  /** 秒殺訂單仍在非同步建立中；一般訂單恆為 false */
+  processing: boolean
+}
+
+/** 下單請求。刻意沒有價格欄位——價格由目錄決定，不由呼叫端指定。 */
+export interface PlaceOrderRequest {
+  items: Array<{ skuId: number; quantity: number }>
+  requestId: string
+}

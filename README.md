@@ -431,7 +431,16 @@ t2  使用者完成付款 → 閘道回調「成功」
 
 ## 前端
 
-秒殺頁已實作（Nuxt 3 + Vue 3 + TypeScript），詳見 [`web/`](web/)。
+秒殺頁、商品瀏覽與一般購買流程皆已實作（Nuxt 3 + Vue 3 + TypeScript），
+詳見 [`web/`](web/)。
+
+| 路徑 | 內容 |
+|------|------|
+| `/` | 限時搶購活動列表 |
+| `/seckill/[id]` | 秒殺頁：倒數、庫存輪詢、開賣抖動 |
+| `/products` | 商品列表，可依類目篩選 |
+| `/products/[id]` | 商品詳情：選規格、直接購買 |
+| `/orders/[orderNo]` | 訂單詳情與付款 |
 
 ```bash
 cd web && npm install && npm run dev   # http://localhost:5173
@@ -449,6 +458,22 @@ cd web && npm run typecheck            # 型別檢查（後端改欄位時這裡
 型別目前仍是手寫的（`app/types/api.ts`）。實測已證明這會漂移——
 後端把 `ActivityView.productId` 改成 `skuId` 時，前端型別安靜地留在舊欄位上。
 下一步應改由 OpenAPI 產生，讓契約變動在**編譯期**就失敗。
+
+### 關於 ISR 的一個誠實說明
+
+`routeRules` 的 ISR 設定**確實有進到建置產物**（可在 `.output` 裡看到
+`"isr": 300` 與 `"isr": false`），但用 `node .output/server/index.mjs`
+直接跑時**不會有任何快取**——Nitro 的 node-server 預設沒有掛快取驅動，
+回應也不帶 `cache-control`。
+
+這些規則要在有 CDN 介接的平台（Vercel、Netlify）或自行設定
+Nitro 快取驅動後才會生效。本地實測到的是「全部不快取」，
+不是「ISR 正常運作」。
+
+即使如此，`'/orders/**': { isr: false }` 仍必須寫：
+訂單是每個使用者專屬的資料，被 CDN 快取等於把某個人的訂單發給下一個訪客。
+這一條不是效能取捨，是安全邊界——它要在部署到 CDN 之前就存在，
+而不是等出事之後才補。
 
 ---
 
