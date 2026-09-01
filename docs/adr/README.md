@@ -13,19 +13,21 @@
 | [0003](0003-lua-atomicity-over-distributed-lock.md) | 以 Lua 原子性取代分散式鎖 | 已採納 |
 | [0004](0004-outbox-saga-over-seata.md) | Outbox + Saga 取代 Seata 分散式交易 | 已採納 |
 | [0005](0005-jwt-resource-server-over-custom-filter.md) | 以 OAuth2 Resource Server 承載認證 | 已採納 |
+| [0006](0006-dual-order-channels.md) | 雙下單通道，秒殺與一般下單分離 | 已採納 |
+| [0007](0007-multi-line-order-aggregate.md) | 訂單聚合根重構為多品項 | 已採納 |
+| [0008](0008-dual-inventory-model.md) | 庫存雙模型與統一路由 | 已採納 |
 
 ## 待撰寫
 
-[演進規劃](../roadmap/README.md) 已識別出以下需要決策記錄的主題，
-建議在對應階段動手前先寫完——它們互相牽連，一起想清楚比邊做邊改省事。
+[演進規劃](../roadmap/README.md) 已識別出以下需要決策記錄的主題。
+P1 的三份（0006–0008）已完成，其餘依階段撰寫。
 
 | 編號 | 主題 | 何時 |
 |------|------|------|
-| ADR-0006 | 雙下單通道：秒殺與一般下單分離 | P1 前 |
-| ADR-0007 | 訂單聚合根多品項重構 | P1 前 |
-| ADR-0008 | 庫存雙模型與統一路由 | P1 前 |
 | ADR-0009 | 前端框架與渲染策略 | P0 |
 | ADR-0010 | 界限脈絡切分與模組演進策略 | P1 前 |
+| ADR-0011 | 退款 Saga 設計 | P3 |
+| ADR-0012 | 搜尋讀模型與最終一致窗口 | P4 |
 
 ## 撰寫格式
 
