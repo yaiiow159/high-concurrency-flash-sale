@@ -1,9 +1,10 @@
 package com.flashsale.application.port.in.dto;
 
-import com.flashsale.domain.order.SeckillOrder;
+import com.flashsale.domain.order.Order;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.List;
 
 /**
  * 訂單查詢結果。
@@ -13,31 +14,42 @@ import java.time.Instant;
  */
 public record OrderView(
         String orderNo,
-        Long activityId,
         Long userId,
-        Integer quantity,
-        BigDecimal amount,
+        String channel,
+        List<Line> lines,
+        BigDecimal totalAmount,
         String status,
         String closeReason,
         Instant createdAt,
+        Instant paidAt,
         boolean processing
 ) {
 
-    public static OrderView from(SeckillOrder order) {
+    /** 訂單行。刻意不含 sourceActivityId——那是內部追溯用的，前端不需要。 */
+    public record Line(Long skuId, String skuSnapshot, BigDecimal unitPrice,
+                       int quantity, BigDecimal subtotal) {
+    }
+
+    public static OrderView from(Order order) {
         return new OrderView(
                 order.orderNo().value(),
-                order.activityId(),
                 order.userId(),
-                order.quantity(),
-                order.amount(),
+                order.channel().name(),
+                order.lines().stream()
+                        .map(line -> new Line(line.skuId(), line.skuSnapshot(),
+                                line.unitPrice(), line.quantity(), line.subtotal()))
+                        .toList(),
+                order.totalAmount(),
                 order.status().name(),
                 order.closeReason(),
                 order.createdAt(),
+                order.paidAt(),
                 false);
     }
 
     /** 庫存已扣減、訂單仍在非同步建立中。 */
     public static OrderView processing(String orderNo) {
-        return new OrderView(orderNo, null, null, null, null, "PROCESSING", null, null, true);
+        return new OrderView(orderNo, null, null, List.of(), null,
+                "PROCESSING", null, null, null, true);
     }
 }

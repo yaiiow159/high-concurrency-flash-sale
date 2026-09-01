@@ -129,6 +129,12 @@ useHead(() => ({
             <p class="mt-1 text-emerald-700">
               訂單 {{ outcome.orderNo }}，狀態 {{ outcome.order.status }}
             </p>
+            <ul class="mt-2 text-emerald-700">
+              <li v-for="line in outcome.order.lines" :key="line.skuId" class="tabular">
+                {{ line.skuSnapshot }} × {{ line.quantity }}
+                = NT$ {{ line.subtotal.toLocaleString() }}
+              </li>
+            </ul>
 
             <button
               v-if="outcome.order.status === 'PENDING_PAYMENT' && !paymentUrl"

@@ -7,7 +7,7 @@ import com.flashsale.application.port.out.OrderRepository;
 import com.flashsale.application.port.out.message.SeckillOrderMessage;
 import com.flashsale.domain.activity.SeckillActivity;
 import com.flashsale.domain.order.OrderNo;
-import com.flashsale.domain.order.SeckillOrder;
+import com.flashsale.domain.order.Order;
 import com.flashsale.domain.shared.BusinessException;
 import com.flashsale.domain.shared.ErrorCode;
 import org.slf4j.Logger;
@@ -63,7 +63,7 @@ public class OrderCreationService implements OrderCreationUseCase {
                 .orElseThrow(() -> new BusinessException(ErrorCode.ACTIVITY_NOT_FOUND,
                         "建單時找不到活動 " + message.activityId()));
 
-        SeckillOrder order = SeckillOrder.create(
+        Order order = Order.forSeckill(
                 OrderNo.of(message.orderNo()),
                 activity,
                 message.userId(),
@@ -71,7 +71,7 @@ public class OrderCreationService implements OrderCreationUseCase {
                 message.quantity(),
                 clock.instant());
 
-        Optional<SeckillOrder> saved = orderRepository.saveIfAbsent(order);
+        Optional<Order> saved = orderRepository.saveIfAbsent(order);
         if (saved.isEmpty()) {
             // 重複投遞不是錯誤，是 at-least-once 的正常結果，直接 ack 掉即可。
             log.info("訂單已存在，略過重複訊息 requestId={}, orderNo={}",

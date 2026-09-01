@@ -8,7 +8,9 @@ import com.flashsale.application.port.out.PaymentNoGenerator;
 import com.flashsale.application.port.out.PaymentRepository;
 import com.flashsale.domain.order.OrderNo;
 import com.flashsale.domain.order.OrderStatus;
-import com.flashsale.domain.order.SeckillOrder;
+import com.flashsale.domain.order.Order;
+import com.flashsale.domain.order.OrderChannel;
+import com.flashsale.domain.order.OrderLine;
 import com.flashsale.domain.payment.Payment;
 import com.flashsale.domain.payment.PaymentNo;
 import com.flashsale.domain.payment.PaymentStatus;
@@ -186,7 +188,7 @@ class PaymentApplicationServiceTest {
         void settlesOrderOnSuccess() {
             Payment payment = pendingPayment();
             when(paymentRepository.findByPaymentNo(any())).thenReturn(Optional.of(payment));
-            SeckillOrder order = order(OrderStatus.PENDING_PAYMENT);
+            Order order = order(OrderStatus.PENDING_PAYMENT);
             when(orderRepository.findByOrderNo(any())).thenReturn(Optional.of(order));
 
             service.handleGatewayCallback(successCallback());
@@ -253,7 +255,7 @@ class PaymentApplicationServiceTest {
         @DisplayName("絕不強制把已取消的訂單改回已付款——庫存已退回，那會製造超賣")
         void neverResurrectsCancelledOrder() {
             when(paymentRepository.findByPaymentNo(any())).thenReturn(Optional.of(pendingPayment()));
-            SeckillOrder cancelled = order(OrderStatus.CANCELLED);
+            Order cancelled = order(OrderStatus.CANCELLED);
             when(orderRepository.findByOrderNo(any())).thenReturn(Optional.of(cancelled));
 
             service.handleGatewayCallback(successCallback());
@@ -307,9 +309,10 @@ class PaymentApplicationServiceTest {
         when(orderRepository.findByOrderNo(OrderNo.of(ORDER_NO))).thenReturn(Optional.of(order(status)));
     }
 
-    private static SeckillOrder order(OrderStatus status) {
-        return SeckillOrder.restore(OrderNo.of(ORDER_NO), 1001L, USER_ID, "req-1",
-                1, AMOUNT, status, NOW.minusSeconds(600), null, null, 0L);
+    private static Order order(OrderStatus status) {
+        return Order.restore(OrderNo.of(ORDER_NO), USER_ID, OrderChannel.SECKILL, "req-1",
+                List.of(new OrderLine(2001L, "測試商品", AMOUNT, 1, 1001L)),
+                AMOUNT, status, NOW.minusSeconds(600), null, null, 0L);
     }
 
     private static Payment pendingPayment() {
