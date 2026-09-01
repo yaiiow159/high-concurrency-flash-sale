@@ -29,12 +29,11 @@ const { data: initialActivity } = await useFetch<{ data: ActivityView }>(
 
 const {
   activity, outcome, submitting, serverNow,
-  loadActivity, startStockPolling, attempt, reset,
+  seedFromServerRender, loadActivity, startStockPolling, attempt, reset,
 } = useSeckill(activityId)
 
-// 以 SSR 取得的資料作為初始畫面，避免首屏空白
 if (initialActivity.value?.data) {
-  activity.value = initialActivity.value.data
+  seedFromServerRender(initialActivity.value.data)
 }
 
 const started = ref(false)

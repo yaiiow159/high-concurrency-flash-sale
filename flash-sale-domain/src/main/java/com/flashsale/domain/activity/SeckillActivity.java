@@ -21,7 +21,19 @@ import java.util.Objects;
 public final class SeckillActivity {
 
     private final Long id;
-    private final Long productId;
+    /**
+     * 此活動販售的 SKU。
+     *
+     * <p>指向 SKU 而非 SPU：庫存與價格都掛在 SKU 上（見 Catalog 脈絡），
+     * 指向 SPU 的話「賣的是 256G 還是 512G」就無從確定。
+     */
+    private final Long skuId;
+    /**
+     * 商品名稱快照。
+     *
+     * <p>刻意冗餘：熱路徑不能為了顯示商品名去 join Catalog，
+     * 而活動一旦開賣，商品改名也不該影響進行中的活動。
+     */
     private final String productName;
     private final BigDecimal seckillPrice;
     private final int totalStock;
@@ -32,7 +44,7 @@ public final class SeckillActivity {
 
     private SeckillActivity(Builder builder) {
         this.id = Objects.requireNonNull(builder.id, "activityId 不可為 null");
-        this.productId = Objects.requireNonNull(builder.productId, "productId 不可為 null");
+        this.skuId = Objects.requireNonNull(builder.skuId, "skuId 不可為 null");
         this.productName = Objects.requireNonNull(builder.productName, "productName 不可為 null");
         this.seckillPrice = requirePositive(builder.seckillPrice);
         this.totalStock = requireNonNegative(builder.totalStock, "totalStock");
@@ -90,8 +102,8 @@ public final class SeckillActivity {
         return id;
     }
 
-    public Long productId() {
-        return productId;
+    public Long skuId() {
+        return skuId;
     }
 
     public String productName() {
@@ -162,7 +174,7 @@ public final class SeckillActivity {
     /** 欄位偏多且多為必填，以 Builder 取代長參數建構子，避免呼叫端傳錯順序。 */
     public static final class Builder {
         private Long id;
-        private Long productId;
+        private Long skuId;
         private String productName;
         private BigDecimal seckillPrice;
         private int totalStock;
@@ -176,8 +188,8 @@ public final class SeckillActivity {
             return this;
         }
 
-        public Builder productId(Long productId) {
-            this.productId = productId;
+        public Builder skuId(Long skuId) {
+            this.skuId = skuId;
             return this;
         }
 

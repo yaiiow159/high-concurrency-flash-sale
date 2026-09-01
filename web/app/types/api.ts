@@ -17,7 +17,8 @@ export interface ApiResponse<T> {
 
 export interface ActivityView {
   activityId: number
-  productId: number
+  /** 指向真實 SKU，不是 SPU——特價的一定是某個具體規格 */
+  skuId: number
   productName: string
   seckillPrice: number
   totalStock: number

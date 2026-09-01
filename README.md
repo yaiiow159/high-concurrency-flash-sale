@@ -71,8 +71,11 @@
 ```
 flash-sale-domain          純 Java，零框架依賴 ← ArchUnit 強制
   ├── activity/            活動聚合根、時間窗口值物件
-  ├── order/               訂單聚合根、狀態機、領域事件
-  ├── stock/               扣減結果值物件
+  ├── catalog/             商品（SPU）聚合根、SKU、類目樹、規格值物件
+  ├── order/               訂單聚合根、訂單行、狀態機、領域事件
+  ├── payment/             付款聚合根、金額值物件
+  ├── identity/            使用者、refresh token 輪替鏈
+  ├── stock/               扣減結果與扣減憑證值物件
   └── shared/              錯誤碼、業務例外
 
 flash-sale-application     Use Case 編排 + Port 介面
@@ -160,6 +163,9 @@ curl http://localhost:8080/api/v1/seckill/orders/123456789 -H "Authorization: Be
 |------|------|------|------|
 | `POST` | `/api/v1/seckill/orders` | Bearer | 發起搶購，回 202 + 訂單號 |
 | `GET` | `/api/v1/seckill/orders/{orderNo}` | Bearer | 查詢訂單，非同步處理中回 `PROCESSING` |
+| `GET` | `/api/v1/catalog/products` | 匿名 | 商品列表，可依類目篩選（分頁上限 100） |
+| `GET` | `/api/v1/catalog/products/{id}` | 匿名 | 商品詳情，含各 SKU 的規格與價格 |
+| `GET` | `/api/v1/catalog/categories` | 匿名 | 類目樹 |
 | `GET` | `/api/v1/activities` | 匿名 | 已上架活動列表 |
 | `GET` | `/api/v1/activities/{id}` | 匿名 | 活動詳情（庫存餘量取自 Redis 即時值） |
 | `POST` | `/api/v1/activities/{id}/warm-up` | `seckill:admin` | 手動預熱庫存（維運用） |
@@ -198,6 +204,33 @@ Session 每個請求都要讀一次 Redis，等於在熱路徑上憑空增加一
 
 商品頁開放匿名瀏覽（不該逼使用者先登入才能看商品），
 寫入操作一律需要令牌，管理端點另需 `seckill:admin` scope。
+
+---
+
+## 商品目錄：為什麼價格掛在 SKU 而不是商品
+
+「iPhone 16 Pro」是 SPU，「iPhone 16 Pro 256G 黑鈦金」才是實際被買賣的東西。
+兩者價格不同、庫存也各自獨立：
+
+```
+Product 1（SPU）  iPhone 16 Pro
+ ├─ SKU 2001  256G / 黑鈦金    NT$ 29,900
+ ├─ SKU 2011  512G / 黑鈦金    NT$ 35,900
+ └─ SKU 2012  256G / 原色鈦金  NT$ 29,900
+```
+
+把價格放在 SPU 上等於假設「一個商品只有一個價格」。
+那個假設在第一個有規格的商品出現時就破裂，
+而破裂時要改的不是一個欄位，是整個資料模型加上所有引用它的地方。
+
+因此秒殺活動指向的是 **SKU 而非商品**（`seckill_activity.sku_id`）——
+沒有「iPhone 16 Pro 全系列特價」這種東西，特價的一定是某個具體規格。
+
+商品回應**刻意不含庫存**。庫存每秒變動數千次，商品描述幾週才改一次；
+混在同一個回應裡，整個商品頁就失去被 CDN 快取的資格。
+前端分開請求，與秒殺頁同一個手法。
+
+規格屬性以 `LinkedHashMap` 保序——「256G / 黑」和「黑 / 256G」讀起來是不同的東西。
 
 ---
 
@@ -333,6 +366,7 @@ Redis 餘量 + Σ(PENDING_PAYMENT + PAID 訂單的數量) = 活動總庫存
 
 ```bash
 cd web && npm install && npm run dev   # http://localhost:5173
+cd web && npm run typecheck            # 型別檢查（後端改欄位時這裡會失敗）
 ```
 
 這一頁本身就是**削峰漏斗的第 0 層**：靜態部分由 ISR + CDN 承接，
@@ -342,6 +376,10 @@ cd web && npm install && npm run dev   # http://localhost:5173
 瀏覽器只拿得到 access token 且只存在記憶體中。
 
 > 開發埠為 5173 而非 Nuxt 預設的 3000——後者被 `docker-compose.yml` 的 Grafana 佔用。
+
+型別目前仍是手寫的（`app/types/api.ts`）。實測已證明這會漂移——
+後端把 `ActivityView.productId` 改成 `skuId` 時，前端型別安靜地留在舊欄位上。
+下一步應改由 OpenAPI 產生，讓契約變動在**編譯期**就失敗。
 
 ---
 

@@ -19,7 +19,7 @@ import java.time.Instant;
  */
 public record ActivityCachePayload(
         Long id,
-        Long productId,
+        Long skuId,
         String productName,
         BigDecimal seckillPrice,
         int totalStock,
@@ -33,7 +33,7 @@ public record ActivityCachePayload(
     public static ActivityCachePayload from(SeckillActivity activity) {
         return new ActivityCachePayload(
                 activity.id(),
-                activity.productId(),
+                activity.skuId(),
                 activity.productName(),
                 activity.seckillPrice(),
                 activity.totalStock(),
@@ -47,7 +47,7 @@ public record ActivityCachePayload(
     public SeckillActivity toDomain() {
         return SeckillActivity.builder()
                 .id(id)
-                .productId(productId)
+                .skuId(skuId)
                 .productName(productName)
                 .seckillPrice(seckillPrice)
                 .totalStock(totalStock)

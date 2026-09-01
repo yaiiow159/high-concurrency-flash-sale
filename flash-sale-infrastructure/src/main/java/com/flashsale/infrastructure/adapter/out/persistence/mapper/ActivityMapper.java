@@ -13,7 +13,7 @@ public final class ActivityMapper {
     public static SeckillActivity toDomain(SeckillActivityEntity entity) {
         return SeckillActivity.builder()
                 .id(entity.getId())
-                .productId(entity.getProductId())
+                .skuId(entity.getSkuId())
                 .productName(entity.getProductName())
                 .seckillPrice(entity.getSeckillPrice())
                 .totalStock(entity.getTotalStock())

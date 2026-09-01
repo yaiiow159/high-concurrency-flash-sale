@@ -130,7 +130,7 @@ class OrderTest {
     private static SeckillActivity activity() {
         return SeckillActivity.builder()
                 .id(1001L)
-                .productId(2001L)
+                .skuId(2001L)
                 .productName("測試商品")
                 .seckillPrice(new BigDecimal("29900.00"))
                 .totalStock(1000)

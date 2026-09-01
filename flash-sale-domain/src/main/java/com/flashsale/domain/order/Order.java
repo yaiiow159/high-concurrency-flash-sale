@@ -89,7 +89,7 @@ public final class Order {
                                    String requestId, int quantity, Instant now) {
         activity.ensureQuantityWithinLimit(quantity);
         OrderLine line = new OrderLine(
-                activity.productId(),
+                activity.skuId(),
                 activity.productName(),
                 activity.seckillPrice(),
                 quantity,
