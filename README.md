@@ -169,6 +169,10 @@ curl http://localhost:8080/api/v1/seckill/orders/123456789 -H "Authorization: Be
 | `GET` | `/api/v1/activities` | 匿名 | 已上架活動列表 |
 | `GET` | `/api/v1/activities/{id}` | 匿名 | 活動詳情（庫存餘量取自 Redis 即時值） |
 | `POST` | `/api/v1/activities/{id}/warm-up` | `seckill:admin` | 手動預熱庫存（維運用） |
+| `GET` | `/api/v1/admin/inventory/reconciliation/activities/{id}` | `seckill:admin` | 秒殺庫存對帳，只讀不改 |
+| `GET` | `/api/v1/admin/inventory/reconciliation/skus/{id}` | `seckill:admin` | 一般庫存對帳，只讀不改 |
+| `GET` | `/api/v1/admin/inventory/reconciliation/skus` | `seckill:admin` | 全量對帳，只回不平的 SKU |
+| `POST` | `/api/v1/admin/inventory/activities/{id}/release` | `seckill:admin` | 釋放活動庫存回可售池 |
 | `POST` | `/api/v1/auth/register` | 匿名 | 註冊 |
 | `POST` | `/api/v1/auth/login` | 匿名 | 登入，回傳 access + refresh token |
 | `POST` | `/api/v1/auth/refresh` | 匿名 | 續期；舊 refresh token 立即失效 |
@@ -204,6 +208,36 @@ Session 每個請求都要讀一次 Redis，等於在熱路徑上憑空增加一
 
 商品頁開放匿名瀏覽（不該逼使用者先登入才能看商品），
 寫入操作一律需要令牌，管理端點另需 `seckill:admin` scope。
+
+---
+
+## 庫存雙模型：兩套機制，以「劃撥」隔開
+
+秒殺與一般商品的流量特徵完全相反，用同一套機制必然有一邊做不好：
+
+| 通道 | 機制 | 為什麼 |
+|------|------|--------|
+| `NORMAL` | MySQL 行 + 條件式 UPDATE | 數萬個 SKU 各自獨立、衝突率極低，DB 完全夠用且天然有交易保證 |
+| `SECKILL` | Redis Lua | 所有請求競爭同一行，DB 鎖會排隊塌陷 |
+
+呼叫端只認得 `InventoryService` 一個埠，路由由 `RoutingInventoryService` 依通道決定。
+
+**同一個 SKU 可能兩邊都在賣，而兩個真實來源必然超賣。** 解法是劃撥：
+
+```
+劃撥 N 件   available -= N,  allocated += N        總量不變
+秒殺進行中  只動 Redis                              MySQL 不參與
+一般銷售    只動 available                          Redis 不參與
+活動結束    allocated -= N,  available += 未售量     總量減少 = 實際銷量
+```
+
+劃撥期間兩邊各自有唯一的真實來源。順序上**一律先動 MySQL 再寫 Redis**——
+反過來的失敗模式是「Redis 有貨、MySQL 沒扣」，那是超賣；
+正著來最壞是少賣，而少賣可以事後補救。
+
+庫存流水（`inventory_movement`）記的是**兩個增減量**而非一個數量：
+釋放時回到可售池的量與從劃撥扣掉的量是兩個不同的值。
+只記一個數字的流水重建不出現在的庫存，而重建正是流水存在的唯一理由。
 
 ---
 
@@ -301,16 +335,25 @@ t2  使用者完成付款 → 閘道回調「成功」
 補償失敗、訊息遺失、人為誤操作，每一次都在帳上留下差額，
 而且沒有任何東西會主動告訴你。
 
-`StockReconciliationService` 每 10 分鐘核對一次恆等式：
+每 10 分鐘核對三條恆等式。**三條缺一不可**，因為它們問的是不同的問題：
 
 ```
-Redis 餘量 + Σ(PENDING_PAYMENT + PAID 訂單的數量) = 活動總庫存
+① 秒殺   Redis 餘量 + Σ(PENDING_PAYMENT + PAID 訂單數量) = 活動總庫存
+② 一般   available = Σ 流水的 availableDelta   （allocated 同理）
+③ 劃撥   Redis 有庫存的活動，MySQL 必須有對應的劃撥額度撐著
 ```
+
+① 問「賣掉的有沒有被記錄」，② 問「MySQL 這邊的帳對不對」，
+③ 問「這批貨到底是不是我們的」。前兩條可以同時完全帳平，而第三條不成立——
+那代表 Redis 握著一批 `available` 從沒為它付過帳的貨，
+秒殺賣一次、一般通道再賣一次。**這條是實作時真的踩到才補上的**，
+經過見 [ADR-0008](docs/adr/0008-dual-inventory-model.md)。
 
 | 偏差方向 | 判定 | 後果 | 處置 |
 |---|---|---|---|
-| 實際 < 應有 | `STOCK_LEAKED` | 少賣，庫存被鎖住 | 可自動修復（孤兒扣減） |
+| 實際 < 應有 | `STOCK_LEAKED` | 少賣，庫存被鎖住 | 可自動修復（僅孤兒扣減） |
 | 實際 > 應有 | `OVERSELL_RISK` | **超賣，不可逆** | 一律人工介入 |
+| 庫存無劃撥支撐 | `OVERSELL_RISK` | **超賣，不可逆** | 一律人工介入 |
 
 ### 孤兒扣減
 

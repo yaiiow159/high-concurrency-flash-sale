@@ -95,6 +95,10 @@ public class SecurityConfig {
                         // 否則會被 /api/v1/activities/** 的規則先攔截。
                         .requestMatchers(HttpMethod.POST, "/api/v1/activities/*/warm-up")
                         .hasAuthority(SCOPE_ADMIN)
+                        // 庫存維運：對帳會揭露完整帳務、釋放會實際改動庫存，
+                        // 兩者都不是一般使用者該碰的。整段路徑一律要 admin scope，
+                        // 這樣之後往這個前綴新增端點時不會漏掉授權。
+                        .requestMatchers("/api/v1/admin/**").hasAuthority(SCOPE_ADMIN)
                         // 商品頁要能匿名瀏覽，但只開放 GET。
                         // 這也是這些端點能被 CDN 快取的前提——
                         // 帶 Authorization 的請求無法共用快取。

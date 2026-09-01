@@ -4,6 +4,7 @@ import com.flashsale.application.config.ReconciliationPolicy;
 import com.flashsale.application.config.SeckillPolicy;
 import com.flashsale.application.port.in.dto.ActivityReconciliation;
 import com.flashsale.application.port.out.ActivityRepository;
+import com.flashsale.application.port.out.InventoryRepository;
 import com.flashsale.application.port.out.OrderNoGenerator;
 import com.flashsale.application.port.out.OrderRepository;
 import com.flashsale.application.port.out.SoldOutMarker;
@@ -59,6 +60,7 @@ class StockReconciliationServiceTest {
     private static final int TOTAL_STOCK = 1000;
 
     @Mock private ActivityRepository activityRepository;
+    @Mock private InventoryRepository inventoryRepository;
     @Mock private OrderRepository orderRepository;
     @Mock private StockRepository stockRepository;
     @Mock private OrderNoGenerator orderNoGenerator;
@@ -125,6 +127,46 @@ class StockReconciliationServiceTest {
             assertThat(result.verdict().requiresAttention()).isFalse();
             // 未預熱時不該再去掃描綁定，白費一次 Redis 掃描
             verify(stockRepository, never()).scanBindings(anyLong(), anyInt(), any());
+        }
+    }
+
+    @Nested
+    @DisplayName("庫存無劃撥支撐")
+    class UnbackedStock {
+
+        @Test
+        @DisplayName("已釋放的活動卻仍有 Redis 庫存：判為超賣風險，即使餘量與訂單完全對得上")
+        void flagsStockWithoutAllocation() {
+            // 這正是實際踩到的情境：活動釋放後預熱排程把庫存寫回 Redis，
+            // 而 allocated 已歸零。餘量與訂單數是平的，但那批貨沒人付過帳。
+            when(activityRepository.findById(ACTIVITY_ID))
+                    .thenReturn(Optional.of(activityBuilder().build()));
+            when(stockRepository.availableStock(ACTIVITY_ID)).thenReturn((long) TOTAL_STOCK);
+            when(orderRepository.sumActiveQuantity(ACTIVITY_ID)).thenReturn(0L);
+            when(inventoryRepository.isReleased(ACTIVITY_ID, 2001L)).thenReturn(true);
+            givenNoBindings();
+
+            ActivityReconciliation result = service(defaultPolicy()).reconcile(ACTIVITY_ID);
+
+            assertThat(result.drift()).as("兩個數字本身是平的").isZero();
+            assertThat(result.stockUnbacked()).isTrue();
+            assertThat(result.verdict()).isEqualTo(ReconciliationVerdict.OVERSELL_RISK);
+        }
+
+        @Test
+        @DisplayName("有劃撥支撐時不誤報")
+        void doesNotFlagBackedStock() {
+            when(activityRepository.findById(ACTIVITY_ID))
+                    .thenReturn(Optional.of(activityBuilder().build()));
+            when(stockRepository.availableStock(ACTIVITY_ID)).thenReturn((long) TOTAL_STOCK);
+            when(orderRepository.sumActiveQuantity(ACTIVITY_ID)).thenReturn(0L);
+            when(inventoryRepository.isReleased(ACTIVITY_ID, 2001L)).thenReturn(false);
+            givenNoBindings();
+
+            ActivityReconciliation result = service(defaultPolicy()).reconcile(ACTIVITY_ID);
+
+            assertThat(result.stockUnbacked()).isFalse();
+            assertThat(result.verdict()).isEqualTo(ReconciliationVerdict.BALANCED);
         }
     }
 
@@ -271,7 +313,7 @@ class StockReconciliationServiceTest {
 
     private StockReconciliationService service(ReconciliationPolicy policy) {
         return new StockReconciliationService(
-                activityRepository, orderRepository, stockRepository, orderNoGenerator,
+                activityRepository, inventoryRepository, orderRepository, stockRepository, orderNoGenerator,
                 soldOutMarker, metrics, policy,
                 new SeckillPolicy(Duration.ofMinutes(15), Duration.ofHours(2), 200),
                 Clock.fixed(NOW, ZoneOffset.UTC));

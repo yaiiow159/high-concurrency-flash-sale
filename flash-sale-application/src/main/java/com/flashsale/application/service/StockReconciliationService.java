@@ -5,6 +5,7 @@ import com.flashsale.application.config.SeckillPolicy;
 import com.flashsale.application.port.in.StockReconciliationUseCase;
 import com.flashsale.application.port.in.dto.ActivityReconciliation;
 import com.flashsale.application.port.out.ActivityRepository;
+import com.flashsale.application.port.out.InventoryRepository;
 import com.flashsale.application.port.out.OrderNoGenerator;
 import com.flashsale.application.port.out.OrderRepository;
 import com.flashsale.application.port.out.SoldOutMarker;
@@ -48,6 +49,7 @@ public class StockReconciliationService implements StockReconciliationUseCase {
     private static final Logger log = LoggerFactory.getLogger(StockReconciliationService.class);
 
     private final ActivityRepository activityRepository;
+    private final InventoryRepository inventoryRepository;
     private final OrderRepository orderRepository;
     private final StockRepository stockRepository;
     private final OrderNoGenerator orderNoGenerator;
@@ -58,6 +60,7 @@ public class StockReconciliationService implements StockReconciliationUseCase {
     private final Clock clock;
 
     public StockReconciliationService(ActivityRepository activityRepository,
+                                      InventoryRepository inventoryRepository,
                                       OrderRepository orderRepository,
                                       StockRepository stockRepository,
                                       OrderNoGenerator orderNoGenerator,
@@ -67,6 +70,7 @@ public class StockReconciliationService implements StockReconciliationUseCase {
                                       SeckillPolicy seckillPolicy,
                                       Clock clock) {
         this.activityRepository = activityRepository;
+        this.inventoryRepository = inventoryRepository;
         this.orderRepository = orderRepository;
         this.stockRepository = stockRepository;
         this.orderNoGenerator = orderNoGenerator;
@@ -116,10 +120,30 @@ public class StockReconciliationService implements StockReconciliationUseCase {
                 activity.id(), activity.totalStock(), activeOrderQuantity,
                 // 退回孤兒扣減後餘量已改變，重讀一次才不會回報一個剛被自己修掉的偏差
                 orphans.repaired() > 0 ? stockRepository.availableStock(activity.id()) : actualAvailable,
-                orphans.detected(), orphans.repaired());
+                orphans.detected(), orphans.repaired(),
+                isStockUnbacked(activity));
 
         report(result);
         return result;
+    }
+
+    /**
+     * Redis 有庫存，但 MySQL 沒有對應的劃撥額度撐著。
+     *
+     * <p><b>這是雙模型獨有的失效方式，前面兩條恆等式都抓不到它。</b>
+     * 「Redis 餘量 vs 訂單數」問的是「賣掉的有沒有被記錄」，
+     * 「庫存數字 vs 流水」問的是「MySQL 這邊的帳對不對」——
+     * 兩邊各自都可以完全平，而那批貨仍然不屬於任何人。
+     *
+     * <p>實際發生過一次：活動釋放後，預熱排程在一分鐘內把庫存寫回 Redis，
+     * 而 {@code allocated} 已經歸零。當下兩套對帳都回報帳平，
+     * Redis 卻握著 50 件沒人付過帳的貨，一般通道會把同一批再賣一次。
+     *
+     * <p>預熱端已經加了守門擋住這條路徑，但對帳不能只依賴「寫入端不會出錯」——
+     * 對帳存在的理由正是「總會有某個寫入路徑出錯」。
+     */
+    private boolean isStockUnbacked(SeckillActivity activity) {
+        return inventoryRepository.isReleased(activity.id(), activity.skuId());
     }
 
     /**

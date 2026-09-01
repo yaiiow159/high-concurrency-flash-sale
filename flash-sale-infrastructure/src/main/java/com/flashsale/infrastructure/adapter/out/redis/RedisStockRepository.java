@@ -131,6 +131,19 @@ public class RedisStockRepository implements StockRepository {
         }
     }
 
+    @Override
+    public void discard(Long activityId) {
+        auxiliaryTtlCache.invalidate(activityId);
+        try {
+            redisTemplate.delete(activityKeys(activityId));
+            log.info("已丟棄活動 {} 的庫存鍵", activityId);
+        } catch (DataAccessException e) {
+            // 丟棄失敗不影響正確性——鍵本來就有 TTL，最多是晚一點才回收記憶體。
+            // 這是少數可以吞掉的 Redis 錯誤，因為它不是任何判斷的依據。
+            log.warn("丟棄活動 {} 的庫存鍵失敗，將由 TTL 自行回收", activityId, e);
+        }
+    }
+
     private List<?> executeDeduct(List<String> keys, Long activityId, Long userId, int quantity,
                                   int perUserLimit, String requestId, String orderNo, long ttlSeconds) {
         try {

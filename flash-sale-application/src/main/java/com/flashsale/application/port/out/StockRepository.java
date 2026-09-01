@@ -48,6 +48,17 @@ public interface StockRepository {
     long availableStock(Long activityId);
 
     /**
+     * 丟棄此活動的所有庫存鍵（餘量、限購計數、扣減憑證）。
+     *
+     * <p>活動結束並把未售出的量釋放回 MySQL 之後才可呼叫——
+     * 提早丟棄會讓尚未跑完的補償退到一個沒人看的新鍵，那筆庫存就真的消失了。
+     * 呼叫時機由 {@code stockKeyTtlBuffer} 界定。
+     *
+     * <p>不呼叫也不會壞事（鍵本來就有 TTL），這個方法只是讓 Redis 早點回收記憶體。
+     */
+    void discard(Long activityId);
+
+    /**
      * 分批掃描此活動所有「已扣減庫存」的請求綁定，供對帳找出孤兒扣減。
      *
      * <p><b>設計成回呼而非回傳整份清單</b>：一場大促的綁定數量等同訂單數，

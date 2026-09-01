@@ -51,4 +51,12 @@ public class JpaActivityRepository implements ActivityRepository {
                 .map(ActivityMapper::toDomain)
                 .toList();
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<SeckillActivity> findEndedBefore(Instant endedBefore) {
+        return jpaRepository.findEndedBefore(endedBefore).stream()
+                .map(ActivityMapper::toDomain)
+                .toList();
+    }
 }

@@ -29,4 +29,20 @@ public interface SeckillActivityJpaRepository extends JpaRepository<SeckillActiv
             order by a.id asc
             """)
     List<SeckillActivityEntity> findForReconciliation(@Param("endedAfter") Instant endedAfter);
+
+    /**
+     * 已完全冷卻、可以釋放庫存的活動。
+     *
+     * <p>時間方向與 {@link #findForReconciliation} 相反，兩者用同一個緩衝期切開，
+     * 保證同一場活動不會同時被對帳與釋放處理。
+     *
+     * <p>不限定 {@code status}：下架的活動同樣需要把劃撥出去的庫存收回來，
+     * 否則營運只要把活動下架，那批貨就永遠卡住了。
+     */
+    @Query("""
+            select a from SeckillActivityEntity a
+            where a.endAt <= :endedBefore
+            order by a.id asc
+            """)
+    List<SeckillActivityEntity> findEndedBefore(@Param("endedBefore") Instant endedBefore);
 }

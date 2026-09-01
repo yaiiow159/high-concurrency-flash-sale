@@ -30,4 +30,15 @@ public interface ActivityRepository {
      * @param endedAfter 結束時間晚於此刻的活動仍納入對帳，通常取「現在 - 庫存鍵保留時長」
      */
     List<SeckillActivity> findForReconciliation(Instant endedAfter);
+
+    /**
+     * 結束時間早於指定時刻的活動，供庫存釋放使用。
+     *
+     * <p>與 {@link #findForReconciliation} 的時間方向相反：對帳要的是「還沒完全冷卻」的，
+     * 釋放要的是「已經完全冷卻」的。兩者用同一個緩衝期切開，
+     * 保證任何一場活動不會同時被兩邊處理。
+     *
+     * @param endedBefore 通常取「現在 - 庫存鍵保留時長」
+     */
+    List<SeckillActivity> findEndedBefore(Instant endedBefore);
 }
