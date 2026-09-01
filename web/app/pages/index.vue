@@ -15,7 +15,12 @@ useHead({ title: '限時搶購' })
 
 <template>
   <main class="mx-auto max-w-3xl px-5 py-10">
-    <h1 class="text-3xl font-black tracking-tight">限時搶購</h1>
+    <header class="flex flex-wrap items-baseline justify-between gap-3">
+      <h1 class="text-3xl font-black tracking-tight">限時搶購</h1>
+      <NuxtLink to="/products" class="text-sm text-[var(--accent)] hover:underline">
+        全部商品 →
+      </NuxtLink>
+    </header>
     <p class="mt-2 text-sm text-[var(--ink-muted)]">
       庫存數字為列表快取值，實際餘量以活動頁為準
     </p>
