@@ -5,7 +5,7 @@ import com.flashsale.application.port.in.dto.OrderView;
 import com.flashsale.application.port.out.OrderRepository;
 import com.flashsale.application.port.out.SeckillRequestTracker;
 import com.flashsale.domain.order.OrderNo;
-import com.flashsale.domain.order.SeckillOrder;
+import com.flashsale.domain.order.Order;
 import com.flashsale.domain.shared.BusinessException;
 import com.flashsale.domain.shared.ErrorCode;
 import org.springframework.stereotype.Service;
@@ -34,9 +34,9 @@ public class OrderQueryService implements OrderQueryUseCase {
     @Override
     @Transactional(readOnly = true)
     public OrderView findByOrderNo(String orderNo, Long userId) {
-        Optional<SeckillOrder> persisted = orderRepository.findByOrderNo(OrderNo.of(orderNo));
+        Optional<Order> persisted = orderRepository.findByOrderNo(OrderNo.of(orderNo));
         if (persisted.isPresent()) {
-            SeckillOrder order = persisted.get();
+            Order order = persisted.get();
             ensureOwnedBy(order.userId(), userId, orderNo);
             return OrderView.from(order);
         }

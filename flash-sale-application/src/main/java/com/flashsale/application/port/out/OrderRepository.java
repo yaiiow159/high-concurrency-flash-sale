@@ -1,7 +1,7 @@
 package com.flashsale.application.port.out;
 
+import com.flashsale.domain.order.Order;
 import com.flashsale.domain.order.OrderNo;
-import com.flashsale.domain.order.SeckillOrder;
 
 import java.time.Instant;
 import java.util.Collection;
@@ -24,20 +24,22 @@ public interface OrderRepository {
      *
      * @return 新建立的訂單；若該 {@code requestId} 已有訂單則回傳 {@code Optional.empty()}
      */
-    Optional<SeckillOrder> saveIfAbsent(SeckillOrder order);
+    Optional<Order> saveIfAbsent(Order order);
 
     /** 更新既有訂單（狀態流轉），以樂觀鎖版本號防止並發覆寫。 */
-    SeckillOrder update(SeckillOrder order);
+    Order update(Order order);
 
-    Optional<SeckillOrder> findByOrderNo(OrderNo orderNo);
+    Optional<Order> findByOrderNo(OrderNo orderNo);
 
-    Optional<SeckillOrder> findByRequestId(String requestId);
+    Optional<Order> findByRequestId(String requestId);
 
     /**
      * 統計某活動「仍佔用庫存」的訂單總數量（{@code PENDING_PAYMENT} + {@code PAID}）。
      *
      * <p>對帳恆等式的右半邊：{@code Redis 餘量 + 本方法回傳值 = 活動總庫存}。
-     * 已取消／已失敗的訂單不計入——它們的庫存理應已被補償退回。
+     *
+     * <p>多品項後要走 {@code order_line} 的 {@code source_activity_id}——
+     * 一張訂單可能只有部分行來自該活動，用訂單層級的數量會算錯。
      */
     long sumActiveQuantity(Long activityId);
 
@@ -45,9 +47,7 @@ public interface OrderRepository {
      * 批次查詢哪些訂單號確實存在於資料庫。
      *
      * <p>刻意設計成批次而非逐筆 {@code exists}：對帳要掃描的綁定可能有數十萬筆，
-     * 逐筆查詢就是數十萬次往返。這裡一次帶入一整批，讓資料庫用單次索引掃描解決。
-     *
-     * @return 傳入的訂單號中，實際存在的那些
+     * 逐筆查詢就是數十萬次往返。
      */
     Set<String> findExistingOrderNos(Collection<String> orderNos);
 
@@ -57,5 +57,5 @@ public interface OrderRepository {
      * @param deadline 建立時間早於此刻的待付款訂單即視為逾期
      * @param limit    單批上限，避免一次撈爆記憶體並拉長交易時間
      */
-    List<SeckillOrder> findExpiredPendingOrders(Instant deadline, int limit);
+    List<Order> findExpiredPendingOrders(Instant deadline, int limit);
 }

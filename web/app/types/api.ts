@@ -36,15 +36,26 @@ export interface SeckillTicket {
   message: string
 }
 
+/** 訂單行。多品項重構後，訂單的商品資訊移到這裡（ADR-0007）。 */
+export interface OrderLine {
+  skuId: number
+  /** 下單當下的商品名稱快照——商家改名後歷史訂單不該跟著變 */
+  skuSnapshot: string
+  unitPrice: number
+  quantity: number
+  subtotal: number
+}
+
 export interface OrderView {
   orderNo: string
-  activityId: number | null
   userId: number | null
-  quantity: number | null
-  amount: number | null
+  channel: string | null
+  lines: OrderLine[]
+  totalAmount: number | null
   status: string
   closeReason: string | null
   createdAt: string | null
+  paidAt: string | null
   /** true 代表庫存已扣、訂單仍在非同步建立中，前端應繼續輪詢 */
   processing: boolean
 }

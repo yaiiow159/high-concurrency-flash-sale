@@ -10,7 +10,7 @@ import com.flashsale.application.port.out.PaymentNoGenerator;
 import com.flashsale.application.port.out.PaymentRepository;
 import com.flashsale.domain.order.OrderNo;
 import com.flashsale.domain.order.OrderStatus;
-import com.flashsale.domain.order.SeckillOrder;
+import com.flashsale.domain.order.Order;
 import com.flashsale.domain.payment.Payment;
 import com.flashsale.domain.payment.PaymentNo;
 import com.flashsale.domain.payment.PaymentStatus;
@@ -93,7 +93,7 @@ public class PaymentApplicationService implements PaymentUseCase {
     @Override
     @Transactional
     public PaymentIntentView initiate(String orderNo, Long userId) {
-        SeckillOrder order = requireOwnedOrder(OrderNo.of(orderNo), userId);
+        Order order = requireOwnedOrder(OrderNo.of(orderNo), userId);
         if (order.status() != OrderStatus.PENDING_PAYMENT) {
             throw new BusinessException(ErrorCode.ORDER_NOT_PAYABLE,
                     "訂單目前為 %s，無法付款".formatted(order.status()));
@@ -131,11 +131,11 @@ public class PaymentApplicationService implements PaymentUseCase {
         return existing;
     }
 
-    private Payment createPayment(SeckillOrder order) {
+    private Payment createPayment(Order order) {
         // 金額取自訂單，不接受呼叫端傳入——否則前端就能自己決定要付多少
         return paymentRepository.save(Payment.initiate(
                 paymentNoGenerator.next(), order.orderNo(), order.userId(),
-                order.amount(), clock.instant()));
+                order.totalAmount(), clock.instant()));
     }
 
     @Override
@@ -180,7 +180,7 @@ public class PaymentApplicationService implements PaymentUseCase {
     private void applySuccess(Payment payment, String transactionId, Instant now) {
         payment.markSucceeded(transactionId, now);
 
-        Optional<SeckillOrder> order = orderRepository.findByOrderNo(payment.orderNo());
+        Optional<Order> order = orderRepository.findByOrderNo(payment.orderNo());
         if (order.isPresent() && order.get().status() == OrderStatus.PENDING_PAYMENT) {
             settleOrder(order.get(), payment, now);
             return;
@@ -202,7 +202,7 @@ public class PaymentApplicationService implements PaymentUseCase {
                 payment.paymentNo(), payment.orderNo(), reason);
     }
 
-    private void settleOrder(SeckillOrder order, Payment payment, Instant now) {
+    private void settleOrder(Order order, Payment payment, Instant now) {
         order.pay(now);
         orderRepository.update(order);
         paymentRepository.save(payment);
@@ -230,10 +230,10 @@ public class PaymentApplicationService implements PaymentUseCase {
      * <p>越權一律回「訂單不存在」而非「無權限」——後者等於告訴攻擊者
      * 這個訂單號真的存在，可被用來枚舉訂單量。與 {@code OrderQueryService} 一致。
      */
-    private SeckillOrder requireOwnedOrder(OrderNo orderNo, Long userId) {
-        SeckillOrder order = orderRepository.findByOrderNo(orderNo)
+    private Order requireOwnedOrder(OrderNo orderNo, Long userId) {
+        Order order = orderRepository.findByOrderNo(orderNo)
                 .orElseThrow(() -> new BusinessException(ErrorCode.ORDER_NOT_FOUND));
-        if (!order.userId().equals(userId)) {
+        if (!order.belongsTo(userId)) {
             throw new BusinessException(ErrorCode.ORDER_NOT_FOUND);
         }
         return order;

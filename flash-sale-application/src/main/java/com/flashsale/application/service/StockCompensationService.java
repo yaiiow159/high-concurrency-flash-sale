@@ -19,6 +19,10 @@ import org.springframework.stereotype.Service;
  *
  * <p>正確作法是「先在 DB 交易內把關單與退庫事件一起 commit，再由此服務消費事件退庫」。
  * 事件投遞是至少一次，因此退庫操作本身必須冪等——由 Lua 腳本以 {@code requestId} 保證。
+ *
+ * <p><b>多品項後改為逐筆退回。</b> 一張訂單可能佔用多個活動的庫存，
+ * 單品項時代那個扁平的「一個 activityId + 一個 quantity」在多品項下會漏退——
+ * 而漏退的那些庫存不會有任何錯誤訊息，只會靜靜地消失。
  */
 @Service
 public class StockCompensationService implements StockCompensationUseCase {
@@ -42,11 +46,19 @@ public class StockCompensationService implements StockCompensationUseCase {
 
     @Override
     public void compensate(OrderCancelledEvent event) {
-        boolean restored = restoreStock(
-                event.activityId(), event.userId(), event.quantity(), event.requestId(), "order-cancelled");
-        if (restored) {
-            log.info("訂單關閉已退回庫存 orderNo={}, 數量={}, 原因={}",
-                    event.orderNo(), event.quantity(), event.reason());
+        if (!event.hasStockToRestore()) {
+            // 純一般下單的訂單沒有 Redis 庫存要退，它們走資料庫庫存的補償路徑
+            log.debug("訂單 {} 沒有秒殺庫存需要退回", event.orderNo());
+            return;
+        }
+
+        for (OrderCancelledEvent.StockRestoration restoration : event.restorations()) {
+            boolean restored = restoreStock(restoration.activityId(), event.userId(),
+                    restoration.quantity(), event.requestId(), "order-cancelled");
+            if (restored) {
+                log.info("訂單關閉已退回庫存 orderNo={}, 活動={}, 數量={}, 原因={}",
+                        event.orderNo(), restoration.activityId(), restoration.quantity(), event.reason());
+            }
         }
     }
 
@@ -62,7 +74,8 @@ public class StockCompensationService implements StockCompensationUseCase {
         requestTracker.markFailed(message.orderNo(), "訂單建立失敗，庫存已退回");
     }
 
-    private boolean restoreStock(Long activityId, Long userId, int quantity, String requestId, String trigger) {
+    private boolean restoreStock(Long activityId, Long userId, int quantity,
+                                 String requestId, String trigger) {
         try {
             boolean restored = stockRepository.restore(activityId, userId, quantity, requestId);
             if (restored) {
@@ -75,6 +88,7 @@ public class StockCompensationService implements StockCompensationUseCase {
             return restored;
         } catch (RuntimeException e) {
             metrics.recordCompensation(activityId, trigger, false);
+            // 往上拋讓 MQ 重試；重試耗盡後會留在 DLQ 供人工處理，絕不可靜默吞掉。
             throw e;
         }
     }

@@ -4,7 +4,7 @@ import com.flashsale.application.config.SeckillPolicy;
 import com.flashsale.application.port.in.ExpiredOrderCloseUseCase;
 import com.flashsale.application.port.out.EventOutbox;
 import com.flashsale.application.port.out.OrderRepository;
-import com.flashsale.domain.order.SeckillOrder;
+import com.flashsale.domain.order.Order;
 import com.flashsale.domain.shared.BusinessException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,14 +50,14 @@ public class ExpiredOrderCloseService implements ExpiredOrderCloseUseCase {
         Instant now = clock.instant();
         Instant deadline = now.minus(policy.paymentWindow());
 
-        List<SeckillOrder> expired =
+        List<Order> expired =
                 orderRepository.findExpiredPendingOrders(deadline, policy.compensationBatchSize());
         if (expired.isEmpty()) {
             return 0;
         }
 
         int closed = 0;
-        for (SeckillOrder order : expired) {
+        for (Order order : expired) {
             if (closeOne(order, now)) {
                 closed++;
             }
@@ -66,7 +66,7 @@ public class ExpiredOrderCloseService implements ExpiredOrderCloseUseCase {
         return closed;
     }
 
-    private boolean closeOne(SeckillOrder order, Instant now) {
+    private boolean closeOne(Order order, Instant now) {
         try {
             order.cancel(CLOSE_REASON, now);
             orderRepository.update(order);
