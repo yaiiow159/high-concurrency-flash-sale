@@ -82,6 +82,7 @@ class AuthenticationIntegrationTest {
         registry.add("flash-sale.stock.warmup-interval-ms", () -> "3600000");
         registry.add("flash-sale.reconciliation.interval-ms", () -> "3600000");
         registry.add("flash-sale.reconciliation.initial-delay-ms", () -> "3600000");
+        registry.add("flash-sale.payment.refund-scan-interval-ms", () -> "3600000");
     }
 
     @Autowired private MockMvc mockMvc;

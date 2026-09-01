@@ -168,6 +168,9 @@ curl http://localhost:8080/api/v1/seckill/orders/123456789 -H "Authorization: Be
 | `POST` | `/api/v1/auth/refresh` | 匿名 | 續期；舊 refresh token 立即失效 |
 | `POST` | `/api/v1/auth/logout` | 匿名 | 撤銷 refresh token |
 | `GET` | `/api/v1/auth/me` | Bearer | 目前登入的使用者 |
+| `POST` | `/api/v1/orders/{orderNo}/payments` | Bearer | 發起付款，回傳金流付款頁網址 |
+| `GET` | `/api/v1/orders/{orderNo}/payments` | Bearer | 查詢付款狀態 |
+| `POST` | `/api/v1/payments/callback` | 簽章 | 金流回調（由閘道呼叫） |
 
 ### 認證
 
@@ -220,6 +223,42 @@ mvn test -pl flash-sale-api -Dtest=ArchitectureTest  # 架構約束
 
 併發測試對著**真實的 Redis**（Testcontainers）執行。
 這一段用 mock 等於 mock 掉唯一要驗證的東西——測試會全綠，超賣照樣發生。
+
+---
+
+## 付款
+
+訂單生命週期以付款閉環：`PENDING_PAYMENT → PAID`。
+目前使用模擬金流閘道（`SimulatedPaymentGateway`），
+接真實金流時替換該類別即可，`PaymentGateway` 介面不變。
+
+**模擬的是流程而非走捷徑**：閘道非同步回調、簽章驗證、回調重送冪等，
+三者都是真的。若模擬時走同步捷徑，那些情境只會在接上真實金流後才第一次出現——
+而那是最糟的發現時機。
+
+### 「錢收了但訂單入不了帳」
+
+最需要想清楚的一個競態：
+
+```
+t0  使用者跳轉金流頁面
+t1  逾時關單排程執行 → 訂單 CANCELLED、庫存退回
+t2  使用者完成付款 → 閘道回調「成功」
+    此時錢已收，但訂單已是終態
+```
+
+| 處理方式 | 為什麼不行 |
+|---|---|
+| 把付款標記為失敗 | 錢真的收了，帳上寫「沒收到」會讓對帳與現實脫節 |
+| 強制把訂單改回 PAID | 庫存已退回並可能被別人買走，這會製造超賣 |
+| **如實記錄收款成功，再標記待退款** | ✅ 本方案 |
+
+付款狀態走 `SUCCEEDED → REFUND_PENDING → REFUNDED`，
+並且**同時發出收款成功與需要退款兩個事件**——
+只發後者會讓下游財務系統看到一筆沒有對應收入的支出。
+
+`payment_callback_total{result="refund-required"}` 應恆為 0，
+一旦出現就代表這個競態發生了。
 
 ---
 

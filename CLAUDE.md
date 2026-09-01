@@ -113,6 +113,19 @@ mock 單元測試看到 `revokeFamily` 有被呼叫就會判定通過。**
 - 改動對帳邏輯時，`StockReconciliationServiceTest` 的「什麼情況絕不自動修」
   那幾條測試不可放寬
 
+### 8-1. 收款成功絕不可被改寫成失敗
+
+付款完成時訂單已被關閉（逾時關單搶先）是真實會發生的競態。
+此時錢**確實收了**，處理方式只有一種：如實記錄 `SUCCEEDED`，
+再轉 `REFUND_PENDING` 走退款。
+
+- ❌ 標記為失敗——帳上寫「沒收到」而現實是收到的，對帳會永遠對不平
+- ❌ 強制把訂單改回 `PAID`——庫存已退回並可能被別人買走，那是超賣
+- 兩個事件都要發（`payment.succeeded` + `payment.refund-required`），
+  只發後者會讓下游看到一筆沒有對應收入的支出
+
+`payment_callback_total{result="refund-required"}` 應恆為 0。
+
 ### 9. 時間一律注入 `Clock`
 
 不得直接呼叫 `Instant.now()` 或 `System.currentTimeMillis()`。
