@@ -1,0 +1,25 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --ground: #f5f7fa;
+    --surface: #ffffff;
+    --line: #d3dbe5;
+    --ink: #131a24;
+    --ink-muted: #56637a;
+    --accent: #0b6e78;
+    --danger: #a8401c;
+  }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+  }
+
+  /* 數字對齊：倒數與庫存會逐秒變動，非等寬會讓版面跳動 */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}

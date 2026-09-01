@@ -327,6 +327,24 @@ Redis 餘量 + Σ(PENDING_PAYMENT + PAID 訂單的數量) = 活動總庫存
 
 ---
 
+## 前端
+
+秒殺頁已實作（Nuxt 3 + Vue 3 + TypeScript），詳見 [`web/`](web/)。
+
+```bash
+cd web && npm install && npm run dev   # http://localhost:5173
+```
+
+這一頁本身就是**削峰漏斗的第 0 層**：靜態部分由 ISR + CDN 承接，
+庫存數字走獨立的輕量請求，開賣瞬間加隨機抖動把請求打散。
+
+令牌採 BFF 設計——`server/api/auth/*` 把 refresh token 攔進 httpOnly cookie，
+瀏覽器只拿得到 access token 且只存在記憶體中。
+
+> 開發埠為 5173 而非 Nuxt 預設的 3000——後者被 `docker-compose.yml` 的 Grafana 佔用。
+
+---
+
 ## 演進規劃
 
 本專案正朝完整電商平台演進，路線圖與架構主張記錄在 [`docs/roadmap/`](docs/roadmap/)。
