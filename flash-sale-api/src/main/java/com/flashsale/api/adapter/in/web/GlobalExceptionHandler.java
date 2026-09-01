@@ -55,7 +55,12 @@ public class GlobalExceptionHandler {
             Map.entry(ErrorCode.USER_NOT_FOUND, HttpStatus.NOT_FOUND),
             Map.entry(ErrorCode.SOLD_OUT, HttpStatus.CONFLICT),
             Map.entry(ErrorCode.USER_PURCHASE_LIMIT_EXCEEDED, HttpStatus.CONFLICT),
-            Map.entry(ErrorCode.EMAIL_ALREADY_REGISTERED, HttpStatus.CONFLICT)
+            Map.entry(ErrorCode.EMAIL_ALREADY_REGISTERED, HttpStatus.CONFLICT),
+            Map.entry(ErrorCode.PAYMENT_NOT_FOUND, HttpStatus.NOT_FOUND),
+            Map.entry(ErrorCode.ORDER_NOT_PAYABLE, HttpStatus.CONFLICT),
+            Map.entry(ErrorCode.ILLEGAL_PAYMENT_STATE_TRANSITION, HttpStatus.CONFLICT),
+            // 簽章錯誤回 401 而非 400：這是「你不是你宣稱的那個閘道」，屬於認證問題
+            Map.entry(ErrorCode.INVALID_CALLBACK_SIGNATURE, HttpStatus.UNAUTHORIZED)
     );
 
     @ExceptionHandler(BusinessException.class)

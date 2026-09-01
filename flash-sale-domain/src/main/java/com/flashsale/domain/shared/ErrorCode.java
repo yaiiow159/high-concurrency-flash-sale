@@ -18,6 +18,7 @@ public enum ErrorCode {
     // 區分開來等於提供一支帳號枚舉的 API。
     INVALID_CREDENTIALS("A0006", "帳號或密碼錯誤"),
     INVALID_REFRESH_TOKEN("A0007", "登入憑證已失效，請重新登入"),
+    INVALID_CALLBACK_SIGNATURE("A0008", "回調簽章驗證失敗"),
 
     // ---- B：業務規則拒絕 ----
     ACTIVITY_NOT_FOUND("B0001", "活動不存在"),
@@ -28,6 +29,9 @@ public enum ErrorCode {
     USER_PURCHASE_LIMIT_EXCEEDED("B0006", "已達個人限購數量"),
     ORDER_NOT_FOUND("B0007", "訂單不存在"),
     ILLEGAL_ORDER_STATE_TRANSITION("B0008", "訂單狀態不允許此操作"),
+    ILLEGAL_PAYMENT_STATE_TRANSITION("B0012", "付款狀態不允許此操作"),
+    PAYMENT_NOT_FOUND("B0013", "付款單不存在"),
+    ORDER_NOT_PAYABLE("B0014", "此訂單目前無法付款"),
     EMAIL_ALREADY_REGISTERED("B0009", "此電子郵件已被註冊"),
     ACCOUNT_SUSPENDED("B0010", "帳號已停權"),
     USER_NOT_FOUND("B0011", "使用者不存在"),

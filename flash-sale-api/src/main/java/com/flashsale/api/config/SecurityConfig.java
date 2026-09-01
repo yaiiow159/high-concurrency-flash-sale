@@ -66,6 +66,15 @@ public class SecurityConfig {
             "/api/v1/auth/refresh", "/api/v1/auth/logout"
     };
 
+    /**
+     * 金流回調端點。
+     *
+     * <p>必須匿名——金流閘道不會帶著使用者的令牌打過來。
+     * 因此它的安全性<b>完全</b>建立在簽章驗證上，
+     * 見 {@code PaymentApplicationService.handleGatewayCallback}。
+     */
+    private static final String PAYMENT_CALLBACK_ENDPOINT = "/api/v1/payments/callback";
+
     @Bean
     public SecurityFilterChain apiSecurityFilterChain(
             HttpSecurity http,
@@ -81,6 +90,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(PUBLIC_ENDPOINTS).permitAll()
                         .requestMatchers(HttpMethod.POST, PUBLIC_AUTH_ENDPOINTS).permitAll()
+                        .requestMatchers(HttpMethod.POST, PAYMENT_CALLBACK_ENDPOINT).permitAll()
                         // 順序關鍵：預熱是管理操作，必須排在下面的活動查詢放行規則之前，
                         // 否則會被 /api/v1/activities/** 的規則先攔截。
                         .requestMatchers(HttpMethod.POST, "/api/v1/activities/*/warm-up")
