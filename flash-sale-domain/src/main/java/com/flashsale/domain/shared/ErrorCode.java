@@ -50,6 +50,9 @@ public enum ErrorCode {
     CART_ITEM_NOT_FOUND("B0027", "購物車中沒有這個品項"),
     CART_ITEM_LIMIT_EXCEEDED("B0028", "購物車商品種類已達上限"),
     CART_EMPTY("B0029", "購物車是空的"),
+    SHIPMENT_NOT_FOUND("B0030", "出貨單不存在"),
+    ILLEGAL_SHIPMENT_STATE_TRANSITION("B0031", "出貨狀態不允許此操作"),
+    ORDER_NOT_SHIPPABLE("B0032", "此訂單目前無法出貨"),
 
     // ---- C：系統/依賴故障 ----
     STOCK_SERVICE_UNAVAILABLE("C0001", "庫存服務暫時不可用"),

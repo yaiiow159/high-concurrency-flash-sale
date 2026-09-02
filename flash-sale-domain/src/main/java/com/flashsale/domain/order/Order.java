@@ -3,7 +3,9 @@ package com.flashsale.domain.order;
 import com.flashsale.domain.activity.SeckillActivity;
 import com.flashsale.domain.order.event.OrderCancelledEvent;
 import com.flashsale.domain.order.event.OrderCreatedEvent;
+import com.flashsale.domain.order.event.OrderCompletedEvent;
 import com.flashsale.domain.order.event.OrderPaidEvent;
+import com.flashsale.domain.order.event.OrderShippedEvent;
 import com.flashsale.domain.shared.BusinessException;
 import com.flashsale.domain.shared.DomainEvent;
 import com.flashsale.domain.shared.ErrorCode;
@@ -139,6 +141,24 @@ public final class Order {
         transitionTo(OrderStatus.PAID);
         this.paidAt = paidAt;
         registerEvent(OrderPaidEvent.of(this, paidAt));
+    }
+
+    /**
+     * 出貨。
+     *
+     * <p>這是<b>不可逆的分水嶺</b>：出貨前買家可自由取消（退錢退庫存都來得及），
+     * 出貨後必須走退貨流程——貨在路上，庫存不能直接退回可售池。
+     * 狀態機用 {@code SHIPPED} 不允許轉回 {@code CANCELLED} 把這件事釘死。
+     */
+    public void ship(Instant shippedAt) {
+        transitionTo(OrderStatus.SHIPPED);
+        registerEvent(OrderShippedEvent.of(this, shippedAt));
+    }
+
+    /** 送達，訂單完成。 */
+    public void complete(Instant completedAt) {
+        transitionTo(OrderStatus.COMPLETED);
+        registerEvent(OrderCompletedEvent.of(this, completedAt));
     }
 
     /** 取消訂單（逾時未付款或使用者主動取消），會觸發庫存補償事件。 */

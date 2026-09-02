@@ -5,6 +5,7 @@ import com.flashsale.application.port.in.StockWarmupUseCase;
 import com.flashsale.application.port.out.ActivityRepository;
 import com.flashsale.application.port.out.DistributedLock;
 import com.flashsale.application.port.out.InventoryRepository;
+import com.flashsale.application.port.out.OrderRepository;
 import com.flashsale.application.port.out.SoldOutMarker;
 import com.flashsale.application.port.out.StockRepository;
 import com.flashsale.domain.activity.SeckillActivity;
@@ -38,6 +39,7 @@ public class StockWarmupService implements StockWarmupUseCase {
     private static final Duration LOCK_LEASE = Duration.ofSeconds(10);
 
     private final ActivityRepository activityRepository;
+    private final OrderRepository orderRepository;
     private final StockRepository stockRepository;
     private final InventoryRepository inventoryRepository;
     private final InventoryAllocator inventoryAllocator;
@@ -47,6 +49,7 @@ public class StockWarmupService implements StockWarmupUseCase {
     private final Clock clock;
 
     public StockWarmupService(ActivityRepository activityRepository,
+                              OrderRepository orderRepository,
                               StockRepository stockRepository,
                               InventoryRepository inventoryRepository,
                               InventoryAllocator inventoryAllocator,
@@ -55,6 +58,7 @@ public class StockWarmupService implements StockWarmupUseCase {
                               SeckillPolicy policy,
                               Clock clock) {
         this.activityRepository = activityRepository;
+        this.orderRepository = orderRepository;
         this.stockRepository = stockRepository;
         this.inventoryRepository = inventoryRepository;
         this.inventoryAllocator = inventoryAllocator;
@@ -113,12 +117,46 @@ public class StockWarmupService implements StockWarmupUseCase {
                 activity.totalStock(), clock.instant());
 
         Duration ttl = calculateTtl(activity, clock.instant());
-        stockRepository.initialize(activity.id(), activity.totalStock(), ttl, force);
+        stockRepository.initialize(activity.id(), remainingStockOf(activity), ttl, force);
         soldOutMarker.clear(activity.id());
 
         long available = stockRepository.availableStock(activity.id());
         log.info("活動 {} 預熱完成：可用庫存={}, TTL={}", activity.id(), available, ttl);
         return available;
+    }
+
+    /**
+     * 依訂單重建應有的餘量，而不是直接寫入總庫存。
+     *
+     * <p><b>這一步是「Redis 可以掉」這個前提能成立的唯一理由。</b>
+     * docker-compose 刻意關掉 Redis 持久化，理由是「庫存可重建，DB 才是真實來源」——
+     * 但那句話只有在重建能算出<b>正確</b>的餘量時才是真的。
+     *
+     * <p>直接寫 {@code totalStock} 的話，Redis 一重啟，所有已售出的量都會被抹掉：
+     * 賣了 4 件的活動會回到滿的 1000 件，然後把那 4 件再賣一次。
+     * 實測踩到過——Docker 重建容器後對帳報出 {@code OVERSELL_RISK drift +4}，
+     * 那 4 件正是重啟前賣掉的。
+     *
+     * <p>{@code force=true} 也走同一條路：維運覆寫的意思是
+     * 「把 Redis 拉回與資料庫一致」，而不是「把庫存重設成滿的」。
+     *
+     * <p><b>不夾住負數以外的偏差</b>：若已售出量大於總庫存，
+     * 那本身就是需要人看的異常（對帳會報 {@code OVERSELL_RISK}），
+     * 這裡只保證不寫入負數，不試圖掩蓋它。
+     */
+    private int remainingStockOf(SeckillActivity activity) {
+        long sold = orderRepository.sumActiveQuantity(activity.id());
+        long remaining = activity.totalStock() - sold;
+        if (remaining < 0) {
+            log.error("活動 {} 的已售出量 {} 超過總庫存 {}，預熱以 0 寫入並等待人工處理",
+                    activity.id(), sold, activity.totalStock());
+            return 0;
+        }
+        if (sold > 0) {
+            log.info("活動 {} 依訂單重建餘量：總庫存 {} - 已售出 {} = {}",
+                    activity.id(), activity.totalStock(), sold, remaining);
+        }
+        return (int) remaining;
     }
 
     /**

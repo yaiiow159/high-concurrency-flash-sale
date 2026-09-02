@@ -34,7 +34,7 @@ public interface OrderRepository {
     Optional<Order> findByRequestId(String requestId);
 
     /**
-     * 統計某活動「仍佔用庫存」的訂單總數量（{@code PENDING_PAYMENT} + {@code PAID}）。
+     * 統計某活動「仍佔用庫存」的訂單總數量，判準見 {@code OrderStatus.holdsStock()}。
      *
      * <p>對帳恆等式的右半邊：{@code Redis 餘量 + 本方法回傳值 = 活動總庫存}。
      *
