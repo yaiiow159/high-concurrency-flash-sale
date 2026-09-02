@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 /**
@@ -42,7 +43,8 @@ public class RedissonDistributedLock implements DistributedLock {
         RLock lock = redissonClient.getLock(lockKey);
         boolean acquired = false;
         try {
-            acquired = lock.tryLock(waitTime.toMillis(), leaseTime.toMillis(), java.util.concurrent.TimeUnit.MILLISECONDS);
+            acquired = lock.tryLock(waitTime.toMillis(), leaseTime.toMillis(),
+                    TimeUnit.MILLISECONDS);
             if (!acquired) {
                 throw new BusinessException(ErrorCode.LOCK_ACQUIRE_FAILED,
                         "取得鎖逾時: " + lockKey);
