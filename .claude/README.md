@@ -58,9 +58,15 @@
 | `add-domain-event` | 新增領域事件 | Outbox 寫入時機、消費端冪等、DLQ 補償的完整鏈路 |
 | `seckill-load-test` | 壓測與容量規劃 | 壓測腳本、該看哪些指標、如何判讀瓶頸位置 |
 | `oversell-incident` | 超賣／少賣事故 | 排查順序、止血手段、根因定位的 runbook |
+| `code-review` | Review 改動、開 PR 前自我檢查 | 格式與註解的機械檢查腳本＋人工判斷清單；並標明哪些檢查已由 hooks 與 agents 涵蓋 |
 
 每個 Skill 都包含**檢查清單**與**常見錯誤**——後者往往比前者更有價值，
 因為那是真正會出錯的地方。
+
+`code-review` 是唯一附帶可執行腳本的 skill
+（[`check_style.py`](skills/code-review/check_style.py)）。
+它刻意**不**掛進 PostToolUse hook：格式問題不該在寫到一半時打斷思路，
+那是 review 階段的事。hooks 只留給「會出事」的違規。
 
 ### Hooks — [`hooks/`](hooks/)
 
