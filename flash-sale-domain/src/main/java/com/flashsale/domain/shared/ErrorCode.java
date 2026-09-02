@@ -44,6 +44,9 @@ public enum ErrorCode {
     EMAIL_ALREADY_REGISTERED("B0009", "此電子郵件已被註冊"),
     ACCOUNT_SUSPENDED("B0010", "帳號已停權"),
     USER_NOT_FOUND("B0011", "使用者不存在"),
+    ADDRESS_NOT_FOUND("B0024", "收貨地址不存在"),
+    ADDRESS_LIMIT_EXCEEDED("B0025", "收貨地址數量已達上限"),
+    SHIPPING_INFO_REQUIRED("B0026", "此訂單尚未填寫收貨資訊"),
 
     // ---- C：系統/依賴故障 ----
     STOCK_SERVICE_UNAVAILABLE("C0001", "庫存服務暫時不可用"),

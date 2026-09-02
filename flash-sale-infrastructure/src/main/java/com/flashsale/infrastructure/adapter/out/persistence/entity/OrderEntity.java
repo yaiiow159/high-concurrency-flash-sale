@@ -65,6 +65,33 @@ public class OrderEntity {
     @Column(name = "total_amount", nullable = false, precision = 12, scale = 2, updatable = false)
     private BigDecimal totalAmount;
 
+    /**
+     * 收貨資訊快照，全部 {@code updatable = false}。
+     *
+     * <p>與金額同理（見 ADR-0007 與 CLAUDE.md 規則 7-2）：訂單記錄的是
+     * 「當初要寄到哪裡」，不是「這個使用者現在住哪」。使用者搬家改了地址簿，
+     * 已成立的訂單不能跟著變——那是出貨紀錄與客訴處理的依據。
+     *
+     * <p>秒殺訂單建立當下沒有地址，因此全部可為 null。
+     */
+    @Column(name = "ship_recipient", length = 32, updatable = false)
+    private String shipRecipient;
+
+    @Column(name = "ship_phone", length = 24, updatable = false)
+    private String shipPhone;
+
+    @Column(name = "ship_postal_code", length = 8, updatable = false)
+    private String shipPostalCode;
+
+    @Column(name = "ship_region", length = 32, updatable = false)
+    private String shipRegion;
+
+    @Column(name = "ship_district", length = 32, updatable = false)
+    private String shipDistrict;
+
+    @Column(name = "ship_street", length = 128, updatable = false)
+    private String shipStreet;
+
     @Column(name = "status", nullable = false, length = 24)
     private String status;
 
@@ -103,6 +130,48 @@ public class OrderEntity {
         this.createdAt = createdAt;
         this.paidAt = paidAt;
         this.closeReason = closeReason;
+    }
+
+    /**
+     * 寫入收貨資訊快照。
+     *
+     * <p>只在建立時呼叫一次。之後即使有人再呼叫，JPA 也不會把值寫進資料庫——
+     * 那些欄位是 {@code updatable = false}。這個「呼叫了卻沒效果」的行為
+     * 是刻意的最後防線：它讓「訂單建立後改地址」失敗得安靜但無害，
+     * 而不是安靜地成功。
+     */
+    public void applyShippingInfo(String recipient, String phone, String postalCode,
+                                  String region, String district, String street) {
+        this.shipRecipient = recipient;
+        this.shipPhone = phone;
+        this.shipPostalCode = postalCode;
+        this.shipRegion = region;
+        this.shipDistrict = district;
+        this.shipStreet = street;
+    }
+
+    public String getShipRecipient() {
+        return shipRecipient;
+    }
+
+    public String getShipPhone() {
+        return shipPhone;
+    }
+
+    public String getShipPostalCode() {
+        return shipPostalCode;
+    }
+
+    public String getShipRegion() {
+        return shipRegion;
+    }
+
+    public String getShipDistrict() {
+        return shipDistrict;
+    }
+
+    public String getShipStreet() {
+        return shipStreet;
     }
 
     /** 加入訂單行並維護雙向關聯——只設一邊會讓 JPA 寫不出外鍵。 */

@@ -2,7 +2,7 @@ import { useAuthStore } from '~/stores/auth'
 import type { ApiResponse } from '~/types/api'
 
 interface RequestOptions {
-  method?: 'GET' | 'POST'
+  method?: 'GET' | 'POST' | 'PUT' | 'DELETE'
   body?: unknown
   /** 需要帶 access token 的請求 */
   authenticated?: boolean
@@ -66,7 +66,9 @@ export function useApi() {
         headers,
         body: options.body as Record<string, unknown> | undefined,
       })
-      return response.data
+      // 204 No Content 沒有回應主體，response 會是 undefined。
+      // 直接讀 .data 會在刪除這類操作上炸掉，而那是完全成功的請求。
+      return response?.data as T
     } catch (error) {
       throw toApiError(error)
     }

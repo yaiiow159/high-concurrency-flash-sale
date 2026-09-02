@@ -41,6 +41,18 @@ public final class Order {
     private final String requestId;
     private final List<OrderLine> lines;
     private final BigDecimal totalAmount;
+    /**
+     * 收貨資訊快照，可能為 null。
+     *
+     * <p>秒殺訂單在建立當下沒有地址——搶購請求只帶活動與數量，
+     * 中間沒有讓使用者選地址的環節。那不是遺漏，是那條通道的形狀：
+     * 削峰的前提就是把非必要的步驟移出下單當下。
+     * 秒殺訂單的收貨資訊要在付款前補齊，屬於結帳流程的範圍。
+     *
+     * <p><b>一旦有值就不可再變</b>（{@code OrderEntity} 以
+     * {@code updatable = false} 鎖住），理由見 {@link ShippingInfo}。
+     */
+    private final ShippingInfo shippingInfo;
     private final Instant createdAt;
 
     private OrderStatus status;
@@ -51,14 +63,16 @@ public final class Order {
     private final List<DomainEvent> domainEvents = new ArrayList<>();
 
     private Order(OrderNo orderNo, Long userId, OrderChannel channel, String requestId,
-                  List<OrderLine> lines, BigDecimal totalAmount, OrderStatus status,
-                  Instant createdAt, Instant paidAt, String closeReason, long version) {
+                  List<OrderLine> lines, BigDecimal totalAmount, ShippingInfo shippingInfo,
+                  OrderStatus status, Instant createdAt, Instant paidAt,
+                  String closeReason, long version) {
         this.orderNo = Objects.requireNonNull(orderNo, "orderNo 不可為 null");
         this.userId = Objects.requireNonNull(userId, "userId 不可為 null");
         this.channel = Objects.requireNonNull(channel, "channel 不可為 null");
         this.requestId = Objects.requireNonNull(requestId, "requestId 不可為 null");
         this.lines = List.copyOf(requireNonEmpty(lines));
         this.totalAmount = Objects.requireNonNull(totalAmount, "totalAmount 不可為 null");
+        this.shippingInfo = shippingInfo;
         this.status = Objects.requireNonNull(status, "status 不可為 null");
         this.createdAt = Objects.requireNonNull(createdAt, "createdAt 不可為 null");
         this.paidAt = paidAt;
@@ -69,12 +83,16 @@ public final class Order {
     /**
      * 建立一般訂單（可多品項）。
      *
-     * @param requestId 冪等鍵，由呼叫端產生，用於擋重複提交
+     * @param requestId    冪等鍵，由呼叫端產生，用於擋重複提交
+     * @param shippingInfo 收貨資訊<b>快照</b>，不可為 null——寄不出去的訂單不該被建立。
+     *                     傳入的必須是快照而非地址簿的引用，理由見 {@link ShippingInfo}
      */
     public static Order place(OrderNo orderNo, Long userId, String requestId,
-                              List<OrderLine> lines, Instant now) {
+                              List<OrderLine> lines, ShippingInfo shippingInfo, Instant now) {
+        Objects.requireNonNull(shippingInfo, "一般訂單必須有收貨資訊");
         Order order = new Order(orderNo, userId, OrderChannel.NORMAL, requestId,
-                lines, sumOf(lines), OrderStatus.PENDING_PAYMENT, now, null, null, 0L);
+                lines, sumOf(lines), shippingInfo, OrderStatus.PENDING_PAYMENT,
+                now, null, null, 0L);
         order.registerEvent(OrderCreatedEvent.of(order, now));
         return order;
     }
@@ -95,8 +113,10 @@ public final class Order {
                 quantity,
                 activity.id());
 
+        // 秒殺沒有收貨資訊：那條通道的下單當下不收集地址（見 shippingInfo 欄位說明）
         Order order = new Order(orderNo, userId, OrderChannel.SECKILL, requestId,
-                List.of(line), line.subtotal(), OrderStatus.PENDING_PAYMENT, now, null, null, 0L);
+                List.of(line), line.subtotal(), null, OrderStatus.PENDING_PAYMENT,
+                now, null, null, 0L);
         order.registerEvent(OrderCreatedEvent.of(order, now));
         return order;
     }
@@ -107,10 +127,11 @@ public final class Order {
      * <p>與建立方法明確分離，避免 repository 載入既有訂單時誤觸發事件。
      */
     public static Order restore(OrderNo orderNo, Long userId, OrderChannel channel, String requestId,
-                                List<OrderLine> lines, BigDecimal totalAmount, OrderStatus status,
+                                List<OrderLine> lines, BigDecimal totalAmount,
+                                ShippingInfo shippingInfo, OrderStatus status,
                                 Instant createdAt, Instant paidAt, String closeReason, long version) {
         return new Order(orderNo, userId, channel, requestId, lines, totalAmount,
-                status, createdAt, paidAt, closeReason, version);
+                shippingInfo, status, createdAt, paidAt, closeReason, version);
     }
 
     /** 付款成功。 */
@@ -219,6 +240,11 @@ public final class Order {
 
     public List<OrderLine> lines() {
         return lines;
+    }
+
+    /** 收貨資訊快照；秒殺訂單為 {@code null}。 */
+    public ShippingInfo shippingInfo() {
+        return shippingInfo;
     }
 
     public BigDecimal totalAmount() {

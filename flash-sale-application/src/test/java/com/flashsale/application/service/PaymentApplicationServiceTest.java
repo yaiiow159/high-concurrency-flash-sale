@@ -312,7 +312,7 @@ class PaymentApplicationServiceTest {
     private static Order order(OrderStatus status) {
         return Order.restore(OrderNo.of(ORDER_NO), USER_ID, OrderChannel.SECKILL, "req-1",
                 List.of(new OrderLine(2001L, "測試商品", AMOUNT, 1, 1001L)),
-                AMOUNT, status, NOW.minusSeconds(600), null, null, 0L);
+                AMOUNT, null, status, NOW.minusSeconds(600), null, null, 0L);
     }
 
     private static Payment pendingPayment() {

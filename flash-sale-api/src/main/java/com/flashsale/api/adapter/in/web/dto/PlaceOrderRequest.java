@@ -34,11 +34,18 @@ public record PlaceOrderRequest(
          */
         @NotBlank(message = "requestId 不可為空")
         @Size(max = 64, message = "requestId 長度不可超過 64")
-        String requestId
+        String requestId,
+
+        /**
+         * 收貨地址簿的 ID。訂單存的是它的<b>快照</b>而非這個 ID——
+         * 使用者日後搬家改了地址簿，這張訂單要寄到哪裡不能跟著變。
+         */
+        @NotNull(message = "請選擇收貨地址")
+        Long addressId
 ) {
 
     public PlaceOrderUseCase.PlaceOrderCommand toCommand(Long userId) {
-        return new PlaceOrderUseCase.PlaceOrderCommand(userId, requestId,
+        return new PlaceOrderUseCase.PlaceOrderCommand(userId, requestId, addressId,
                 items.stream()
                         .map(item -> new PlaceOrderUseCase.OrderItem(item.skuId(), item.quantity()))
                         .toList());

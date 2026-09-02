@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useAddresses } from '~/composables/useAddresses'
 import { useCheckout } from '~/composables/useCheckout'
 import { useAuthStore } from '~/stores/auth'
 import type { ApiResponse, ProductView, SkuView } from '~/types/api'
@@ -21,6 +22,30 @@ const auth = useAuthStore()
 const { state, place, reset } = useCheckout()
 
 /**
+ * 地址在客戶端掛載後才取，絕不進 SSR——這一頁是 ISR 快取的，
+ * 個資一旦進了快取的 HTML 就等於發給下一個訪客。
+ */
+const { addresses, defaultAddress, load: loadAddresses } = useAddresses()
+const selectedAddressId = ref<number | null>(null)
+
+onMounted(() => {
+  if (auth.isAuthenticated) {
+    loadAddresses()
+  }
+})
+watch(() => auth.isAuthenticated, (loggedIn) => {
+  if (loggedIn) {
+    loadAddresses()
+  }
+})
+// 預選預設地址，讓多數人不必多按一次
+watchEffect(() => {
+  if (selectedAddressId.value === null && defaultAddress.value) {
+    selectedAddressId.value = defaultAddress.value.addressId
+  }
+})
+
+/**
  * 預選第一個可購買的規格。
  *
  * 不預選「第一個」而是「第一個可買的」：把使用者放在一個
@@ -40,14 +65,20 @@ const selectedSku = computed<SkuView | null>(
 const quantity = ref(1)
 const submitting = computed(() => state.value.kind === 'submitting')
 const canBuy = computed(
-  () => auth.isAuthenticated && selectedSku.value?.purchasable === true && !submitting.value,
+  () => auth.isAuthenticated
+    && selectedSku.value?.purchasable === true
+    && selectedAddressId.value !== null
+    && !submitting.value,
 )
 
 async function buy() {
-  if (!selectedSku.value) {
+  if (!selectedSku.value || selectedAddressId.value === null) {
     return
   }
-  await place([{ skuId: selectedSku.value.skuId, quantity: quantity.value }])
+  await place(
+    [{ skuId: selectedSku.value.skuId, quantity: quantity.value }],
+    selectedAddressId.value,
+  )
   if (state.value.kind === 'placed') {
     await navigateTo(`/orders/${state.value.order.orderNo}`)
   }
@@ -123,6 +154,48 @@ useHead(() => ({ title: product.value?.name ?? '商品' }))
     <p v-if="!auth.isAuthenticated" class="mt-6 text-sm text-[var(--ink-muted)]">
       請先登入才能購買。
     </p>
+
+    <section v-else class="mt-8" aria-labelledby="address-heading">
+      <h2 id="address-heading" class="text-sm font-semibold text-[var(--ink-muted)]">
+        寄送至
+      </h2>
+
+      <div v-if="addresses.length > 0" class="mt-3 flex flex-col gap-2">
+        <label
+          v-for="address in addresses"
+          :key="address.addressId"
+          class="flex cursor-pointer items-start gap-3 rounded border p-4 transition"
+          :class="address.addressId === selectedAddressId
+            ? 'border-[var(--accent)]'
+            : 'border-[var(--line)] hover:border-[var(--accent)]'"
+        >
+          <input
+            v-model="selectedAddressId" type="radio" name="address"
+            :value="address.addressId" class="mt-1"
+          >
+          <span>
+            <span class="font-medium">{{ address.recipientName }}</span>
+            <span class="ml-2 font-mono text-sm text-[var(--ink-muted)]">
+              {{ address.phone }}
+            </span>
+            <span class="mt-1 block text-sm text-[var(--ink-muted)]">
+              {{ address.fullAddress }}
+            </span>
+          </span>
+        </label>
+        <NuxtLink to="/addresses" class="mt-1 text-sm text-[var(--accent)] hover:underline">
+          管理地址 →
+        </NuxtLink>
+      </div>
+
+      <p v-else class="mt-3 text-sm text-[var(--ink-muted)]">
+        還沒有收貨地址，
+        <NuxtLink to="/addresses" class="text-[var(--accent)] hover:underline">
+          先新增一筆
+        </NuxtLink>
+        才能下單。
+      </p>
+    </section>
 
     <button
       type="button"

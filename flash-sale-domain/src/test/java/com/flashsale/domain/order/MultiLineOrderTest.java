@@ -23,6 +23,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @DisplayName("多品項訂單")
 class MultiLineOrderTest {
 
+    private static final ShippingInfo SHIPPING = new ShippingInfo(
+            "王小明", "0912345678", "110", "臺北市", "信義區", "市府路 1 號");
+
     private static final Instant NOW = Instant.parse("2026-09-01T10:00:00Z");
 
     @Nested
@@ -51,7 +54,7 @@ class MultiLineOrderTest {
         @DisplayName("訂單至少要有一條行")
         void rejectsEmptyOrder() {
             assertThatThrownBy(() -> Order.place(
-                    OrderNo.of("20260901001"), 88L, "req-1", List.of(), NOW))
+                    OrderNo.of("20260901001"), 88L, "req-1", List.of(), SHIPPING, NOW))
                     .isInstanceOf(BusinessException.class);
         }
 
@@ -74,7 +77,7 @@ class MultiLineOrderTest {
                     new OrderLine(1L, "秒殺商品甲", new BigDecimal("100.00"), 2, 5001L),
                     new OrderLine(2L, "秒殺商品乙", new BigDecimal("200.00"), 3, 5002L),
                     new OrderLine(3L, "一般商品", new BigDecimal("50.00"), 1, null)
-            ), NOW);
+            ), SHIPPING, NOW);
 
             assertThat(order.quantityFromActivity(5001L)).isEqualTo(2);
             assertThat(order.quantityFromActivity(5002L)).isEqualTo(3);
@@ -94,7 +97,7 @@ class MultiLineOrderTest {
             Order order = Order.place(OrderNo.of("20260901003"), 88L, "req-3", List.of(
                     new OrderLine(1L, "秒殺甲", new BigDecimal("100.00"), 2, 5001L),
                     new OrderLine(2L, "秒殺乙", new BigDecimal("200.00"), 3, 5002L)
-            ), NOW);
+            ), SHIPPING, NOW);
             order.pullDomainEvents();
 
             order.cancel("逾時未付款", NOW.plusSeconds(900));
@@ -113,7 +116,7 @@ class MultiLineOrderTest {
         void normalLinesAreNotRestoredViaRedis() {
             Order order = Order.place(OrderNo.of("20260901004"), 88L, "req-4", List.of(
                     new OrderLine(1L, "一般商品", new BigDecimal("50.00"), 1, null)
-            ), NOW);
+            ), SHIPPING, NOW);
             order.pullDomainEvents();
 
             order.cancel("使用者取消", NOW);
@@ -184,7 +187,7 @@ class MultiLineOrderTest {
                 new OrderLine(1L, "商品甲", new BigDecimal("100.00"), 2, null),
                 new OrderLine(2L, "商品乙", new BigDecimal("250.00"), 1, null),
                 new OrderLine(3L, "商品丙", new BigDecimal("39.50"), 4, null)
-        ), NOW);
+        ), SHIPPING, NOW);
     }
 
     /** 測試用的活動樣本，與 OrderTest 保持一致。 */

@@ -1,10 +1,10 @@
 import { useApi } from '~/composables/useApi'
-import type { OrderDetailView } from '~/types/api'
+import type { OrderView } from '~/types/api'
 
 export type CheckoutState =
   | { kind: 'idle' }
   | { kind: 'submitting' }
-  | { kind: 'placed'; order: OrderDetailView }
+  | { kind: 'placed'; order: OrderView }
   | { kind: 'failed'; code: string; message: string }
 
 /**
@@ -31,7 +31,10 @@ export function useCheckout() {
    */
   let requestId: string | null = null
 
-  async function place(items: Array<{ skuId: number; quantity: number }>): Promise<void> {
+  async function place(
+    items: Array<{ skuId: number; quantity: number }>,
+    addressId: number,
+  ): Promise<void> {
     if (state.value.kind === 'submitting') {
       return
     }
@@ -39,10 +42,10 @@ export function useCheckout() {
     state.value = { kind: 'submitting' }
 
     try {
-      const order = await request<OrderDetailView>('/api/v1/orders', {
+      const order = await request<OrderView>('/api/v1/orders', {
         method: 'POST',
         authenticated: true,
-        body: { items, requestId },
+        body: { items, requestId, addressId },
       })
       requestId = null
       state.value = { kind: 'placed', order }

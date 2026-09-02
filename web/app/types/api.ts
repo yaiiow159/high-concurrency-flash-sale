@@ -47,12 +47,24 @@ export interface OrderLine {
   subtotal: number
 }
 
+/** 訂單裡的收貨資訊快照。秒殺訂單為 null——那條通道下單當下不收集地址。 */
+export interface OrderShippingView {
+  recipientName: string
+  phone: string
+  postalCode: string
+  region: string
+  district: string
+  streetAddress: string
+  fullAddress: string
+}
+
 export interface OrderView {
   orderNo: string
   userId: number | null
   channel: string | null
   lines: OrderLine[]
   totalAmount: number | null
+  shipping: OrderShippingView | null
   status: string
   closeReason: string | null
   createdAt: string | null
@@ -116,33 +128,35 @@ export interface CategoryView {
 
 // ---------------------------------------------------------------------------
 // 一般下單
+//
+// 訂單只有 OrderView 一個型別。先前這裡另外有一份 OrderDetailView，
+// 描述的是同一個後端回應——兩份手寫型別對一個契約，
+// 遲早會有一份忘了跟著改，而那正是這個檔案開頭警告過的漂移。
 // ---------------------------------------------------------------------------
-
-export interface OrderLineView {
-  skuId: number
-  skuSnapshot: string
-  unitPrice: number
-  quantity: number
-  subtotal: number
-}
-
-export interface OrderDetailView {
-  orderNo: string
-  userId: number | null
-  /** NORMAL 或 SECKILL */
-  channel: string | null
-  lines: OrderLineView[]
-  totalAmount: number | null
-  status: string
-  closeReason: string | null
-  createdAt: string | null
-  paidAt: string | null
-  /** 秒殺訂單仍在非同步建立中；一般訂單恆為 false */
-  processing: boolean
-}
 
 /** 下單請求。刻意沒有價格欄位——價格由目錄決定，不由呼叫端指定。 */
 export interface PlaceOrderRequest {
   items: Array<{ skuId: number; quantity: number }>
   requestId: string
+  /** 訂單存的是這筆地址的**快照**，不是這個 ID */
+  addressId: number
 }
+
+// ---------------------------------------------------------------------------
+// 收貨地址
+// ---------------------------------------------------------------------------
+
+export interface AddressView {
+  addressId: number
+  recipientName: string
+  phone: string
+  postalCode: string
+  region: string
+  district: string
+  streetAddress: string
+  /** 後端組好的完整地址，前端不自己拼——拼法在兩邊漂移就會顯示不一致 */
+  fullAddress: string
+  defaultAddress: boolean
+}
+
+export type AddressPayload = Omit<AddressView, 'addressId' | 'fullAddress'>

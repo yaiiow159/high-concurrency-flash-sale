@@ -43,6 +43,9 @@ export default defineNuxtConfig({
      */
     '/orders/**': { isr: false },
 
+    /** 地址簿同理：個資進了快取的 HTML 就等於發給下一個訪客。 */
+    '/addresses': { isr: false },
+
     /**
      * 代理到後端，避開 CORS。
      *

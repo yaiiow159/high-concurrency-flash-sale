@@ -32,16 +32,22 @@ public interface PlaceOrderUseCase {
     /**
      * @param requestId 端到端冪等鍵。重送同一個 requestId 會拿回同一張訂單，
      *                  而不是一個「重複請求」的錯誤——使用者連點兩次不該被懲罰
+     * @param addressId 收貨地址簿的 ID。<b>訂單存的是它的快照而非這個 ID</b>——
+     *                  使用者日後搬家改了地址簿，這張訂單要寄到哪裡不能跟著變
      * @param lines     要買什麼、各買幾件。<b>不含價格</b>：價格一律由目錄決定，
      *                  呼叫端若能指定價格，那就不叫價格了
      */
-    record PlaceOrderCommand(Long userId, String requestId, List<OrderItem> lines) {
+    record PlaceOrderCommand(Long userId, String requestId, Long addressId,
+                             List<OrderItem> lines) {
 
         /** 單筆訂單的品項數上限。沒有上限的話，一次請求就能讓資料庫做上萬次扣減。 */
         public static final int MAX_LINES = 50;
 
         public PlaceOrderCommand {
             Objects.requireNonNull(userId, "userId 不可為 null");
+            // 寄不出去的訂單不該被建立。少了這道檢查，
+            // 缺地址的訂單會一路走到出貨環節才卡住，而那時錢已經收了
+            Objects.requireNonNull(addressId, "addressId 不可為 null");
             if (requestId == null || requestId.isBlank()) {
                 throw new BusinessException(ErrorCode.INVALID_PARAMETER, "requestId 不可為空");
             }

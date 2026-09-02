@@ -140,6 +140,12 @@ mock 單元測試看到 `revokeFamily` 有被呼叫就會判定通過。**
 **這條規則被打破，反正規化就從最佳化變成資料完整性風險。**
 `OrderEntity` 以 `updatable = false` 鎖住這些欄位，不是裝飾。
 
+**收貨地址同理，而且更容易做錯**。訂單存的是 `ShippingInfo` 快照，
+不是 `addressId`。存 ID 的話，使用者搬家改了地址簿之後，
+三個月前那張已送達的訂單會顯示成寄到新家——那是出貨紀錄與客訴依據被竄改。
+`Address`（Identity）與 `ShippingInfo`（Ordering）**刻意互不認得**，
+轉換在應用層；讓兩個脈絡互相 import 會把它們黏死。
+
 另外：`channel` 欄位只用於追溯與報表，**不可用於控制流程**。
 一旦領域層出現 `if (channel == SECKILL)`，雙通道的差異就滲透進共用部分。
 ArchUnit 抓不到，只能靠 review。

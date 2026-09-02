@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useApi } from '~/composables/useApi'
-import type { OrderDetailView } from '~/types/api'
+import type { OrderView } from '~/types/api'
 
 /**
  * 訂單詳情與付款。
@@ -13,13 +13,13 @@ const route = useRoute()
 const orderNo = route.params.orderNo as string
 const { request } = useApi()
 
-const order = ref<OrderDetailView | null>(null)
+const order = ref<OrderView | null>(null)
 const loadError = ref<string | null>(null)
 const paying = ref(false)
 
 async function load() {
   try {
-    order.value = await request<OrderDetailView>(`/api/v1/orders/${orderNo}`, {
+    order.value = await request<OrderView>(`/api/v1/orders/${orderNo}`, {
       authenticated: true,
     })
   } catch (error) {
@@ -103,6 +103,25 @@ useHead({ title: `訂單 ${orderNo}` })
       <p class="mt-6 text-right font-mono text-2xl font-bold">
         NT$ {{ (order.totalAmount ?? 0).toLocaleString() }}
       </p>
+
+      <!-- 顯示的是下單當下的地址快照。使用者之後改了地址簿甚至把那筆刪掉，
+           這裡都不會變——那是出貨紀錄，不是一個會跟著更新的欄位。 -->
+      <section v-if="order.shipping" class="mt-8" aria-labelledby="shipping-heading">
+        <h2 id="shipping-heading" class="text-sm font-semibold text-[var(--ink-muted)]">
+          寄送資訊
+        </h2>
+        <div class="mt-2 rounded border border-[var(--line)] bg-[var(--surface)] p-4">
+          <div>
+            <span class="font-medium">{{ order.shipping.recipientName }}</span>
+            <span class="ml-3 font-mono text-sm text-[var(--ink-muted)]">
+              {{ order.shipping.phone }}
+            </span>
+          </div>
+          <p class="mt-1 text-sm text-[var(--ink-muted)]">
+            {{ order.shipping.fullAddress }}
+          </p>
+        </div>
+      </section>
 
       <button
         v-if="order.status === 'PENDING_PAYMENT'"
