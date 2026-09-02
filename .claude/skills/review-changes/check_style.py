@@ -13,9 +13,9 @@
   這支腳本    review 時檢查「會慢慢腐蝕」的問題（註解、格式、慣例）
 
 用法：
-    python .claude/skills/code-review/check_style.py            # 檢查未提交的改動
-    python .claude/skills/code-review/check_style.py --all      # 檢查整個專案
-    python .claude/skills/code-review/check_style.py a.java b.java
+    python .claude/skills/review-changes/check_style.py            # 檢查未提交的改動
+    python .claude/skills/review-changes/check_style.py --all      # 檢查整個專案
+    python .claude/skills/review-changes/check_style.py a.java b.java
 """
 from __future__ import annotations
 
