@@ -77,9 +77,10 @@ class OrderTest {
     }
 
     @ParameterizedTest
-    @EnumSource(value = OrderStatus.class, names = {"PAID", "CANCELLED", "FAILED"})
-    @DisplayName("終態不可再轉移：付款、取消、失敗都是不可逆的")
-    void finalStatesRejectFurtherTransition(OrderStatus finalStatus) {
+    @EnumSource(value = OrderStatus.class,
+            names = {"PAID", "SHIPPED", "COMPLETED", "CANCELLED", "FAILED"})
+    @DisplayName("付款之後一律不可取消——取消只退庫存不退錢")
+    void paidOrLaterCannotBeCancelled(OrderStatus finalStatus) {
         Order order = restoredOrder(finalStatus);
 
         assertThatThrownBy(() -> order.cancel("再取消一次", NOW))

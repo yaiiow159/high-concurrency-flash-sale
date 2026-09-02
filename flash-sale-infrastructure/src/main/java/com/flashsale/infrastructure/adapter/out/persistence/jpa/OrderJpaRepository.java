@@ -53,12 +53,20 @@ public interface OrderJpaRepository extends JpaRepository<OrderEntity, Long> {
      *
      * <p>{@code coalesce} 不可省略：沒有任何訂單時 {@code sum} 回傳 null，
      * 拆箱成 long 會直接 NPE，而「活動剛開始還沒有訂單」正是最常見的情況。
+     *
+     * <p><b>狀態清單必須與 {@code OrderStatus.holdsStock()} 保持一致。</b>
+     * 出貨與完成的訂單同樣佔用庫存——貨已經離開倉庫，那批貨確實不在了。
+     * 漏掉它們，對帳會把每一筆正常出貨都誤判成庫存洩漏。
+     *
+     * <p>這份清單寫死在 JPQL 裡是不得已的（查詢要能下推到資料庫），
+     * 因此新增訂單狀態時<b>必須回來檢查這裡</b>——
+     * {@code OrderStatusStockHoldingTest} 會比對兩邊是否同步。
      */
     @Query("""
             select coalesce(sum(l.quantity), 0)
             from OrderLineEntity l join l.order o
             where l.sourceActivityId = :activityId
-              and o.status in ('PENDING_PAYMENT', 'PAID')
+              and o.status in ('PENDING_PAYMENT', 'PAID', 'SHIPPED', 'COMPLETED')
             """)
     long sumActiveQuantityByActivity(@Param("activityId") Long activityId);
 

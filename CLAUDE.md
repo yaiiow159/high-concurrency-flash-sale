@@ -64,6 +64,18 @@ api → infrastructure → application → domain
 - 流水記的是 `availableDelta` 與 `allocatedDelta` **兩個增減量**。
   改成單一 quantity 就重建不出庫存，而重建是流水存在的唯一理由
 
+### 3-2. 預熱寫的是「總庫存 − 已售出」，不是總庫存
+
+Redis 沒有開持久化（見 `docker-compose.yml`），依據是「庫存可重建，DB 才是真實來源」。
+**那句話只有在重建能算出正確餘量時才成立。**
+
+直接寫 `totalStock` 的話，Redis 一重啟就把已賣出的量全部抹掉，
+然後把同一批貨再賣一次。實測踩過：容器重建後對帳報出 `OVERSELL_RISK drift +4`，
+那 4 件正是重啟前賣掉的。
+
+`force=true` 也走同一條路——維運覆寫的意思是「拉回與資料庫一致」，
+不是「重設成滿的」。
+
 ### 4. 冪等是三層，不是一層
 
 | 層級 | 機制 | 位置 |

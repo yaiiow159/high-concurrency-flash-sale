@@ -176,6 +176,11 @@ curl http://localhost:8080/api/v1/seckill/orders/123456789 -H "Authorization: Be
 | `DELETE` | `/api/v1/cart/items/{skuId}` | Bearer | 移除品項 |
 | `POST` | `/api/v1/cart/merge` | Bearer | 登入後合併本地購物車 |
 | `POST` | `/api/v1/orders/checkout` | Bearer | 從購物車結帳，成功後清空購物車 |
+| `GET` | `/api/v1/orders/{orderNo}/shipment` | Bearer | 查詢出貨進度 |
+| `GET` | `/api/v1/admin/shipments` | `seckill:admin` | 待處理出貨清單 |
+| `POST` | `/api/v1/admin/shipments/{orderNo}/dispatch` | `seckill:admin` | 出貨；配送失敗後可再次呼叫以重送 |
+| `POST` | `/api/v1/admin/shipments/{orderNo}/delivered` | `seckill:admin` | 標記送達，訂單轉為完成 |
+| `POST` | `/api/v1/admin/shipments/{orderNo}/failed` | `seckill:admin` | 標記配送失敗，不改訂單狀態 |
 | `GET` | `/api/v1/catalog/skus?ids=` | 匿名 | 批次查 SKU，供未登入的本地購物車定價 |
 | `GET` | `/api/v1/catalog/products` | 匿名 | 商品列表，可依類目篩選（分頁上限 100） |
 | `GET` | `/api/v1/catalog/products/{id}` | 匿名 | 商品詳情，含各 SKU 的規格與價格 |
@@ -222,6 +227,36 @@ Session 每個請求都要讀一次 Redis，等於在熱路徑上憑空增加一
 
 商品頁開放匿名瀏覽（不該逼使用者先登入才能看商品），
 寫入操作一律需要令牌，管理端點另需 `seckill:admin` scope。
+
+---
+
+## 履約：訂單只記里程碑，物流細節在出貨單
+
+```
+訂單    PENDING_PAYMENT → PAID → SHIPPED → COMPLETED
+出貨單  READY → IN_TRANSIT → DELIVERED
+                    ↓ ↑
+                  FAILED（可重送，不是終態）
+```
+
+判準是：**訂單狀態只收錄「會改變買家能做什麼」的轉折**。
+
+- `PAID → SHIPPED` 收錄：出貨前可自由取消，出貨後必須走退貨
+- 「運送中 → 派送中」不收錄：買家能做的事沒變，Ordering 也沒有邏輯分支在上面
+
+這條線一鬆掉，訂單狀態機會長成一份物流狀態的副本，而副本永遠慢一步。
+
+**配送失敗不是終態**，這與訂單狀態機刻意鎖死終態是不同的取捨：
+訂單的終態牽涉金流與庫存，回頭一次就可能多退一次錢；
+配送失敗只是「東西還在路上」，重試不產生任何不可逆的副作用。
+重送會累加 `dispatch_count` 但**不覆寫首次出貨時間**——那是出貨時效的分母。
+
+出貨單**不存收貨地址**：地址快照已在訂單上，再存一份就會出現
+「訂單寫台北、出貨單寫高雄」這種沒有人能仲裁的狀態。
+
+**已付款的訂單一律不可取消。** 取消會觸發庫存補償卻不會退錢，
+允許 `PAID → CANCELLED` 等於製造出「庫存退了、錢沒退」的路徑，
+而逾時關單排程隨時可能踩到它。要退錢必須走退款流程（P3 下一項）。
 
 ---
 

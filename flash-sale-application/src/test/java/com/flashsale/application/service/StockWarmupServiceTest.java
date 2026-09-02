@@ -4,6 +4,7 @@ import com.flashsale.application.config.SeckillPolicy;
 import com.flashsale.application.port.out.ActivityRepository;
 import com.flashsale.application.port.out.DistributedLock;
 import com.flashsale.application.port.out.InventoryRepository;
+import com.flashsale.application.port.out.OrderRepository;
 import com.flashsale.application.port.out.SoldOutMarker;
 import com.flashsale.application.port.out.StockRepository;
 import com.flashsale.domain.activity.ActivityStatus;
@@ -29,6 +30,7 @@ import java.util.function.Supplier;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -64,6 +66,8 @@ class StockWarmupServiceTest {
     private StockRepository stockRepository;
     @Mock
     private InventoryRepository inventoryRepository;
+    @Mock
+    private OrderRepository orderRepository;
     @Mock
     private InventoryMetrics metrics;
     @Mock
@@ -106,6 +110,62 @@ class StockWarmupServiceTest {
     }
 
     @Nested
+    @DisplayName("依訂單重建餘量")
+    class RebuildsRemaining {
+
+        @Test
+        @DisplayName("Redis 掉了之後重新預熱，寫回的是「總庫存 − 已售出」而不是滿的")
+        void writesRemainingNotTotal() {
+            // 實測踩過：Docker 重建容器後 Redis 被清空，
+            // 預熱把 totalStock 寫回去，已賣掉的 4 件被抹掉並可以再賣一次。
+            // 對帳當時報出 OVERSELL_RISK drift +4。
+            givenActivity();
+            givenAllocationSucceeds();
+            when(orderRepository.sumActiveQuantity(ACTIVITY)).thenReturn(4L);
+
+            service().warmUp(ACTIVITY, false);
+
+            verify(stockRepository).initialize(eq(ACTIVITY), eq(996), any(), anyBoolean());
+        }
+
+        @Test
+        @DisplayName("沒有任何訂單時寫入總庫存")
+        void writesTotalWhenNothingSold() {
+            givenActivity();
+            givenAllocationSucceeds();
+            when(orderRepository.sumActiveQuantity(ACTIVITY)).thenReturn(0L);
+
+            service().warmUp(ACTIVITY, false);
+
+            verify(stockRepository).initialize(eq(ACTIVITY), eq(1000), any(), anyBoolean());
+        }
+
+        @Test
+        @DisplayName("force=true 也走重建——覆寫的意思是拉回與資料庫一致，不是重設成滿的")
+        void forceAlsoRebuilds() {
+            givenActivity();
+            givenAllocationSucceeds();
+            when(orderRepository.sumActiveQuantity(ACTIVITY)).thenReturn(250L);
+
+            service().warmUp(ACTIVITY, true);
+
+            verify(stockRepository).initialize(eq(ACTIVITY), eq(750), any(), eq(true));
+        }
+
+        @Test
+        @DisplayName("已售出超過總庫存時寫 0 而非負數，並留下錯誤日誌等人處理")
+        void clampsAtZeroWhenOversold() {
+            givenActivity();
+            givenAllocationSucceeds();
+            when(orderRepository.sumActiveQuantity(ACTIVITY)).thenReturn(1200L);
+
+            service().warmUp(ACTIVITY, false);
+
+            verify(stockRepository).initialize(eq(ACTIVITY), eq(0), any(), anyBoolean());
+        }
+    }
+
+    @Nested
     @DisplayName("已釋放的活動")
     class AlreadyReleased {
 
@@ -143,7 +203,8 @@ class StockWarmupServiceTest {
     private StockWarmupService service() {
         when(distributedLock.executeWithLock(anyString(), any(), any(), any()))
                 .thenAnswer(invocation -> ((Supplier<?>) invocation.getArgument(3)).get());
-        return new StockWarmupService(activityRepository, stockRepository, inventoryRepository,
+        return new StockWarmupService(activityRepository, orderRepository, stockRepository,
+                inventoryRepository,
                 new InventoryAllocator(inventoryRepository, metrics),
                 distributedLock, soldOutMarker, SeckillPolicy.defaults(), CLOCK);
     }
