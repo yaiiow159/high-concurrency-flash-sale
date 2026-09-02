@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { useCartStore } from '~/stores/cart'
 import type { ApiResponse, CategoryView, ProductView } from '~/types/api'
 
 /**
@@ -27,7 +26,7 @@ const { data: productData } = await useFetch<ApiResponse<ProductView[]>>(
 const categories = computed(() => categoryData.value?.data ?? [])
 const products = computed(() => productData.value?.data ?? [])
 
-/** 把類目樹壓平成「父 › 子」的選項，兩層以內用巢狀清單反而更難掃 */
+/** 把類目樹壓平成選項，兩層以內用巢狀清單反而更難掃 */
 const categoryOptions = computed(() =>
   categories.value.flatMap((parent) => [
     { id: parent.categoryId, label: parent.name, depth: 0 },
@@ -39,36 +38,30 @@ const categoryOptions = computed(() =>
   ]),
 )
 
-const cart = useCartStore()
-const cartCount = computed(() => cart.itemCount)
+const activeCategoryName = computed(() =>
+  categoryOptions.value.find((option) => option.id === categoryId.value)?.label ?? null,
+)
 
 useHead({ title: '全部商品' })
 </script>
 
 <template>
-  <main class="mx-auto max-w-4xl px-5 py-10">
-    <header class="flex flex-wrap items-baseline justify-between gap-3">
-      <h1 class="text-3xl font-black tracking-tight">全部商品</h1>
-      <div class="flex gap-4 text-sm">
-        <NuxtLink to="/cart" class="text-[var(--accent)] hover:underline">
-          購物車<span v-if="cartCount > 0"> ({{ cartCount }})</span>
-        </NuxtLink>
-        <NuxtLink to="/addresses" class="text-[var(--accent)] hover:underline">
-          收貨地址
-        </NuxtLink>
-        <NuxtLink to="/" class="text-[var(--accent)] hover:underline">
-          限時搶購 →
-        </NuxtLink>
-      </div>
-    </header>
+  <div>
+    <PageHeader
+      eyebrow="Catalog"
+      title="全部商品"
+      :description="activeCategoryName
+        ? `目前顯示「${activeCategoryName}」類目下的商品`
+        : '價格掛在規格上——同一個商品的不同規格各有各的價格'"
+    />
 
-    <nav class="mt-6 flex flex-wrap gap-2" aria-label="類目篩選">
+    <nav class="mb-8 flex flex-wrap gap-2" aria-label="類目篩選">
       <NuxtLink
         to="/products"
-        class="rounded border px-3 py-1.5 text-sm transition"
+        class="rounded-sm border px-3 py-1.5 text-sm transition-colors"
         :class="categoryId === null
-          ? 'border-[var(--accent)] text-[var(--accent)]'
-          : 'border-[var(--line)] text-[var(--ink-muted)] hover:border-[var(--accent)]'"
+          ? 'border-accent text-accent'
+          : 'border-line text-ink-muted hover:border-line-strong hover:text-ink'"
       >
         全部
       </NuxtLink>
@@ -76,39 +69,40 @@ useHead({ title: '全部商品' })
         v-for="option in categoryOptions"
         :key="option.id"
         :to="{ path: '/products', query: { category: option.id } }"
-        class="rounded border px-3 py-1.5 text-sm transition"
-        :class="categoryId === option.id
-          ? 'border-[var(--accent)] text-[var(--accent)]'
-          : 'border-[var(--line)] text-[var(--ink-muted)] hover:border-[var(--accent)]'"
+        class="rounded-sm border px-3 py-1.5 text-sm transition-colors"
+        :class="[
+          categoryId === option.id
+            ? 'border-accent text-accent'
+            : 'border-line text-ink-muted hover:border-line-strong hover:text-ink',
+          option.depth > 0 ? 'ml-1' : '',
+        ]"
       >
-        <span v-if="option.depth > 0" class="text-[var(--ink-muted)]">└ </span>{{ option.label }}
+        <span v-if="option.depth > 0" class="mr-1 text-ink-faint">└</span>{{ option.label }}
       </NuxtLink>
     </nav>
 
-    <ul class="mt-6 grid gap-3 sm:grid-cols-2">
+    <ul v-if="products.length > 0" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       <li v-for="product in products" :key="product.productId">
-        <NuxtLink
-          :to="`/products/${product.productId}`"
-          class="flex h-full flex-col justify-between gap-4 rounded border border-[var(--line)]
-                 bg-[var(--surface)] p-5 transition hover:border-[var(--accent)]"
-        >
-          <div>
-            <div class="font-semibold">{{ product.name }}</div>
-            <div v-if="product.brand" class="mt-1 text-sm text-[var(--ink-muted)]">
-              {{ product.brand }}
+        <NuxtLink :to="`/products/${product.productId}`" class="block h-full">
+          <AppCard interactive class="flex h-full flex-col justify-between gap-6 p-5">
+            <div>
+              <p v-if="product.brand" class="eyebrow mb-1.5">{{ product.brand }}</p>
+              <h2 class="font-semibold leading-snug">{{ product.name }}</h2>
             </div>
-          </div>
-          <div class="font-mono text-lg font-bold">
-            NT$ {{ product.lowestPrice.toLocaleString() }}
-            <!-- 多規格商品各 SKU 價格不同，列表只能顯示「起」價 -->
-            <span class="text-sm font-normal text-[var(--ink-muted)]">起</span>
-          </div>
+            <div class="flex items-baseline gap-1.5">
+              <MoneyText :amount="product.lowestPrice" size="lg" />
+              <!-- 多規格商品各 SKU 價格不同，列表只能顯示「起」價 -->
+              <span class="text-xs text-ink-faint">起</span>
+            </div>
+          </AppCard>
         </NuxtLink>
       </li>
     </ul>
 
-    <p v-if="products.length === 0" class="mt-10 text-[var(--ink-muted)]">
-      這個類目下目前沒有上架商品。
-    </p>
-  </main>
+    <EmptyState v-else title="這個類目下目前沒有上架商品。">
+      <AppButton variant="secondary" size="sm" @click="navigateTo('/products')">
+        看全部商品
+      </AppButton>
+    </EmptyState>
+  </div>
 </template>

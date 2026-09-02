@@ -15,13 +15,13 @@ const soldOut = computed(() => props.available <= 0)
 <template>
   <div>
     <div class="mb-1.5 flex items-baseline justify-between text-sm">
-      <span class="text-[var(--ink-muted)]">剩餘庫存</span>
-      <span class="tabular font-mono font-semibold" :class="soldOut ? 'text-[var(--danger)]' : ''">
+      <span class="eyebrow">剩餘庫存</span>
+      <span class="figure font-semibold" :class="soldOut ? 'text-danger' : ''">
         {{ available }} / {{ total }}
       </span>
     </div>
     <div
-      class="h-2 overflow-hidden rounded-full bg-slate-200"
+      class="h-1.5 overflow-hidden rounded-full bg-sunken"
       role="progressbar"
       :aria-valuenow="Math.round(soldRatio * 100)"
       aria-valuemin="0"
@@ -30,7 +30,7 @@ const soldOut = computed(() => props.available <= 0)
     >
       <div
         class="h-full rounded-full transition-[width] duration-500"
-        :class="soldOut ? 'bg-[var(--danger)]' : 'bg-[var(--accent)]'"
+        :class="soldOut ? 'bg-danger' : 'bg-accent'"
         :style="{ width: `${soldRatio * 100}%` }"
       />
     </div>

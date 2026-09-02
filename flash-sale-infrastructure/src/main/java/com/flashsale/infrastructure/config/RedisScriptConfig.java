@@ -29,7 +29,6 @@ public class RedisScriptConfig {
     public RedisScript<List> seckillDeductScript() {
         DefaultRedisScript<List> script = new DefaultRedisScript<>();
         script.setScriptSource(new ResourceScriptSource(new ClassPathResource("lua/seckill_deduct.lua")));
-        // Lua 回傳 { code, orderNo }，對應到 Java 的 List
         script.setResultType(List.class);
         return script;
     }

@@ -65,10 +65,10 @@ const text = computed(() => {
   <button
     type="button"
     :disabled="!clickable"
-    class="w-full rounded px-6 py-3 text-base font-bold text-white transition
-           disabled:cursor-not-allowed disabled:bg-slate-300
-           enabled:bg-[var(--danger)] enabled:hover:brightness-110
-           focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+    class="w-full rounded px-6 py-4 text-base font-semibold transition-colors
+           disabled:cursor-not-allowed disabled:border disabled:border-line
+           disabled:bg-sunken disabled:text-ink-faint
+           enabled:bg-danger enabled:text-white enabled:hover:brightness-110"
     @click="emit('attempt')"
   >
     {{ text }}

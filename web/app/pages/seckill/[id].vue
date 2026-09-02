@@ -79,35 +79,39 @@ useHead(() => ({
 </script>
 
 <template>
-  <main class="mx-auto max-w-3xl px-5 py-10">
-    <NuxtLink to="/" class="text-sm text-[var(--ink-muted)] hover:underline">← 回活動列表</NuxtLink>
-
+  <div>
     <template v-if="activity">
       <!-- 靜態部分：可被 CDN 完全承接 -->
-      <header class="mt-4">
-        <h1 class="text-3xl font-black tracking-tight">{{ activity.productName }}</h1>
-        <p class="mt-2 font-mono text-3xl font-bold text-[var(--danger)]">
-          NT$ {{ activity.seckillPrice.toLocaleString() }}
-        </p>
-        <p class="mt-1 text-sm text-[var(--ink-muted)]">
-          每人限購 {{ activity.perUserLimit }} 件
-        </p>
-      </header>
+      <PageHeader eyebrow="限時搶購" :title="activity.productName">
+        <template #actions>
+          <NuxtLink to="/" class="text-sm text-ink-muted transition-colors hover:text-ink">
+            ← 回活動列表
+          </NuxtLink>
+        </template>
+      </PageHeader>
 
-      <section class="mt-6 rounded border border-[var(--line)] bg-[var(--surface)] p-5">
-        <CountdownTimer
-          :start-at="activity.startAt"
-          :end-at="activity.endAt"
-          :server-now="serverNow"
-          @started="started = true"
-        />
+      <div class="grid gap-8 lg:grid-cols-[1fr_22rem] lg:items-start">
+        <div>
+          <MoneyText :amount="activity.seckillPrice" size="xl" tone="danger" />
+          <p class="mt-2 text-sm text-ink-muted">
+            每人限購 <span class="figure">{{ activity.perUserLimit }}</span> 件
+          </p>
 
-        <!-- 動態部分：獨立請求，不隨頁面快取 -->
-        <div class="mt-5">
-          <StockIndicator :available="activity.availableStock" :total="activity.totalStock" />
+          <AppCard class="mt-6 p-5">
+            <CountdownTimer
+              :start-at="activity.startAt"
+              :end-at="activity.endAt"
+              :server-now="serverNow"
+              @started="started = true"
+            />
+            <!-- 動態部分：獨立請求，不隨頁面快取 -->
+            <div class="mt-6">
+              <StockIndicator :available="activity.availableStock" :total="activity.totalStock" />
+            </div>
+          </AppCard>
         </div>
 
-        <div class="mt-5">
+        <AppCard class="p-5 lg:sticky lg:top-24">
           <SeckillButton
             :started="started"
             :sold-out="soldOut"
@@ -115,62 +119,70 @@ useHead(() => ({
             :authenticated="auth.isAuthenticated"
             @attempt="onAttempt"
           />
-        </div>
 
-        <!-- 搶購結果 -->
-        <div class="mt-4 text-sm" role="status" aria-live="polite">
-          <p v-if="outcome.kind === 'processing'" class="text-[var(--ink-muted)]">
-            已受理，訂單建立中⋯（訂單號 {{ outcome.orderNo }}）
-          </p>
-
-          <div v-else-if="outcome.kind === 'success'" class="rounded bg-emerald-50 p-4">
-            <p class="font-semibold text-emerald-800">搶購成功</p>
-            <p class="mt-1 text-emerald-700">
-              訂單 {{ outcome.orderNo }}，狀態 {{ outcome.order.status }}
+          <div class="mt-4 text-sm" role="status" aria-live="polite">
+            <p v-if="outcome.kind === 'processing'" class="text-ink-muted">
+              已受理，訂單建立中⋯
+              <span class="figure block">{{ outcome.orderNo }}</span>
             </p>
-            <ul class="mt-2 text-emerald-700">
-              <li v-for="line in outcome.order.lines" :key="line.skuId" class="tabular">
-                {{ line.skuSnapshot }} × {{ line.quantity }}
-                = NT$ {{ line.subtotal.toLocaleString() }}
-              </li>
-            </ul>
 
-            <button
-              v-if="outcome.order.status === 'PENDING_PAYMENT' && !paymentUrl"
-              type="button"
-              :disabled="paying"
-              class="mt-3 rounded bg-[var(--accent)] px-4 py-2 font-semibold text-white disabled:bg-slate-300"
-              @click="payNow(outcome.orderNo)"
+            <div
+              v-else-if="outcome.kind === 'success'"
+              class="rounded-sm border border-ok/40 bg-ok-soft p-4"
             >
-              {{ paying ? '前往付款⋯' : '去付款' }}
-            </button>
+              <p class="font-semibold text-ok">搶購成功</p>
+              <p class="figure mt-1 text-xs text-ink-muted">{{ outcome.orderNo }}</p>
+              <ul class="mt-2 flex flex-col gap-1">
+                <li v-for="line in outcome.order.lines" :key="line.skuId" class="text-ink-muted">
+                  {{ line.skuSnapshot }}
+                  <span class="figure">× {{ line.quantity }}</span>
+                </li>
+              </ul>
 
-            <p v-if="paymentUrl" class="mt-3 text-emerald-700">
-              已建立付款單，模擬閘道將在數秒後回調完成付款。
+              <AppButton
+                v-if="outcome.order.status === 'PENDING_PAYMENT' && !paymentUrl"
+                class="mt-4" size="sm" block :disabled="paying"
+                @click="payNow(outcome.orderNo)"
+              >
+                {{ paying ? '前往付款⋯' : '去付款' }}
+              </AppButton>
+
+              <p v-if="paymentUrl" class="mt-3 text-xs text-ink-muted">
+                已建立付款單，模擬閘道將在數秒後回調完成付款。
+              </p>
+            </div>
+
+            <!--
+              逾時不等於失敗。庫存可能已經扣了、訂單也還在建立中，
+              只是消費端還沒跟上。讓使用者去訂單頁查，
+              而不是留在這裡無限輪詢——那在尖峰時是第二波流量。
+            -->
+            <div
+              v-else-if="outcome.kind === 'timeout'"
+              class="rounded-sm border border-line bg-sunken p-4 text-ink-muted"
+            >
+              <p>處理時間較長，請稍後至訂單頁查看。</p>
+              <NuxtLink
+                :to="`/orders/${outcome.orderNo}`"
+                class="figure mt-1 block text-accent hover:underline"
+              >
+                {{ outcome.orderNo }} →
+              </NuxtLink>
+            </div>
+
+            <p v-else-if="outcome.kind === 'rejected'" class="text-danger">
+              {{ outcome.message }}
+              <button type="button" class="ml-2 underline" @click="reset()">重試</button>
             </p>
           </div>
 
-          <!--
-            逾時不等於失敗。庫存可能已經扣了、訂單也還在建立中，
-            只是消費端還沒跟上。讓使用者去訂單頁查，
-            而不是留在這裡無限輪詢——那在尖峰時是第二波流量。
-          -->
-          <p v-else-if="outcome.kind === 'timeout'" class="text-amber-700">
-            處理時間較長，請稍後至訂單頁查看（訂單號 {{ outcome.orderNo }}）
-          </p>
-
-          <p v-else-if="outcome.kind === 'rejected'" class="text-[var(--danger)]">
-            {{ outcome.message }}
-            <button type="button" class="ml-2 underline" @click="reset()">重試</button>
-          </p>
-        </div>
-      </section>
-
-      <section id="auth-panel" class="mt-6">
-        <AuthPanel />
-      </section>
+          <div v-if="!auth.isAuthenticated" id="auth-panel" class="mt-5">
+            <AuthPanel />
+          </div>
+        </AppCard>
+      </div>
     </template>
 
-    <p v-else class="mt-10 text-[var(--ink-muted)]">載入中⋯</p>
-  </main>
+    <p v-else class="text-ink-muted">載入中⋯</p>
+  </div>
 </template>
