@@ -1,5 +1,5 @@
 ---
-name: code-review
+name: review-changes
 description: 這個專案的程式碼審查流程，涵蓋格式、註解品質與架構慣例。當要 review 一份改動、開 PR 前自我檢查、或被問到「這段程式碼寫得好嗎」「註解夠嗎」「符合專案慣例嗎」時使用。包含一支機械檢查腳本（check_style.py）與人工審查清單，並說明哪些檢查已由 hooks 與 agents 涵蓋、不需重複。
 ---
 
@@ -20,7 +20,7 @@ description: 這個專案的程式碼審查流程，涵蓋格式、註解品質�
 ## 步驟一：跑機械檢查
 
 ```bash
-python .claude/skills/code-review/check_style.py
+python .claude/skills/review-changes/check_style.py
 ```
 
 預設檢查未提交的改動。`--all` 檢查整個專案，也可以直接指定檔案。
