@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useCartStore } from '~/stores/cart'
 import type { ApiResponse, CategoryView, ProductView } from '~/types/api'
 
 /**
@@ -38,6 +39,9 @@ const categoryOptions = computed(() =>
   ]),
 )
 
+const cart = useCartStore()
+const cartCount = computed(() => cart.itemCount)
+
 useHead({ title: '全部商品' })
 </script>
 
@@ -46,6 +50,9 @@ useHead({ title: '全部商品' })
     <header class="flex flex-wrap items-baseline justify-between gap-3">
       <h1 class="text-3xl font-black tracking-tight">全部商品</h1>
       <div class="flex gap-4 text-sm">
+        <NuxtLink to="/cart" class="text-[var(--accent)] hover:underline">
+          購物車<span v-if="cartCount > 0"> ({{ cartCount }})</span>
+        </NuxtLink>
         <NuxtLink to="/addresses" class="text-[var(--accent)] hover:underline">
           收貨地址
         </NuxtLink>

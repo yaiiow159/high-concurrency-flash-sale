@@ -30,4 +30,12 @@ public interface ProductRepository {
 
     /** 批次取 SKU，供結帳時一次取得多個品項的價格與狀態。 */
     List<Sku> findSkusByIds(List<Long> skuIds);
+
+    /**
+     * 依多個 SKU 反查商品，供購物車一次帶出所有品項的名稱與價格。
+     *
+     * <p>逐筆查在 50 個品項的購物車上就是 50 次往返，
+     * 而購物車頁正是使用者反覆重整的頁面。
+     */
+    List<Product> findBySkuIds(List<Long> skuIds);
 }

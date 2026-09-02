@@ -38,8 +38,6 @@ public class UserRateLimitInterceptor implements HandlerInterceptor {
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
-        // 未認證的請求交給 Security 過濾鏈處理（正常情況根本走不到這裡）。
-        // 身分驗證不是限流器的職責，這裡不越權判斷。
         return userProvider.currentUserId()
                 .map(this::acquireOrReject)
                 .orElse(true);
