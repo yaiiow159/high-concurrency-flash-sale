@@ -24,6 +24,9 @@ export default <Partial<Config>>{
         'accent-hover': 'var(--accent-hover)',
         'accent-soft': 'var(--accent-soft)',
         'on-accent': 'var(--on-accent)',
+        cta: 'var(--cta)',
+        'cta-hover': 'var(--cta-hover)',
+        'cta-active': 'var(--cta-active)',
         danger: 'var(--danger)',
         'danger-soft': 'var(--danger-soft)',
         ok: 'var(--ok)',
@@ -51,8 +54,11 @@ export default <Partial<Config>>{
         ],
       },
       maxWidth: {
-        content: '58rem',
+        content: '68rem',
         prose: '40rem',
+      },
+      boxShadow: {
+        lift: 'var(--lift)',
       },
     },
   },

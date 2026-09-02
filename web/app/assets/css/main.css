@@ -1,7 +1,7 @@
 /*
  * 設計語彙。
  *
- * 三個決定值得寫下來：
+ * 四個決定值得寫下來：
  *
  * 1. 中文刻意不下載 webfont。一套 CJK 字檔動輒 1–2 MB，
  *    而這個站的賣點就是秒殺頁的首屏速度——為了字體好看而多等 2 MB，
@@ -11,8 +11,13 @@
  * 2. 數字一律等寬。價格、庫存、倒數、訂單號都是這個介面的主要內容，
  *    非等寬會讓倒數每秒把版面推來推去。
  *
- * 3. 卡片用 1px 邊框而不是陰影。陰影會讓密集的資料列表看起來浮躁，
- *    而這是一個要讓人「看得清楚數字」的介面，不是行銷頁。
+ * 3. CTA 底色（--cta）與強調色（--accent）刻意分開。
+ *    主要按鈕需要的是「行動感」，文字連結需要的是「可讀」，
+ *    兩者的最佳亮度本來就不同。共用一個值時，
+ *    按鈕會顯得沉、或連結會顯得糊——先前就是共用，按鈕因此偏暗。
+ *
+ * 4. 底色比卡片深一階。兩者差距不夠時整頁會糊成一片，
+ *    那是先前看起來「平」的主因，不是顏色不好看，是層次不夠。
  */
 
 @import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
@@ -30,72 +35,85 @@
   :root {
     color-scheme: light;
 
-    --ground: #f4f7f8;
+    --ground: #edf1f3;
     --surface: #ffffff;
-    --surface-sunken: #eef2f4;
-    --line: #dbe3e6;
-    --line-strong: #c2ced3;
+    --surface-sunken: #f5f7f8;
+    --line: #dee5e8;
+    --line-strong: #bfcace;
 
-    --ink: #0f1a1d;
-    --ink-muted: #5b6b71;
-    --ink-faint: #8b9aa0;
+    --ink: #0d1719;
+    --ink-muted: #55666c;
+    --ink-faint: #87979d;
 
-    /* 深青。中性色全部往冷的方向偏一點，讓它看起來是被挑過的而非預設灰 */
-    --accent: #0a5f68;
-    --accent-hover: #084d55;
-    --accent-soft: #e4f0f1;
+    /* 連結與強調用的深青，對白底有足夠對比 */
+    --accent: #0a6a74;
+    --accent-hover: #085861;
+    --accent-soft: #e3eff1;
     --on-accent: #ffffff;
 
+    /* 主要按鈕：比 accent 亮一階，讀起來是「可以按」而不是「一段文字」 */
+    --cta: #0b7f8c;
+    --cta-hover: #0a9099;
+    --cta-active: #086b76;
+
     /* 燒赭：唯一的對比色，只用在價格、售罄、危險操作 */
-    --danger: #a8401c;
-    --danger-soft: #fbeae4;
+    --danger: #b0431c;
+    --danger-soft: #fceee8;
 
     --ok: #2f6b4f;
     --ok-soft: #e6f1ea;
 
-    --radius: 10px;
-    --radius-sm: 6px;
+    --radius: 12px;
+    --radius-sm: 8px;
+
+    /* 卡片抬起用極淡的陰影，只在互動時出現——靜態列表仍靠邊框 */
+    --lift: 0 1px 2px rgb(13 23 25 / 6%), 0 8px 24px -12px rgb(13 23 25 / 18%);
   }
 
   :root:not([data-theme='light']) {
     @media (prefers-color-scheme: dark) {
       color-scheme: dark;
 
-      --ground: #0c1316;
-      --surface: #131e22;
-      --surface-sunken: #0f181b;
-      --line: #223136;
-      --line-strong: #33474e;
+      --ground: #0b1114;
+      --surface: #141f23;
+      --surface-sunken: #101a1d;
+      --line: #24343a;
+      --line-strong: #3a5058;
 
       --ink: #e7eef0;
-      --ink-muted: #94a6ac;
+      --ink-muted: #93a5ac;
       --ink-faint: #6b7d84;
 
-      /* 深底上要提亮，否則深青會糊進背景 */
       --accent: #4bbcc9;
       --accent-hover: #6ccfda;
       --accent-soft: #10333a;
       --on-accent: #062226;
+
+      --cta: #17a2b2;
+      --cta-hover: #26bccc;
+      --cta-active: #128d9b;
 
       --danger: #e2865f;
       --danger-soft: #38201a;
 
       --ok: #6cc39a;
       --ok-soft: #12291f;
+
+      --lift: 0 1px 2px rgb(0 0 0 / 40%), 0 8px 24px -12px rgb(0 0 0 / 60%);
     }
   }
 
   :root[data-theme='dark'] {
     color-scheme: dark;
 
-    --ground: #0c1316;
-    --surface: #131e22;
-    --surface-sunken: #0f181b;
-    --line: #223136;
-    --line-strong: #33474e;
+    --ground: #0b1114;
+    --surface: #141f23;
+    --surface-sunken: #101a1d;
+    --line: #24343a;
+    --line-strong: #3a5058;
 
     --ink: #e7eef0;
-    --ink-muted: #94a6ac;
+    --ink-muted: #93a5ac;
     --ink-faint: #6b7d84;
 
     --accent: #4bbcc9;
@@ -103,11 +121,17 @@
     --accent-soft: #10333a;
     --on-accent: #062226;
 
+    --cta: #17a2b2;
+    --cta-hover: #26bccc;
+    --cta-active: #128d9b;
+
     --danger: #e2865f;
     --danger-soft: #38201a;
 
     --ok: #6cc39a;
     --ok-soft: #12291f;
+
+    --lift: 0 1px 2px rgb(0 0 0 / 40%), 0 8px 24px -12px rgb(0 0 0 / 60%);
   }
 
   html {
@@ -121,15 +145,14 @@
     -webkit-font-smoothing: antialiased;
   }
 
-  /* 標題用 Archivo 的緊字距；中文交給系統字體，不會受 letter-spacing 影響太多 */
   h1, h2, h3 {
-    letter-spacing: -0.015em;
+    letter-spacing: -0.018em;
     text-wrap: balance;
   }
 
   /* 鍵盤焦點必須看得見。移除 outline 而不補上替代品是最常見的無障礙倒退 */
   :focus-visible {
-    outline: 2px solid var(--accent);
+    outline: 2px solid var(--cta);
     outline-offset: 2px;
     border-radius: var(--radius-sm);
   }
@@ -154,7 +177,7 @@
     font-variant-numeric: tabular-nums;
   }
 
-  /* 段落標籤：小、全大寫、加字距。用來標示區塊而不搶主內容的視覺重量 */
+  /* 段落標籤：小、全大寫、加字距，標示區塊而不搶主內容的視覺重量 */
   .eyebrow {
     font-size: 0.6875rem;
     font-weight: 600;
@@ -166,5 +189,21 @@
   /* 寬內容（表格、程式碼）自己橫向捲動，頁面本體永遠不橫捲 */
   .scroll-x {
     overflow-x: auto;
+  }
+
+  /*
+   * 手機底部固定操作列的讓位高度。
+   *
+   * 少了它，頁面最後一段內容會被操作列永久蓋住——
+   * 而那通常正是「確認下單」旁邊的條款或金額明細。
+   */
+  .pb-action-bar {
+    padding-bottom: calc(5.5rem + env(safe-area-inset-bottom));
+  }
+
+  @media (min-width: 1024px) {
+    .pb-action-bar {
+      padding-bottom: 0;
+    }
   }
 }

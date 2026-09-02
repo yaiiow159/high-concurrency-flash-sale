@@ -10,6 +10,9 @@ import type { ApiResponse, ProductView, SkuView } from '~/types/api'
  *
  * 頁面本身走 ISR（商品資料變動慢），但下單一定是客戶端的動作——
  * 它帶身分、會改狀態，永遠不該出現在被快取的 HTML 裡。
+ *
+ * 桌機把購買面板固定在右側，手機改用底部固定操作列——
+ * 主要動作永遠在拇指構得到的地方，而不是跟著內容捲走。
  */
 const route = useRoute()
 const productId = route.params.id as string
@@ -109,7 +112,7 @@ async function buy() {
   }
 }
 
-// 換規格後先前的失敗訊息就不再適用，留著只會誤導
+// 換規格後先前的訊息就不再適用，留著只會誤導
 watch(selectedSkuId, () => {
   cartMessage.value = null
   if (state.value.kind === 'failed') {
@@ -121,129 +124,200 @@ useHead(() => ({ title: product.value?.name ?? '商品' }))
 </script>
 
 <template>
-  <div v-if="product" class="grid gap-10 lg:grid-cols-[1.1fr_1fr] lg:items-start">
-    <!-- 左欄：商品本身 -->
-    <div>
-      <NuxtLink to="/products" class="text-sm text-ink-muted transition-colors hover:text-ink">
-        ← 全部商品
-      </NuxtLink>
+  <div v-if="product" class="pb-action-bar">
+    <NuxtLink
+      to="/products"
+      class="inline-block text-sm text-ink-muted transition-colors hover:text-ink"
+    >
+      ← 全部商品
+    </NuxtLink>
 
-      <p v-if="product.brand" class="eyebrow mt-6">{{ product.brand }}</p>
-      <h1 class="mt-1.5 text-3xl font-bold tracking-tight">{{ product.name }}</h1>
-      <p v-if="product.description" class="mt-4 max-w-prose text-ink-muted">
-        {{ product.description }}
-      </p>
+    <div class="mt-5 grid gap-8 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start lg:gap-12">
+      <!-- 左欄：商品視覺與規格 -->
+      <div>
+        <ProductTile
+          :seed="product.productId"
+          :label="product.name"
+          ratio="wide"
+          class="w-full rounded"
+        />
 
-      <!-- 價格跟著規格走，不是商品層級的單一數字——這是 SPU/SKU 分離的重點 -->
-      <div class="mt-8">
-        <MoneyText :amount="selectedSku?.price ?? product.lowestPrice" size="xl" />
-      </div>
-
-      <section class="mt-8" aria-labelledby="spec-heading">
-        <h2 id="spec-heading" class="eyebrow mb-3">選擇規格</h2>
-        <div class="flex flex-wrap gap-2">
-          <button
-            v-for="sku in product.skus"
-            :key="sku.skuId"
-            type="button"
-            :disabled="!sku.purchasable"
-            :aria-pressed="sku.skuId === selectedSkuId"
-            class="rounded-sm border px-4 py-2.5 text-sm transition-colors
-                   disabled:cursor-not-allowed disabled:opacity-40"
-            :class="sku.skuId === selectedSkuId
-              ? 'border-accent bg-accent-soft text-accent'
-              : 'border-line hover:border-line-strong'"
-            @click="selectedSkuId = sku.skuId"
-          >
-            {{ sku.specDisplay }}
-          </button>
-        </div>
-      </section>
-
-      <section class="mt-6 flex items-center gap-3">
-        <label for="quantity" class="eyebrow">數量</label>
-        <input
-          id="quantity"
-          v-model.number="quantity"
-          type="number"
-          min="1"
-          max="999"
-          class="figure w-20 rounded-sm border border-line bg-surface px-3 py-2 text-center"
-        >
-      </section>
-    </div>
-
-    <!-- 右欄：購買動作 -->
-    <AppCard class="p-6">
-      <template v-if="auth.isAuthenticated">
-        <section aria-labelledby="address-heading">
-          <h2 id="address-heading" class="eyebrow mb-3">寄送至</h2>
-
-          <div v-if="addresses.length > 0" class="flex flex-col gap-2">
-            <label
-              v-for="address in addresses"
-              :key="address.addressId"
-              class="flex cursor-pointer items-start gap-3 rounded-sm border p-3.5
-                     text-sm transition-colors"
-              :class="address.addressId === selectedAddressId
-                ? 'border-accent bg-accent-soft'
-                : 'border-line hover:border-line-strong'"
-            >
-              <input
-                v-model="selectedAddressId" type="radio" name="address"
-                :value="address.addressId" class="mt-1 accent-[var(--accent)]"
-              >
-              <span>
-                <span class="font-medium">{{ address.recipientName }}</span>
-                <span class="figure ml-2 text-xs text-ink-faint">{{ address.phone }}</span>
-                <span class="mt-1 block text-ink-muted">{{ address.fullAddress }}</span>
-              </span>
-            </label>
-            <NuxtLink to="/addresses" class="mt-1 text-sm text-accent hover:underline">
-              管理地址 →
-            </NuxtLink>
-          </div>
-
-          <p v-else class="text-sm text-ink-muted">
-            還沒有收貨地址，
-            <NuxtLink to="/addresses" class="text-accent hover:underline">先新增一筆</NuxtLink>
-            才能直接購買。
+        <div class="mt-6">
+          <p v-if="product.brand" class="eyebrow">{{ product.brand }}</p>
+          <h1 class="mt-1.5 text-2xl font-bold tracking-tight sm:text-3xl">
+            {{ product.name }}
+          </h1>
+          <p v-if="product.description" class="mt-3 max-w-prose text-ink-muted">
+            {{ product.description }}
           </p>
+        </div>
+
+        <!-- 價格跟著規格走，不是商品層級的單一數字——SPU/SKU 分離的重點 -->
+        <div class="mt-6">
+          <MoneyText :amount="selectedSku?.price ?? product.lowestPrice" size="xl" />
+        </div>
+
+        <section class="mt-8" aria-labelledby="spec-heading">
+          <h2 id="spec-heading" class="eyebrow mb-3">選擇規格</h2>
+          <div class="flex flex-wrap gap-2">
+            <button
+              v-for="sku in product.skus"
+              :key="sku.skuId"
+              type="button"
+              :disabled="!sku.purchasable"
+              :aria-pressed="sku.skuId === selectedSkuId"
+              class="h-11 rounded-sm border px-4 text-sm transition-colors
+                     disabled:cursor-not-allowed disabled:opacity-40"
+              :class="sku.skuId === selectedSkuId
+                ? 'border-cta bg-accent-soft font-medium text-accent'
+                : 'border-line hover:border-line-strong'"
+              @click="selectedSkuId = sku.skuId"
+            >
+              {{ sku.specDisplay }}
+            </button>
+          </div>
         </section>
 
-        <div class="mt-6 flex flex-col gap-2.5">
+        <section class="mt-6 flex items-center gap-3">
+          <label for="quantity" class="eyebrow">數量</label>
+          <input
+            id="quantity"
+            v-model.number="quantity"
+            type="number"
+            min="1"
+            max="999"
+            class="figure h-11 w-20 rounded-sm border border-line bg-surface px-3 text-center"
+          >
+        </section>
+      </div>
+
+      <!-- 右欄：購買面板。桌機固定在側，手機改用底部操作列 -->
+      <AppCard class="hidden p-5 lg:sticky lg:top-24 lg:block">
+        <template v-if="auth.isAuthenticated">
+          <section aria-labelledby="address-heading">
+            <h2 id="address-heading" class="eyebrow mb-3">寄送至</h2>
+
+            <div v-if="addresses.length > 0" class="flex flex-col gap-2">
+              <label
+                v-for="address in addresses"
+                :key="address.addressId"
+                class="flex cursor-pointer items-start gap-3 rounded-sm border p-3.5
+                       text-sm transition-colors"
+                :class="address.addressId === selectedAddressId
+                  ? 'border-cta bg-accent-soft'
+                  : 'border-line hover:border-line-strong'"
+              >
+                <input
+                  v-model="selectedAddressId"
+                  type="radio"
+                  name="address"
+                  :value="address.addressId"
+                  class="mt-1 accent-[var(--cta)]"
+                >
+                <span>
+                  <span class="font-medium">{{ address.recipientName }}</span>
+                  <span class="mt-1 block text-ink-muted">{{ address.fullAddress }}</span>
+                </span>
+              </label>
+              <NuxtLink to="/addresses" class="mt-1 text-sm text-accent hover:underline">
+                管理地址 →
+              </NuxtLink>
+            </div>
+
+            <p v-else class="text-sm text-ink-muted">
+              還沒有收貨地址，
+              <NuxtLink to="/addresses" class="text-accent hover:underline">先新增一筆</NuxtLink>
+              才能直接購買。
+            </p>
+          </section>
+
+          <div class="mt-6 flex flex-col gap-2.5">
+            <AppButton
+              variant="secondary"
+              size="lg"
+              block
+              :disabled="!selectedSku?.purchasable || addingToCart"
+              @click="addToCart"
+            >
+              {{ addingToCart ? '加入中⋯' : '加入購物車' }}
+            </AppButton>
+            <AppButton size="lg" block :disabled="!canBuy" @click="buy">
+              {{ submitting ? '處理中⋯' : '立即購買' }}
+            </AppButton>
+          </div>
+        </template>
+
+        <template v-else>
+          <p class="text-sm text-ink-muted">
+            可以先加入購物車，登入後會自動併入你的帳號。
+          </p>
           <AppButton
-            variant="secondary" size="lg" block
+            class="mt-4"
+            variant="secondary"
+            size="lg"
+            block
             :disabled="!selectedSku?.purchasable || addingToCart"
             @click="addToCart"
           >
             {{ addingToCart ? '加入中⋯' : '加入購物車' }}
           </AppButton>
-          <AppButton size="lg" block :disabled="!canBuy" @click="buy">
-            {{ submitting ? '處理中⋯' : '立即購買' }}
-          </AppButton>
-        </div>
-      </template>
+          <AuthPanel class="mt-6" />
+        </template>
 
-      <template v-else>
-        <p class="text-sm text-ink-muted">
-          可以先加入購物車，登入後會自動併入你的帳號。
+        <p v-if="cartMessage" class="mt-3 text-sm text-ink-muted" role="status">
+          {{ cartMessage }}
+          <NuxtLink to="/cart" class="text-accent hover:underline">查看購物車 →</NuxtLink>
         </p>
-        <AppButton
-          class="mt-4" variant="secondary" size="lg" block
-          :disabled="!selectedSku?.purchasable || addingToCart"
-          @click="addToCart"
+
+        <p
+          v-if="state.kind === 'failed'"
+          class="mt-3 rounded-sm border border-danger/40 bg-danger-soft p-3 text-sm text-danger"
+          role="alert"
         >
-          {{ addingToCart ? '加入中⋯' : '加入購物車' }}
-        </AppButton>
-        <AuthPanel class="mt-6" />
+          {{ state.message }}
+        </p>
+      </AppCard>
+    </div>
+
+    <!-- 手機：地址與登入留在內容流裡，主要動作交給底部操作列 -->
+    <div class="mt-8 lg:hidden">
+      <template v-if="auth.isAuthenticated">
+        <h2 class="eyebrow mb-3">寄送至</h2>
+        <div v-if="addresses.length > 0" class="flex flex-col gap-2">
+          <label
+            v-for="address in addresses"
+            :key="address.addressId"
+            class="flex cursor-pointer items-start gap-3 rounded-sm border p-3.5
+                   text-sm transition-colors"
+            :class="address.addressId === selectedAddressId
+              ? 'border-cta bg-accent-soft'
+              : 'border-line'"
+          >
+            <input
+              v-model="selectedAddressId"
+              type="radio"
+              name="address-mobile"
+              :value="address.addressId"
+              class="mt-1 accent-[var(--cta)]"
+            >
+            <span>
+              <span class="font-medium">{{ address.recipientName }}</span>
+              <span class="mt-1 block text-ink-muted">{{ address.fullAddress }}</span>
+            </span>
+          </label>
+        </div>
+        <p v-else class="text-sm text-ink-muted">
+          還沒有收貨地址，
+          <NuxtLink to="/addresses" class="text-accent hover:underline">先新增一筆</NuxtLink>
+          才能直接購買。
+        </p>
       </template>
+      <AuthPanel v-else />
 
       <p v-if="cartMessage" class="mt-3 text-sm text-ink-muted" role="status">
         {{ cartMessage }}
         <NuxtLink to="/cart" class="text-accent hover:underline">查看購物車 →</NuxtLink>
       </p>
-
       <p
         v-if="state.kind === 'failed'"
         class="mt-3 rounded-sm border border-danger/40 bg-danger-soft p-3 text-sm text-danger"
@@ -251,7 +325,28 @@ useHead(() => ({ title: product.value?.name ?? '商品' }))
       >
         {{ state.message }}
       </p>
-    </AppCard>
+    </div>
+
+    <StickyActionBar>
+      <template #info>
+        <MoneyText :amount="selectedSku?.price ?? product.lowestPrice" size="lg" />
+        <p class="mt-0.5 truncate text-xs text-ink-faint">{{ selectedSku?.specDisplay }}</p>
+      </template>
+      <template #action>
+        <div class="flex gap-2">
+          <AppButton
+            variant="secondary"
+            :disabled="!selectedSku?.purchasable || addingToCart"
+            @click="addToCart"
+          >
+            加入購物車
+          </AppButton>
+          <AppButton v-if="auth.isAuthenticated" :disabled="!canBuy" @click="buy">
+            {{ submitting ? '處理中⋯' : '購買' }}
+          </AppButton>
+        </div>
+      </template>
+    </StickyActionBar>
   </div>
 
   <EmptyState v-else title="找不到這個商品。">
