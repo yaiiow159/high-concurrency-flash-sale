@@ -45,9 +45,14 @@ useHead({ title: '全部商品' })
   <main class="mx-auto max-w-4xl px-5 py-10">
     <header class="flex flex-wrap items-baseline justify-between gap-3">
       <h1 class="text-3xl font-black tracking-tight">全部商品</h1>
-      <NuxtLink to="/" class="text-sm text-[var(--accent)] hover:underline">
-        限時搶購 →
-      </NuxtLink>
+      <div class="flex gap-4 text-sm">
+        <NuxtLink to="/addresses" class="text-[var(--accent)] hover:underline">
+          收貨地址
+        </NuxtLink>
+        <NuxtLink to="/" class="text-[var(--accent)] hover:underline">
+          限時搶購 →
+        </NuxtLink>
+      </div>
     </header>
 
     <nav class="mt-6 flex flex-wrap gap-2" aria-label="類目篩選">

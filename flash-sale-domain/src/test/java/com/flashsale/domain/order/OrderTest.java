@@ -124,7 +124,8 @@ class OrderTest {
     private static Order restoredOrder(OrderStatus status) {
         return Order.restore(OrderNo.of("20250601000001"), 88L, OrderChannel.SECKILL, "req-001",
                 List.of(new OrderLine(2001L, "測試商品", new BigDecimal("29900.00"), 2, 1001L)),
-                new BigDecimal("59800.00"), status, NOW, null, null, 0L);
+                // 秒殺訂單沒有收貨資訊——那條通道的下單當下不收集地址
+                new BigDecimal("59800.00"), null, status, NOW, null, null, 0L);
     }
 
     private static SeckillActivity activity() {

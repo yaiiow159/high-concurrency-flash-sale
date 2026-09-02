@@ -3,6 +3,7 @@ package com.flashsale.application.service;
 import com.flashsale.application.port.in.PlaceOrderUseCase.OrderItem;
 import com.flashsale.application.port.in.PlaceOrderUseCase.PlaceOrderCommand;
 import com.flashsale.application.port.in.dto.OrderView;
+import com.flashsale.application.port.out.AddressRepository;
 import com.flashsale.application.port.out.EventOutbox;
 import com.flashsale.application.port.out.InventoryService;
 import com.flashsale.application.port.out.OrderNoGenerator;
@@ -12,10 +13,12 @@ import com.flashsale.domain.catalog.Product;
 import com.flashsale.domain.catalog.ProductStatus;
 import com.flashsale.domain.catalog.Sku;
 import com.flashsale.domain.catalog.SkuSpec;
+import com.flashsale.domain.identity.Address;
 import com.flashsale.domain.order.Order;
 import com.flashsale.domain.order.OrderChannel;
 import com.flashsale.domain.order.OrderLine;
 import com.flashsale.domain.order.OrderNo;
+import com.flashsale.domain.order.ShippingInfo;
 import com.flashsale.domain.shared.BusinessException;
 import com.flashsale.domain.shared.ErrorCode;
 import com.flashsale.domain.stock.StockDeductionOutcome;
@@ -63,9 +66,14 @@ class OrderPlacementServiceTest {
     private static final long SKU_A = 2001L;
     private static final long SKU_B = 2011L;
     private static final String ORDER_NO = "220600000000000001";
+    private static final long ADDRESS = 7L;
+    private static final ShippingInfo SHIPPING = new ShippingInfo(
+            "王小明", "0912345678", "110", "臺北市", "信義區", "市府路 1 號");
 
     @Mock
     private ProductRepository productRepository;
+    @Mock
+    private AddressRepository addressRepository;
     @Mock
     private InventoryService inventoryService;
     @Mock
@@ -123,6 +131,63 @@ class OrderPlacementServiceTest {
     }
 
     @Nested
+    @DisplayName("收貨地址快照")
+    class Shipping {
+
+        @Test
+        @DisplayName("訂單存的是地址內容的快照，不是 addressId")
+        void snapshotsAddressIntoOrder() {
+            givenCatalog();
+            givenDeductSucceeds();
+            givenOrderSaves();
+
+            service().place(command(new OrderItem(SKU_A, 1)));
+
+            ShippingInfo shipping = capturedOrder().shippingInfo();
+            assertThat(shipping).isNotNull();
+            assertThat(shipping.recipientName()).isEqualTo("王小明");
+            assertThat(shipping.fullAddress()).isEqualTo("110 臺北市信義區市府路 1 號");
+        }
+
+        @Test
+        @DisplayName("用別人的 addressId 下單：直接拒絕，且不先扣庫存再回滾")
+        void refusesForeignAddress() {
+            givenCatalog();
+            when(addressRepository.findById(ADDRESS)).thenReturn(Optional.of(Address.restore(
+                    ADDRESS, 999L, "別人", "0912345678", "110",
+                    "臺北市", "信義區", "市府路 1 號", true, NOW)));
+
+            assertThatThrownBy(() -> service().place(command(new OrderItem(SKU_A, 1))))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting(e -> ((BusinessException) e).errorCode())
+                    .isEqualTo(ErrorCode.ADDRESS_NOT_FOUND);
+
+            // 地址檢查在扣庫存之前：回滾雖然也能救，但那會白白撞一次庫存熱點
+            verify(inventoryService, never()).deduct(any());
+        }
+
+        @Test
+        @DisplayName("地址不存在時拒絕，不會建出一張寄不出去的訂單")
+        void refusesMissingAddress() {
+            givenCatalog();
+            when(addressRepository.findById(ADDRESS)).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> service().place(command(new OrderItem(SKU_A, 1))))
+                    .isInstanceOf(BusinessException.class);
+
+            verify(orderRepository, never()).saveIfAbsent(any());
+        }
+
+        @Test
+        @DisplayName("沒有 addressId 的指令在入口就被擋下")
+        void requiresAddressId() {
+            assertThatThrownBy(() ->
+                    new PlaceOrderCommand(USER, "req-1", null, List.of(new OrderItem(SKU_A, 1))))
+                    .isInstanceOf(NullPointerException.class);
+        }
+    }
+
+    @Nested
     @DisplayName("失敗時不留半成品")
     class Atomicity {
 
@@ -150,6 +215,7 @@ class OrderPlacementServiceTest {
         @Test
         @DisplayName("下架商品不可下單，且錯誤碼要能區分原因")
         void refusesUnpurchasableProduct() {
+            givenAddress();
             when(productRepository.findBySkuId(SKU_A))
                     .thenReturn(Optional.of(product(ProductStatus.OFF_SHELF)));
 
@@ -165,6 +231,7 @@ class OrderPlacementServiceTest {
         @Test
         @DisplayName("不存在的規格回 SKU_NOT_FOUND，不會靜默略過那一行")
         void refusesUnknownSku() {
+            givenAddress();
             when(productRepository.findBySkuId(9999L)).thenReturn(Optional.empty());
 
             assertThatThrownBy(() -> service().place(command(new OrderItem(9999L, 1))))
@@ -222,13 +289,13 @@ class OrderPlacementServiceTest {
         @Test
         @DisplayName("空訂單與過多品項都拒絕")
         void rejectsEmptyAndOversizedOrders() {
-            assertThatThrownBy(() -> new PlaceOrderCommand(USER, "req-1", List.of()))
+            assertThatThrownBy(() -> new PlaceOrderCommand(USER, "req-1", ADDRESS, List.of()))
                     .isInstanceOf(BusinessException.class);
 
             List<OrderItem> tooMany = java.util.stream.IntStream.rangeClosed(1, 51)
                     .mapToObj(i -> new OrderItem((long) i, 1))
                     .toList();
-            assertThatThrownBy(() -> new PlaceOrderCommand(USER, "req-1", tooMany))
+            assertThatThrownBy(() -> new PlaceOrderCommand(USER, "req-1", ADDRESS, tooMany))
                     .isInstanceOf(BusinessException.class);
         }
 
@@ -242,7 +309,8 @@ class OrderPlacementServiceTest {
         @Test
         @DisplayName("requestId 不可為空——沒有它就沒有冪等")
         void requiresRequestId() {
-            assertThatThrownBy(() -> new PlaceOrderCommand(USER, " ", List.of(new OrderItem(SKU_A, 1))))
+            assertThatThrownBy(() ->
+                    new PlaceOrderCommand(USER, " ", ADDRESS, List.of(new OrderItem(SKU_A, 1))))
                     .isInstanceOf(BusinessException.class);
         }
     }
@@ -250,21 +318,28 @@ class OrderPlacementServiceTest {
     // ---- fixtures ----
 
     private OrderPlacementService service() {
-        return new OrderPlacementService(productRepository, inventoryService, orderRepository,
-                orderNoGenerator, eventOutbox, CLOCK);
+        return new OrderPlacementService(productRepository, addressRepository, inventoryService,
+                orderRepository, orderNoGenerator, eventOutbox, CLOCK);
     }
 
     private static PlaceOrderCommand command(OrderItem... items) {
-        return new PlaceOrderCommand(USER, "req-1", List.of(items));
+        return new PlaceOrderCommand(USER, "req-1", ADDRESS, List.of(items));
     }
 
     private void givenCatalog() {
+        givenAddress();
         when(orderRepository.findByRequestId("req-1")).thenReturn(Optional.empty());
         when(orderNoGenerator.next()).thenReturn(OrderNo.of(ORDER_NO));
         when(productRepository.findBySkuId(SKU_A))
                 .thenReturn(Optional.of(product(ProductStatus.ON_SHELF)));
         when(productRepository.findBySkuId(SKU_B))
                 .thenReturn(Optional.of(product(ProductStatus.ON_SHELF)));
+    }
+
+    private void givenAddress() {
+        when(addressRepository.findById(ADDRESS)).thenReturn(Optional.of(Address.restore(
+                ADDRESS, USER, "王小明", "0912345678", "110",
+                "臺北市", "信義區", "市府路 1 號", true, NOW)));
     }
 
     private void givenDeductSucceeds() {
@@ -285,7 +360,7 @@ class OrderPlacementServiceTest {
     private Order existingOrder() {
         return Order.place(OrderNo.of(ORDER_NO), USER, "req-1",
                 List.of(new OrderLine(SKU_A, "iPhone 16 Pro（256G）",
-                        new BigDecimal("29900.00"), 1, null)), NOW);
+                        new BigDecimal("29900.00"), 1, null)), SHIPPING, NOW);
     }
 
     private static Product product(ProductStatus status) {

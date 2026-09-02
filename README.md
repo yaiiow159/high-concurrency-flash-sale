@@ -165,6 +165,11 @@ curl http://localhost:8080/api/v1/seckill/orders/123456789 -H "Authorization: Be
 | `GET` | `/api/v1/seckill/orders/{orderNo}` | Bearer | 查詢訂單，非同步處理中回 `PROCESSING` |
 | `POST` | `/api/v1/orders` | Bearer | 一般下單，回 201 + 完整訂單（同步，全有全無） |
 | `GET` | `/api/v1/orders/{orderNo}` | Bearer | 查詢訂單 |
+| `GET` | `/api/v1/addresses` | Bearer | 收貨地址列表，預設排最前 |
+| `POST` | `/api/v1/addresses` | Bearer | 新增地址，第一筆自動成為預設 |
+| `PUT` | `/api/v1/addresses/{id}` | Bearer | 修改地址，不影響已成立的訂單 |
+| `DELETE` | `/api/v1/addresses/{id}` | Bearer | 刪除地址 |
+| `POST` | `/api/v1/addresses/{id}/default` | Bearer | 設為預設地址 |
 | `GET` | `/api/v1/catalog/products` | 匿名 | 商品列表，可依類目篩選（分頁上限 100） |
 | `GET` | `/api/v1/catalog/products/{id}` | 匿名 | 商品詳情，含各 SKU 的規格與價格 |
 | `GET` | `/api/v1/catalog/categories` | 匿名 | 類目樹 |
@@ -210,6 +215,34 @@ Session 每個請求都要讀一次 Redis，等於在熱路徑上憑空增加一
 
 商品頁開放匿名瀏覽（不該逼使用者先登入才能看商品），
 寫入操作一律需要令牌，管理端點另需 `seckill:admin` scope。
+
+---
+
+## 收貨地址：快照，不是引用
+
+訂單模型裡最容易做錯的一個欄位。直覺做法是在訂單上存 `addressId`，
+顯示時再去地址簿查——那個做法在使用者搬家的那一刻就壞了：
+三個月前已送達的訂單會顯示成寄到新家。
+
+```
+Address      「這個使用者現在的收貨地址是什麼」  ← 會變
+ShippingInfo 「這張訂單當初要寄到哪裡」          ← 永遠不變
+```
+
+因此下單時**當場快照**六個欄位進訂單，`OrderEntity` 以 `updatable = false` 鎖住。
+實測：把地址從臺北改成高雄、甚至整筆刪掉，訂單顯示的仍是下單當下的臺北地址。
+
+這與訂單行的商品名快照、單價快照是同一條原則（ADR-0007）——
+**訂單記錄的是「當時發生了什麼」，不是「現在的資料長什麼樣」**。
+要改地址只有一種正確作法：取消原訂單，重新下單。那會留下兩筆可追溯的紀錄。
+
+快照保留結構化欄位（縣市／區／街道分開）而非只存一個字串，
+是為了物流介接——事後從一整串地址切回來是猜測，不是解析。
+
+`Address` 屬於 Identity 脈絡，`ShippingInfo` 屬於 Ordering。
+**兩者刻意互不認得**，轉換由應用層負責；讓 Identity 去 import Ordering 的型別，
+等於把兩個脈絡黏在一起。代價是地址格式化各有一份，
+那點重複遠比脈絡耦合便宜。ArchUnit 只管分層，抓不到這種耦合，只能靠 review。
 
 ---
 
@@ -440,7 +473,8 @@ t2  使用者完成付款 → 閘道回調「成功」
 | `/seckill/[id]` | 秒殺頁：倒數、庫存輪詢、開賣抖動 |
 | `/products` | 商品列表，可依類目篩選 |
 | `/products/[id]` | 商品詳情：選規格、直接購買 |
-| `/orders/[orderNo]` | 訂單詳情與付款 |
+| `/orders/[orderNo]` | 訂單詳情與付款（含收貨資訊快照） |
+| `/addresses` | 收貨地址簿管理 |
 
 ```bash
 cd web && npm install && npm run dev   # http://localhost:5173

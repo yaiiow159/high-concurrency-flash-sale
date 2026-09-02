@@ -5,6 +5,7 @@ import com.flashsale.domain.order.OrderChannel;
 import com.flashsale.domain.order.OrderLine;
 import com.flashsale.domain.order.OrderNo;
 import com.flashsale.domain.order.OrderStatus;
+import com.flashsale.domain.order.ShippingInfo;
 import com.flashsale.infrastructure.adapter.out.persistence.entity.OrderEntity;
 import com.flashsale.infrastructure.adapter.out.persistence.entity.OrderLineEntity;
 
@@ -26,6 +27,13 @@ public final class OrderMapper {
                 order.paidAt(),
                 order.closeReason());
 
+        ShippingInfo shipping = order.shippingInfo();
+        if (shipping != null) {
+            entity.applyShippingInfo(shipping.recipientName(), shipping.phone(),
+                    shipping.postalCode(), shipping.region(),
+                    shipping.district(), shipping.streetAddress());
+        }
+
         order.lines().forEach(line -> entity.addLine(new OrderLineEntity(
                 line.skuId(), line.skuSnapshot(), line.unitPrice(),
                 line.quantity(), line.sourceActivityId())));
@@ -43,10 +51,27 @@ public final class OrderMapper {
                                 line.getUnitPrice(), line.getQuantity(), line.getSourceActivityId()))
                         .toList(),
                 entity.getTotalAmount(),
+                toShippingInfo(entity),
                 OrderStatus.valueOf(entity.getStatus()),
                 entity.getCreatedAt(),
                 entity.getPaidAt(),
                 entity.getCloseReason(),
                 entity.getVersion());
+    }
+
+    /**
+     * 秒殺訂單與 V8 之前建立的訂單都沒有收貨資訊。
+     *
+     * <p>以收件人是否存在判斷，而不是逐欄位檢查——
+     * {@link ShippingInfo} 的建構子已經保證「有值就六個欄位都齊全」，
+     * 這裡再做一次逐欄位檢查只會多一份會與那邊漂移的規則。
+     */
+    private static ShippingInfo toShippingInfo(OrderEntity entity) {
+        if (entity.getShipRecipient() == null) {
+            return null;
+        }
+        return new ShippingInfo(entity.getShipRecipient(), entity.getShipPhone(),
+                entity.getShipPostalCode(), entity.getShipRegion(),
+                entity.getShipDistrict(), entity.getShipStreet());
     }
 }

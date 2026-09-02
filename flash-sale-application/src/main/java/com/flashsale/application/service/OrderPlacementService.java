@@ -2,6 +2,7 @@ package com.flashsale.application.service;
 
 import com.flashsale.application.port.in.PlaceOrderUseCase;
 import com.flashsale.application.port.in.dto.OrderView;
+import com.flashsale.application.port.out.AddressRepository;
 import com.flashsale.application.port.out.EventOutbox;
 import com.flashsale.application.port.out.InventoryService;
 import com.flashsale.application.port.out.OrderNoGenerator;
@@ -9,9 +10,11 @@ import com.flashsale.application.port.out.OrderRepository;
 import com.flashsale.application.port.out.ProductRepository;
 import com.flashsale.domain.catalog.Product;
 import com.flashsale.domain.catalog.Sku;
+import com.flashsale.domain.identity.Address;
 import com.flashsale.domain.order.Order;
 import com.flashsale.domain.order.OrderLine;
 import com.flashsale.domain.order.OrderNo;
+import com.flashsale.domain.order.ShippingInfo;
 import com.flashsale.domain.shared.BusinessException;
 import com.flashsale.domain.shared.ErrorCode;
 import com.flashsale.domain.stock.StockDeductionResult;
@@ -47,6 +50,7 @@ public class OrderPlacementService implements PlaceOrderUseCase {
     private static final Logger log = LoggerFactory.getLogger(OrderPlacementService.class);
 
     private final ProductRepository productRepository;
+    private final AddressRepository addressRepository;
     private final InventoryService inventoryService;
     private final OrderRepository orderRepository;
     private final OrderNoGenerator orderNoGenerator;
@@ -54,12 +58,14 @@ public class OrderPlacementService implements PlaceOrderUseCase {
     private final Clock clock;
 
     public OrderPlacementService(ProductRepository productRepository,
+                                 AddressRepository addressRepository,
                                  InventoryService inventoryService,
                                  OrderRepository orderRepository,
                                  OrderNoGenerator orderNoGenerator,
                                  EventOutbox eventOutbox,
                                  Clock clock) {
         this.productRepository = productRepository;
+        this.addressRepository = addressRepository;
         this.inventoryService = inventoryService;
         this.orderRepository = orderRepository;
         this.orderNoGenerator = orderNoGenerator;
@@ -80,11 +86,13 @@ public class OrderPlacementService implements PlaceOrderUseCase {
 
         Instant now = clock.instant();
         OrderNo orderNo = orderNoGenerator.next();
+        ShippingInfo shippingInfo = resolveShippingInfo(command);
         List<OrderLine> lines = resolveLines(command);
 
         deductInventory(command, orderNo, lines);
 
-        Order order = Order.place(orderNo, command.userId(), command.requestId(), lines, now);
+        Order order = Order.place(orderNo, command.userId(), command.requestId(),
+                lines, shippingInfo, now);
         Order saved = orderRepository.saveIfAbsent(order)
                 // 走到這裡代表兩個並行請求帶著同一個 requestId，
                 // 而資料庫的唯一索引擋下了第二個。這是冪等的最後一道，不是錯誤。
@@ -99,6 +107,28 @@ public class OrderPlacementService implements PlaceOrderUseCase {
         log.info("一般下單完成 orderNo={}, userId={}, 品項數={}, 金額={}",
                 saved.orderNo().value(), command.userId(), lines.size(), saved.totalAmount());
         return OrderView.from(saved);
+    }
+
+    /**
+     * 從地址簿取出地址，並<b>當場快照</b>成訂單的收貨資訊。
+     *
+     * <p>訂單不存 {@code addressId}。使用者搬家改了地址簿之後，
+     * 三個月前那張已送達的訂單仍要顯示當初寄去的地方——
+     * 那是出貨紀錄與客訴處理的依據，不是一個顯示欄位。
+     *
+     * <p>擁有者檢查在聚合根裡，且刻意在扣庫存<b>之前</b>做：
+     * 用別人的地址 ID 下單應該直接被拒，不該先扣掉庫存再回滾。
+     */
+    private ShippingInfo resolveShippingInfo(PlaceOrderCommand command) {
+        Address address = addressRepository.findById(command.addressId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.ADDRESS_NOT_FOUND));
+        address.requireOwnedBy(command.userId());
+
+        // 轉換放在這裡而非 Address 上：讓 Identity 去認得 Ordering 的型別，
+        // 等於把兩個脈絡黏在一起。應用層本來就是負責跨脈絡編排的地方。
+        return new ShippingInfo(address.recipientName(), address.phone(),
+                address.postalCode(), address.region(),
+                address.district(), address.streetAddress());
     }
 
     /**

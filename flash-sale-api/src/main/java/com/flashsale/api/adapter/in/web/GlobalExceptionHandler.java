@@ -65,6 +65,10 @@ public class GlobalExceptionHandler {
             Map.entry(ErrorCode.SKU_NOT_FOUND, HttpStatus.NOT_FOUND),
             // 庫存維運的兩種拒絕都是「目前的狀態不允許這個操作」，不是請求寫錯
             Map.entry(ErrorCode.INVENTORY_NOT_FOUND, HttpStatus.NOT_FOUND),
+            // 查不到與無權限都回 404：回 403 等於確認這個 ID 是有效的
+            Map.entry(ErrorCode.ADDRESS_NOT_FOUND, HttpStatus.NOT_FOUND),
+            Map.entry(ErrorCode.ADDRESS_LIMIT_EXCEEDED, HttpStatus.CONFLICT),
+            Map.entry(ErrorCode.SHIPPING_INFO_REQUIRED, HttpStatus.CONFLICT),
             Map.entry(ErrorCode.INSUFFICIENT_INVENTORY_TO_ALLOCATE, HttpStatus.CONFLICT),
             Map.entry(ErrorCode.INVENTORY_RELEASE_EXCEEDS_ALLOCATION, HttpStatus.CONFLICT),
             Map.entry(ErrorCode.ACTIVITY_STOCK_ALREADY_RELEASED, HttpStatus.CONFLICT),
