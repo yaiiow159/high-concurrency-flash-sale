@@ -160,3 +160,33 @@ export interface AddressView {
 }
 
 export type AddressPayload = Omit<AddressView, 'addressId' | 'fullAddress'>
+
+// ---------------------------------------------------------------------------
+// 購物車
+//
+// 品項沒有價格欄位——伺服器每次回傳當下的目錄價。
+// 購物車回答的是「現在買要多少錢」，存快照會在商家調價後變成謊言。
+// 這與訂單行必須存快照剛好相反，兩者不可互換。
+// ---------------------------------------------------------------------------
+
+export interface CartItemView {
+  skuId: number
+  productId: number
+  productName: string
+  specDisplay: string
+  /** 當下的目錄價，僅供預覽；真正的金額在下單時凍結進訂單 */
+  unitPrice: number
+  quantity: number
+  subtotal: number
+  /** 已下架的品項會留在清單裡並標記為 false，不會靜默消失 */
+  purchasable: boolean
+}
+
+export interface CartView {
+  items: CartItemView[]
+  /** 不含已下架品項——顯示一個結不了帳的金額只會造成誤解 */
+  totalAmount: number
+  totalQuantity: number
+  /** 本次查詢中因商品已被刪除而移除的品項數，必須告訴使用者 */
+  removedCount: number
+}

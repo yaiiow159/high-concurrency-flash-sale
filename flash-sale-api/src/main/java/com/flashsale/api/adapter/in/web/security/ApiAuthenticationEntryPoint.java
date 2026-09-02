@@ -35,7 +35,6 @@ public class ApiAuthenticationEntryPoint implements AuthenticationEntryPoint {
     public void commence(HttpServletRequest request, HttpServletResponse response,
                          AuthenticationException authException) throws IOException {
 
-        // 依 RFC 6750 回 WWW-Authenticate，讓標準用戶端知道該用哪種憑證重試。
         response.setHeader(HttpHeaders.WWW_AUTHENTICATE, "Bearer");
         response.setStatus(HttpStatus.UNAUTHORIZED.value());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);

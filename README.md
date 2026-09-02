@@ -170,6 +170,13 @@ curl http://localhost:8080/api/v1/seckill/orders/123456789 -H "Authorization: Be
 | `PUT` | `/api/v1/addresses/{id}` | Bearer | 修改地址，不影響已成立的訂單 |
 | `DELETE` | `/api/v1/addresses/{id}` | Bearer | 刪除地址 |
 | `POST` | `/api/v1/addresses/{id}/default` | Bearer | 設為預設地址 |
+| `GET` | `/api/v1/cart` | Bearer | 查看購物車，價格為當下目錄價 |
+| `POST` | `/api/v1/cart/items` | Bearer | 加入購物車，同一 SKU 累加 |
+| `PUT` | `/api/v1/cart/items/{skuId}` | Bearer | 調整數量，設 0 等同移除 |
+| `DELETE` | `/api/v1/cart/items/{skuId}` | Bearer | 移除品項 |
+| `POST` | `/api/v1/cart/merge` | Bearer | 登入後合併本地購物車 |
+| `POST` | `/api/v1/orders/checkout` | Bearer | 從購物車結帳，成功後清空購物車 |
+| `GET` | `/api/v1/catalog/skus?ids=` | 匿名 | 批次查 SKU，供未登入的本地購物車定價 |
 | `GET` | `/api/v1/catalog/products` | 匿名 | 商品列表，可依類目篩選（分頁上限 100） |
 | `GET` | `/api/v1/catalog/products/{id}` | 匿名 | 商品詳情，含各 SKU 的規格與價格 |
 | `GET` | `/api/v1/catalog/categories` | 匿名 | 類目樹 |
@@ -215,6 +222,32 @@ Session 每個請求都要讀一次 Redis，等於在熱路徑上憑空增加一
 
 商品頁開放匿名瀏覽（不該逼使用者先登入才能看商品），
 寫入操作一律需要令牌，管理端點另需 `seckill:admin` scope。
+
+---
+
+## 購物車：唯一「必須用引用」的地方
+
+購物車與訂單對同一個問題給出相反的答案，而且兩邊都對：
+
+| | 購物車 | 訂單 |
+|---|---|---|
+| 價格 | **引用**：每次顯示都重新取 | **快照**：建立時凍結 |
+| 問的問題 | 「現在買要多少錢」 | 「當初成交是多少錢」 |
+| 商家調價後 | 必須跟著變 | 絕不可變 |
+
+購物車若存價格快照，商家調價後使用者會看到舊價格、結帳時被收新價格。
+訂單若用引用，歷史訂單會在調價當下集體變動。
+**把同一套規則套到兩邊，就一定有一邊是錯的。**
+
+因此 `cart_item` 只有 `(user_id, sku_id, quantity)`，沒有價格也沒有商品名。
+
+**購物車不鎖庫存。** 加入購物車不預扣也不預留——否則任何人都能靠一個迴圈
+塞滿購物車把全站庫存凍結。庫存只在結帳當下檢查與扣減，
+代價是「加到購物車時有貨、結帳時沒了」，那是誠實的：貨本來就先到先得。
+
+未登入時購物車在 `localStorage`，登入後合併。**同一個 SKU 取兩邊較大值而非相加**——
+在手機加了 2 件、電腦也加了 2 件的人想要的幾乎一定是 2 件；
+相加會讓他在結帳頁看到一個從沒按過的數字。
 
 ---
 
@@ -475,6 +508,8 @@ t2  使用者完成付款 → 閘道回調「成功」
 | `/products/[id]` | 商品詳情：選規格、直接購買 |
 | `/orders/[orderNo]` | 訂單詳情與付款（含收貨資訊快照） |
 | `/addresses` | 收貨地址簿管理 |
+| `/cart` | 購物車（未登入用 localStorage） |
+| `/checkout` | 結帳：選地址、確認下單 |
 
 ```bash
 cd web && npm install && npm run dev   # http://localhost:5173

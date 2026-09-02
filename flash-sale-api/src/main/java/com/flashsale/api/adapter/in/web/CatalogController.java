@@ -55,6 +55,15 @@ public class CatalogController {
         return ApiResponse.ok(catalogQueryUseCase.findProduct(productId));
     }
 
+    @GetMapping("/skus")
+    @SecurityRequirements
+    @Operation(summary = "批次查詢 SKU",
+            description = "供未登入的本地購物車取得商品名與價格；查不到的 SKU 不會出現在結果裡")
+    public ApiResponse<List<CatalogQueryUseCase.SkuLookup>> findSkus(
+            @RequestParam List<Long> ids) {
+        return ApiResponse.ok(catalogQueryUseCase.findSkus(ids));
+    }
+
     @GetMapping("/categories")
     @SecurityRequirements
     @Operation(summary = "類目樹")

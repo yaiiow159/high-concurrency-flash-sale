@@ -47,6 +47,9 @@ public enum ErrorCode {
     ADDRESS_NOT_FOUND("B0024", "收貨地址不存在"),
     ADDRESS_LIMIT_EXCEEDED("B0025", "收貨地址數量已達上限"),
     SHIPPING_INFO_REQUIRED("B0026", "此訂單尚未填寫收貨資訊"),
+    CART_ITEM_NOT_FOUND("B0027", "購物車中沒有這個品項"),
+    CART_ITEM_LIMIT_EXCEEDED("B0028", "購物車商品種類已達上限"),
+    CART_EMPTY("B0029", "購物車是空的"),
 
     // ---- C：系統/依賴故障 ----
     STOCK_SERVICE_UNAVAILABLE("C0001", "庫存服務暫時不可用"),

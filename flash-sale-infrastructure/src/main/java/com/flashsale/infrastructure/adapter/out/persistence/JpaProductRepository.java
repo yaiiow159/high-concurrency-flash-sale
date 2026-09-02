@@ -97,6 +97,15 @@ public class JpaProductRepository implements ProductRepository {
 
     @Override
     @Transactional(readOnly = true)
+    public List<Product> findBySkuIds(List<Long> skuIds) {
+        if (skuIds.isEmpty()) {
+            return List.of();
+        }
+        return jpaRepository.findBySkuIds(skuIds).stream().map(this::toDomain).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<Sku> findSkusByIds(List<Long> skuIds) {
         if (skuIds.isEmpty()) {
             // 空集合會產生 `in ()` 這種在部分資料庫上非法的 SQL

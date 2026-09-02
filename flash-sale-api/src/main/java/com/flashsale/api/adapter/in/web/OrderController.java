@@ -1,8 +1,10 @@
 package com.flashsale.api.adapter.in.web;
 
 import com.flashsale.api.adapter.in.web.dto.ApiResponse;
+import com.flashsale.api.adapter.in.web.dto.CheckoutRequest;
 import com.flashsale.api.adapter.in.web.dto.PlaceOrderRequest;
 import com.flashsale.api.adapter.in.web.security.CurrentUser;
+import com.flashsale.application.port.in.CheckoutUseCase;
 import com.flashsale.application.port.in.OrderQueryUseCase;
 import com.flashsale.application.port.in.PlaceOrderUseCase;
 import com.flashsale.application.port.in.dto.OrderView;
@@ -46,11 +48,14 @@ import org.springframework.web.bind.annotation.RestController;
 public class OrderController {
 
     private final PlaceOrderUseCase placeOrderUseCase;
+    private final CheckoutUseCase checkoutUseCase;
     private final OrderQueryUseCase orderQueryUseCase;
 
     public OrderController(PlaceOrderUseCase placeOrderUseCase,
+                           CheckoutUseCase checkoutUseCase,
                            OrderQueryUseCase orderQueryUseCase) {
         this.placeOrderUseCase = placeOrderUseCase;
+        this.checkoutUseCase = checkoutUseCase;
         this.orderQueryUseCase = orderQueryUseCase;
     }
 
@@ -68,6 +73,23 @@ public class OrderController {
             @CurrentUser Long userId) {
 
         OrderView order = placeOrderUseCase.place(request.toCommand(userId));
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(order));
+    }
+
+    /**
+     * 從購物車結帳。
+     *
+     * <p>與直接下單共用同一條建立路徑，只是品項來自伺服器端的購物車。
+     * 成功後購物車會在<b>同一個交易裡</b>清空——
+     * 訂單建立了但購物車沒清，使用者會重複下單。
+     */
+    @PostMapping("/checkout")
+    @Operation(summary = "購物車結帳", description = "品項取自伺服器端購物車；成功後清空購物車")
+    public ResponseEntity<ApiResponse<OrderView>> checkout(
+            @Valid @RequestBody CheckoutRequest request,
+            @CurrentUser Long userId) {
+
+        OrderView order = checkoutUseCase.checkout(userId, request.requestId(), request.addressId());
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(order));
     }
 

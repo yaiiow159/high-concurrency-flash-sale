@@ -46,6 +46,10 @@ export default defineNuxtConfig({
     /** 地址簿同理：個資進了快取的 HTML 就等於發給下一個訪客。 */
     '/addresses': { isr: false },
 
+    /** 購物車與結帳頁都是每個人專屬的內容，一律不快取。 */
+    '/cart': { isr: false },
+    '/checkout': { isr: false },
+
     /**
      * 代理到後端，避開 CORS。
      *

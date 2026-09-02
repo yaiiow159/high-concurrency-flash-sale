@@ -1,6 +1,8 @@
 package com.flashsale.application.service;
 
 import com.flashsale.application.port.in.CatalogQueryUseCase;
+import com.flashsale.domain.catalog.Sku;
+import com.flashsale.domain.catalog.Product;
 import com.flashsale.application.port.in.dto.CategoryView;
 import com.flashsale.application.port.in.dto.ProductView;
 import com.flashsale.application.port.out.CategoryRepository;
@@ -10,6 +12,7 @@ import com.flashsale.domain.shared.ErrorCode;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -22,6 +25,9 @@ import java.util.List;
 public class CatalogQueryService implements CatalogQueryUseCase {
 
     private static final int MAX_PAGE_SIZE = 100;
+
+    /** 批次 SKU 查詢的上限，與購物車的品項上限一致。 */
+    private static final int MAX_SKU_LOOKUP = 50;
     private static final int DEFAULT_PAGE_SIZE = 20;
 
     private final ProductRepository productRepository;
@@ -51,6 +57,31 @@ public class CatalogQueryService implements CatalogQueryUseCase {
         return productRepository.findById(productId)
                 .map(ProductView::from)
                 .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_NOT_FOUND));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<SkuLookup> findSkus(List<Long> skuIds) {
+        if (skuIds.isEmpty()) {
+            return List.of();
+        }
+        // 上限與購物車的品項上限一致——沒有上限的話，
+        // 這個匿名端點就能被拿來一次撈走整個目錄
+        List<Long> capped = skuIds.size() > MAX_SKU_LOOKUP
+                ? skuIds.subList(0, MAX_SKU_LOOKUP)
+                : skuIds;
+
+        List<SkuLookup> result = new ArrayList<>();
+        for (Product product : productRepository.findBySkuIds(capped)) {
+            for (Sku sku : product.skus()) {
+                if (capped.contains(sku.id())) {
+                    result.add(new SkuLookup(sku.id(), product.id(), product.name(),
+                            sku.spec().display(), sku.price(),
+                            product.status().isPurchasable() && sku.isPurchasable()));
+                }
+            }
+        }
+        return result;
     }
 
     @Override

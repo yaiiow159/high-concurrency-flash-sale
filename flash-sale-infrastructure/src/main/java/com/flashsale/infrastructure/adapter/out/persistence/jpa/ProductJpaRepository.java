@@ -40,6 +40,16 @@ public interface ProductJpaRepository extends JpaRepository<ProductEntity, Long>
     @Query("select p from ProductEntity p join p.skus s where s.id = :skuId")
     Optional<ProductEntity> findBySkuId(@Param("skuId") Long skuId);
 
+    /**
+     * 依多個 SKU 反查商品，供購物車一次帶出所有品項的名稱與價格。
+     *
+     * <p><b>distinct 不可省</b>：同一個商品的多個 SKU 同時在購物車裡時
+     * （例如 256G 與 512G 各買一件），join 會讓那個商品出現兩次。
+     */
+    @EntityGraph(attributePaths = "skus")
+    @Query("select distinct p from ProductEntity p join p.skus s where s.id in :skuIds")
+    List<ProductEntity> findBySkuIds(@Param("skuIds") List<Long> skuIds);
+
     /** 列表頁的「NT$ x 起」：一次取回多個商品的最低價，避免 N+1。 */
     @Query("""
             select s.product.id, min(s.price) from SkuEntity s
