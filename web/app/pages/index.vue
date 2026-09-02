@@ -21,21 +21,47 @@ useHead({ title: '限時搶購' })
       description="庫存數字為列表快取值，實際餘量以活動頁為準。"
     />
 
-    <ul v-if="activities.length > 0" class="grid gap-3 sm:grid-cols-2">
+    <ul
+      v-if="activities.length > 0"
+      class="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4"
+    >
       <li v-for="activity in activities" :key="activity.activityId">
-        <NuxtLink :to="`/seckill/${activity.activityId}`" class="block h-full">
-          <AppCard interactive class="flex h-full flex-col justify-between gap-6 p-5">
-            <div>
-              <h2 class="font-semibold leading-snug">{{ activity.productName }}</h2>
-              <p class="mt-1.5 text-sm text-ink-muted">
-                每人限購 <span class="figure">{{ activity.perUserLimit }}</span> 件
-              </p>
+        <NuxtLink :to="`/seckill/${activity.activityId}`" class="group block h-full">
+          <AppCard interactive class="flex h-full flex-col overflow-hidden">
+            <div class="relative">
+              <ProductTile
+                :seed="activity.skuId" :label="activity.productName"
+                class="transition-transform duration-300 group-hover:scale-[1.03]"
+              />
+              <!-- 售罄是這一頁最需要一眼看到的事，蓋在視覺上而不是藏在文字裡 -->
+              <div
+                v-if="activity.availableStock <= 0"
+                class="absolute inset-0 flex items-center justify-center bg-black/55"
+              >
+                <span class="rounded-sm bg-white/95 px-3 py-1 text-sm font-semibold text-danger">
+                  已售罄
+                </span>
+              </div>
             </div>
-            <div class="flex items-end justify-between gap-3">
-              <MoneyText :amount="activity.seckillPrice" size="lg" tone="danger" />
-              <span class="figure text-sm text-ink-muted">
-                餘 {{ activity.availableStock }}
-              </span>
+            <div class="flex flex-1 flex-col justify-between gap-3 p-3.5 sm:p-4">
+              <div>
+                <h2 class="text-sm font-medium leading-snug sm:text-base">
+                  {{ activity.productName }}
+                </h2>
+                <p class="mt-1 text-xs text-ink-faint">
+                  每人限購 <span class="figure">{{ activity.perUserLimit }}</span> 件
+                </p>
+              </div>
+              <!--
+                窄卡片上價格與餘量並排會把「餘 996」擠到換行，
+                數字被拆成兩行比不顯示更糟。改成上下堆疊，寬螢幕才並排。
+              -->
+              <div class="flex flex-col gap-0.5 sm:flex-row sm:items-end sm:justify-between sm:gap-2">
+                <MoneyText :amount="activity.seckillPrice" size="lg" tone="danger" />
+                <span class="figure whitespace-nowrap text-xs text-ink-muted">
+                  餘 {{ activity.availableStock }}
+                </span>
+              </div>
             </div>
           </AppCard>
         </NuxtLink>

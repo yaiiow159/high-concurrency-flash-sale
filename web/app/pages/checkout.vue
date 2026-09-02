@@ -80,7 +80,7 @@ useHead({ title: '結帳' })
 </script>
 
 <template>
-  <div>
+  <div :class="items.length > 0 ? 'pb-action-bar' : ''">
     <PageHeader eyebrow="Checkout" title="結帳">
       <template #actions>
         <NuxtLink to="/cart" class="text-sm text-ink-muted transition-colors hover:text-ink">
@@ -148,7 +148,7 @@ useHead({ title: '結帳' })
         </section>
       </div>
 
-      <AppCard class="p-5 lg:sticky lg:top-24">
+      <AppCard class="hidden p-5 lg:sticky lg:top-24 lg:block">
         <h2 class="eyebrow mb-4">應付金額</h2>
         <MoneyText :amount="cart.remote?.totalAmount" size="xl" />
 
@@ -171,5 +171,17 @@ useHead({ title: '結帳' })
         去逛商品
       </AppButton>
     </EmptyState>
+
+    <StickyActionBar v-if="auth.isAuthenticated && items.length > 0">
+      <template #info>
+        <MoneyText :amount="cart.remote?.totalAmount" size="lg" />
+        <p v-if="error" class="mt-0.5 truncate text-xs text-danger">{{ error }}</p>
+      </template>
+      <template #action>
+        <AppButton :disabled="!canSubmit" @click="submit">
+          {{ submitting ? '處理中⋯' : '確認下單' }}
+        </AppButton>
+      </template>
+    </StickyActionBar>
   </div>
 </template>

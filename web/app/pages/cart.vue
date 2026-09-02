@@ -117,7 +117,7 @@ useHead({ title: '購物車' })
 </script>
 
 <template>
-  <div>
+  <div :class="items.length > 0 ? 'pb-action-bar' : ''">
     <PageHeader
       eyebrow="Cart"
       title="購物車"
@@ -183,8 +183,9 @@ useHead({ title: '購物車' })
         </li>
       </ul>
 
-      <!-- 摘要固定在側欄：長購物車不必捲回頂端才看得到金額 -->
-      <AppCard class="p-5 lg:sticky lg:top-24">
+      <!-- 摘要固定在側欄：長購物車不必捲回頂端才看得到金額。
+           手機沒有側欄可固定，改用底部操作列。 -->
+      <AppCard class="hidden p-5 lg:sticky lg:top-24 lg:block">
         <h2 class="eyebrow mb-4">訂單摘要</h2>
         <dl class="flex flex-col gap-2.5 text-sm">
           <div class="flex justify-between">
@@ -211,5 +212,17 @@ useHead({ title: '購物車' })
         去逛商品
       </AppButton>
     </EmptyState>
+
+    <StickyActionBar v-if="items.length > 0">
+      <template #info>
+        <MoneyText :amount="view?.totalAmount" size="lg" />
+        <p class="mt-0.5 text-xs text-ink-faint">
+          共 <span class="figure">{{ view?.totalQuantity ?? 0 }}</span> 件
+        </p>
+      </template>
+      <template #action>
+        <AppButton @click="navigateTo('/checkout')">前往結帳</AppButton>
+      </template>
+    </StickyActionBar>
   </div>
 </template>
