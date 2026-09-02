@@ -1,25 +1,170 @@
+/*
+ * 設計語彙。
+ *
+ * 三個決定值得寫下來：
+ *
+ * 1. 中文刻意不下載 webfont。一套 CJK 字檔動輒 1–2 MB，
+ *    而這個站的賣點就是秒殺頁的首屏速度——為了字體好看而多等 2 MB，
+ *    等於用產品的核心價值換視覺。中文交給系統字體，
+ *    只把拉丁字母與數字（Archivo / IBM Plex Mono）從 CDN 取，那兩個只有幾十 KB。
+ *
+ * 2. 數字一律等寬。價格、庫存、倒數、訂單號都是這個介面的主要內容，
+ *    非等寬會讓倒數每秒把版面推來推去。
+ *
+ * 3. 卡片用 1px 邊框而不是陰影。陰影會讓密集的資料列表看起來浮躁，
+ *    而這是一個要讓人「看得清楚數字」的介面，不是行銷頁。
+ */
+
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
+  /*
+   * 淺色是完整定義，深色只覆寫 token。
+   * 元件一律透過 token 取色，絕不在 media query 裡直接寫顏色——
+   * 那樣寫出來的顏色只在其中一個主題下存在。
+   */
   :root {
-    --ground: #f5f7fa;
+    color-scheme: light;
+
+    --ground: #f4f7f8;
     --surface: #ffffff;
-    --line: #d3dbe5;
-    --ink: #131a24;
-    --ink-muted: #56637a;
-    --accent: #0b6e78;
+    --surface-sunken: #eef2f4;
+    --line: #dbe3e6;
+    --line-strong: #c2ced3;
+
+    --ink: #0f1a1d;
+    --ink-muted: #5b6b71;
+    --ink-faint: #8b9aa0;
+
+    /* 深青。中性色全部往冷的方向偏一點，讓它看起來是被挑過的而非預設灰 */
+    --accent: #0a5f68;
+    --accent-hover: #084d55;
+    --accent-soft: #e4f0f1;
+    --on-accent: #ffffff;
+
+    /* 燒赭：唯一的對比色，只用在價格、售罄、危險操作 */
     --danger: #a8401c;
+    --danger-soft: #fbeae4;
+
+    --ok: #2f6b4f;
+    --ok-soft: #e6f1ea;
+
+    --radius: 10px;
+    --radius-sm: 6px;
+  }
+
+  :root:not([data-theme='light']) {
+    @media (prefers-color-scheme: dark) {
+      color-scheme: dark;
+
+      --ground: #0c1316;
+      --surface: #131e22;
+      --surface-sunken: #0f181b;
+      --line: #223136;
+      --line-strong: #33474e;
+
+      --ink: #e7eef0;
+      --ink-muted: #94a6ac;
+      --ink-faint: #6b7d84;
+
+      /* 深底上要提亮，否則深青會糊進背景 */
+      --accent: #4bbcc9;
+      --accent-hover: #6ccfda;
+      --accent-soft: #10333a;
+      --on-accent: #062226;
+
+      --danger: #e2865f;
+      --danger-soft: #38201a;
+
+      --ok: #6cc39a;
+      --ok-soft: #12291f;
+    }
+  }
+
+  :root[data-theme='dark'] {
+    color-scheme: dark;
+
+    --ground: #0c1316;
+    --surface: #131e22;
+    --surface-sunken: #0f181b;
+    --line: #223136;
+    --line-strong: #33474e;
+
+    --ink: #e7eef0;
+    --ink-muted: #94a6ac;
+    --ink-faint: #6b7d84;
+
+    --accent: #4bbcc9;
+    --accent-hover: #6ccfda;
+    --accent-soft: #10333a;
+    --on-accent: #062226;
+
+    --danger: #e2865f;
+    --danger-soft: #38201a;
+
+    --ok: #6cc39a;
+    --ok-soft: #12291f;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
   }
 
   body {
     background: var(--ground);
     color: var(--ink);
+    font-feature-settings: 'kern' 1;
+    -webkit-font-smoothing: antialiased;
   }
 
-  /* 數字對齊：倒數與庫存會逐秒變動，非等寬會讓版面跳動 */
+  /* 標題用 Archivo 的緊字距；中文交給系統字體，不會受 letter-spacing 影響太多 */
+  h1, h2, h3 {
+    letter-spacing: -0.015em;
+    text-wrap: balance;
+  }
+
+  /* 鍵盤焦點必須看得見。移除 outline 而不補上替代品是最常見的無障礙倒退 */
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+@layer components {
+  /* 數字對齊：倒數與庫存逐秒變動，非等寬會讓版面跳動 */
   .tabular {
     font-variant-numeric: tabular-nums;
+  }
+
+  /* 表格式的數字（價格、單號）統一走這個，省去每處各寫一次 font-mono */
+  .figure {
+    font-family: theme('fontFamily.mono');
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* 段落標籤：小、全大寫、加字距。用來標示區塊而不搶主內容的視覺重量 */
+  .eyebrow {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+
+  /* 寬內容（表格、程式碼）自己橫向捲動，頁面本體永遠不橫捲 */
+  .scroll-x {
+    overflow-x: auto;
   }
 }

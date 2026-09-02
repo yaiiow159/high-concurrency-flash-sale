@@ -18,7 +18,6 @@ const auth = useAuthStore()
 const cart = useCartStore()
 const { request } = useApi()
 
-/** 未登入時，用本地的 skuId 去換取商品資料與價格。 */
 const anonymousView = ref<CartView | null>(null)
 const error = ref<string | null>(null)
 
@@ -43,8 +42,6 @@ async function refresh() {
  *
  * 用目錄的**批次**端點（匿名開放）一次取回所有品項的商品名與價格。
  * 逐筆查在 50 個品項的購物車上就是 50 次往返，而這是使用者反覆重整的頁面。
- *
- * 查不到的 SKU 不會出現在結果裡——放了幾天的本地購物車有商品被刪除是正常的。
  */
 async function priceLocalCart(): Promise<CartView> {
   if (cart.local.length === 0) {
@@ -120,85 +117,99 @@ useHead({ title: '購物車' })
 </script>
 
 <template>
-  <main class="mx-auto max-w-3xl px-5 py-10">
-    <header class="flex flex-wrap items-baseline justify-between gap-3">
-      <h1 class="text-3xl font-black tracking-tight">購物車</h1>
-      <NuxtLink to="/products" class="text-sm text-[var(--accent)] hover:underline">
-        繼續購物 →
-      </NuxtLink>
-    </header>
+  <div>
+    <PageHeader
+      eyebrow="Cart"
+      title="購物車"
+      :description="!auth.isAuthenticated && items.length > 0
+        ? '目前存在這台裝置上，登入後會自動併入你的帳號'
+        : '價格為當下的目錄價；結帳時會重新計算並凍結進訂單'"
+    />
 
-    <p v-if="!auth.isAuthenticated && items.length > 0" class="mt-2 text-sm text-[var(--ink-muted)]">
-      目前存在這台裝置上，登入後會自動併入你的帳號。
-    </p>
-
-    <p v-if="view && view.removedCount > 0" class="mt-4 rounded border border-[var(--line)] p-4 text-sm">
+    <p
+      v-if="view && view.removedCount > 0"
+      class="mb-6 rounded-sm border border-line bg-sunken px-4 py-3 text-sm text-ink-muted"
+    >
       有 {{ view.removedCount }} 項商品已下架，已從購物車移除。
     </p>
 
-    <p v-if="error" class="mt-4 text-sm text-[var(--danger)]" role="alert">{{ error }}</p>
+    <p
+      v-if="error"
+      class="mb-6 rounded-sm border border-danger/40 bg-danger-soft px-4 py-3 text-sm text-danger"
+      role="alert"
+    >
+      {{ error }}
+    </p>
 
-    <ul v-if="items.length > 0" class="mt-6 flex flex-col gap-3">
-      <li
-        v-for="item in items"
-        :key="item.skuId"
-        class="rounded border border-[var(--line)] bg-[var(--surface)] p-5"
-        :class="item.purchasable ? '' : 'opacity-60'"
-      >
-        <div class="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <NuxtLink :to="`/products/${item.productId}`" class="font-semibold hover:underline">
-              {{ item.productName }}
-            </NuxtLink>
-            <div class="mt-1 text-sm text-[var(--ink-muted)]">{{ item.specDisplay }}</div>
-            <div v-if="!item.purchasable" class="mt-1 text-sm text-[var(--danger)]">
-              已下架，無法結帳
+    <div v-if="items.length > 0" class="grid gap-8 lg:grid-cols-[1fr_20rem] lg:items-start">
+      <ul class="flex flex-col gap-3">
+        <li v-for="item in items" :key="item.skuId">
+          <AppCard :muted="!item.purchasable" class="p-5">
+            <div class="flex flex-wrap items-start justify-between gap-4">
+              <div class="min-w-0">
+                <NuxtLink
+                  :to="`/products/${item.productId}`"
+                  class="font-medium transition-colors hover:text-accent"
+                >
+                  {{ item.productName }}
+                </NuxtLink>
+                <p class="mt-1 text-sm text-ink-muted">{{ item.specDisplay }}</p>
+                <p v-if="!item.purchasable" class="mt-1.5 text-sm text-danger">
+                  已下架，無法結帳
+                </p>
+              </div>
+              <div class="text-right">
+                <MoneyText :amount="item.subtotal" size="lg" />
+                <p class="mt-1 flex items-baseline justify-end gap-1.5 text-xs text-ink-faint">
+                  <span>單價</span>
+                  <MoneyText :amount="item.unitPrice" size="sm" tone="muted" />
+                </p>
+              </div>
             </div>
-          </div>
-          <div class="text-right">
-            <div class="font-mono">NT$ {{ item.unitPrice.toLocaleString() }}</div>
-            <div class="tabular mt-1 font-mono font-semibold">
-              NT$ {{ item.subtotal.toLocaleString() }}
+
+            <div class="mt-5 flex items-center gap-4 border-t border-line pt-4">
+              <label class="eyebrow" :for="`qty-${item.skuId}`">數量</label>
+              <input
+                :id="`qty-${item.skuId}`"
+                type="number" min="0" max="999" :value="item.quantity"
+                class="figure w-20 rounded-sm border border-line bg-surface px-3 py-1.5 text-center text-sm"
+                @change="updateQuantity(item.skuId, Number(($event.target as HTMLInputElement).value))"
+              >
+              <AppButton variant="danger" size="sm" class="ml-auto" @click="remove(item.skuId)">
+                移除
+              </AppButton>
             </div>
+          </AppCard>
+        </li>
+      </ul>
+
+      <!-- 摘要固定在側欄：長購物車不必捲回頂端才看得到金額 -->
+      <AppCard class="p-5 lg:sticky lg:top-24">
+        <h2 class="eyebrow mb-4">訂單摘要</h2>
+        <dl class="flex flex-col gap-2.5 text-sm">
+          <div class="flex justify-between">
+            <dt class="text-ink-muted">商品數量</dt>
+            <dd class="figure">{{ view?.totalQuantity ?? 0 }}</dd>
           </div>
-        </div>
+          <div class="flex items-baseline justify-between border-t border-line pt-3">
+            <dt class="font-medium">合計</dt>
+            <dd><MoneyText :amount="view?.totalAmount" size="lg" /></dd>
+          </div>
+        </dl>
+        <p v-if="hasUnpurchasable" class="mt-2 text-xs text-ink-faint">
+          金額不含已下架的商品
+        </p>
 
-        <div class="mt-4 flex items-center gap-3">
-          <label class="text-sm text-[var(--ink-muted)]" :for="`qty-${item.skuId}`">數量</label>
-          <input
-            :id="`qty-${item.skuId}`"
-            type="number" min="0" max="999" :value="item.quantity"
-            class="w-20 rounded border border-[var(--line)] bg-[var(--surface)] px-3 py-1.5
-                   text-center font-mono"
-            @change="updateQuantity(item.skuId, Number(($event.target as HTMLInputElement).value))"
-          >
-          <button
-            type="button" class="text-sm text-[var(--danger)] hover:underline"
-            @click="remove(item.skuId)"
-          >
-            移除
-          </button>
-        </div>
-      </li>
-    </ul>
+        <AppButton class="mt-5" size="lg" block @click="navigateTo('/checkout')">
+          前往結帳
+        </AppButton>
+      </AppCard>
+    </div>
 
-    <p v-else class="mt-10 text-[var(--ink-muted)]">購物車是空的。</p>
-
-    <template v-if="items.length > 0">
-      <p class="mt-6 text-right font-mono text-2xl font-bold">
-        NT$ {{ (view?.totalAmount ?? 0).toLocaleString() }}
-      </p>
-      <p v-if="hasUnpurchasable" class="mt-1 text-right text-sm text-[var(--ink-muted)]">
-        金額不含已下架的商品
-      </p>
-
-      <NuxtLink
-        to="/checkout"
-        class="mt-6 block rounded bg-[var(--accent)] px-6 py-4 text-center font-semibold
-               text-white transition"
-      >
-        前往結帳
-      </NuxtLink>
-    </template>
-  </main>
+    <EmptyState v-else title="購物車是空的。" hint="逛逛商品，把想要的加進來。">
+      <AppButton variant="secondary" size="sm" @click="navigateTo('/products')">
+        去逛商品
+      </AppButton>
+    </EmptyState>
+  </div>
 </template>

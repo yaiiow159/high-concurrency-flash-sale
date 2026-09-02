@@ -65,7 +65,10 @@ onUnmounted(() => {
 const parts = computed(() => {
   const total = Math.max(0, Math.floor(remainingMillis.value / 1000))
   return {
-    hours: String(Math.floor(total / 3600)).padStart(2, '0'),
+    // 超過一天就把天數拆出來。不拆的話「8717:52:50」這種數字沒有人讀得懂，
+    // 而長檔期的活動（預告數週後開賣）正是最常見的情況
+    days: Math.floor(total / 86400),
+    hours: String(Math.floor((total % 86400) / 3600)).padStart(2, '0'),
     minutes: String(Math.floor((total % 3600) / 60)).padStart(2, '0'),
     seconds: String(total % 60).padStart(2, '0'),
   }
@@ -81,13 +84,16 @@ defineExpose({ phase })
 </script>
 
 <template>
-  <div class="flex items-baseline gap-3">
-    <span class="text-sm text-[var(--ink-muted)]">{{ label }}</span>
-    <div v-if="phase !== 'ended'" class="tabular font-mono text-2xl font-semibold tracking-tight">
+  <div class="flex flex-col gap-1.5">
+    <span class="eyebrow">{{ label }}</span>
+    <div v-if="phase !== 'ended'" class="figure text-3xl font-semibold tracking-tight">
+      <span v-if="parts.days > 0" class="mr-1.5">
+        {{ parts.days }}<span class="ml-0.5 text-base font-normal text-ink-muted">天</span>
+      </span>
       <span>{{ parts.hours }}</span>
-      <span class="mx-0.5 text-[var(--ink-muted)]">:</span>
+      <span class="mx-0.5 text-ink-faint">:</span>
       <span>{{ parts.minutes }}</span>
-      <span class="mx-0.5 text-[var(--ink-muted)]">:</span>
+      <span class="mx-0.5 text-ink-faint">:</span>
       <span>{{ parts.seconds }}</span>
     </div>
   </div>

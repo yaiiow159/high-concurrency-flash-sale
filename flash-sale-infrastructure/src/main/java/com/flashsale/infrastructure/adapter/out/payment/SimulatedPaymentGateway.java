@@ -84,7 +84,6 @@ public class SimulatedPaymentGateway implements PaymentGateway {
      * 兩邊各寫一份，遲早會不一致。
      */
     public String sign(Map<String, String> parameters) {
-        // TreeMap 保證按鍵排序；HTTP 參數順序不保證，不排序會讓簽章隨機失敗
         Map<String, String> sorted = new TreeMap<>(parameters);
         sorted.remove(SIGNATURE_PARAM);
 

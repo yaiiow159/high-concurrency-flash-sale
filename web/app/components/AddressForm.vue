@@ -50,50 +50,50 @@ function submit() {
   <form class="flex flex-col gap-3" @submit.prevent="submit">
     <div class="grid gap-3 sm:grid-cols-2">
       <label class="flex flex-col gap-1 text-sm">
-        <span class="text-[var(--ink-muted)]">收件人</span>
+        <span class="eyebrow">收件人</span>
         <input
           v-model.trim="form.recipientName" required maxlength="32"
-          class="rounded border border-[var(--line)] bg-[var(--surface)] px-3 py-2"
+          class="rounded-sm border border-line bg-surface px-3 py-2 text-sm"
         >
       </label>
       <label class="flex flex-col gap-1 text-sm">
-        <span class="text-[var(--ink-muted)]">聯絡電話</span>
+        <span class="eyebrow">聯絡電話</span>
         <input
           v-model.trim="form.phone" required
-          class="rounded border border-[var(--line)] bg-[var(--surface)] px-3 py-2 font-mono"
+          class="figure rounded-sm border border-line bg-surface px-3 py-2 text-sm"
         >
       </label>
     </div>
 
     <div class="grid gap-3 sm:grid-cols-3">
       <label class="flex flex-col gap-1 text-sm">
-        <span class="text-[var(--ink-muted)]">郵遞區號</span>
+        <span class="eyebrow">郵遞區號</span>
         <input
           v-model.trim="form.postalCode" required inputmode="numeric" maxlength="6"
-          class="rounded border border-[var(--line)] bg-[var(--surface)] px-3 py-2 font-mono"
+          class="figure rounded-sm border border-line bg-surface px-3 py-2 text-sm"
         >
       </label>
       <label class="flex flex-col gap-1 text-sm">
-        <span class="text-[var(--ink-muted)]">縣市</span>
+        <span class="eyebrow">縣市</span>
         <input
           v-model.trim="form.region" required maxlength="32"
-          class="rounded border border-[var(--line)] bg-[var(--surface)] px-3 py-2"
+          class="rounded-sm border border-line bg-surface px-3 py-2 text-sm"
         >
       </label>
       <label class="flex flex-col gap-1 text-sm">
-        <span class="text-[var(--ink-muted)]">鄉鎮市區</span>
+        <span class="eyebrow">鄉鎮市區</span>
         <input
           v-model.trim="form.district" required maxlength="32"
-          class="rounded border border-[var(--line)] bg-[var(--surface)] px-3 py-2"
+          class="rounded-sm border border-line bg-surface px-3 py-2 text-sm"
         >
       </label>
     </div>
 
     <label class="flex flex-col gap-1 text-sm">
-      <span class="text-[var(--ink-muted)]">地址</span>
+      <span class="eyebrow">地址</span>
       <input
         v-model.trim="form.streetAddress" required maxlength="128"
-        class="rounded border border-[var(--line)] bg-[var(--surface)] px-3 py-2"
+        class="rounded-sm border border-line bg-surface px-3 py-2 text-sm"
       >
     </label>
 
@@ -103,21 +103,10 @@ function submit() {
     </label>
 
     <div class="flex gap-2">
-      <button
-        type="submit" :disabled="!complete || submitting"
-        class="rounded bg-[var(--accent)] px-5 py-2.5 font-semibold text-white
-               transition disabled:cursor-not-allowed disabled:opacity-40"
-      >
+      <AppButton type="submit" :disabled="!complete || submitting">
         {{ submitting ? '儲存中⋯' : '儲存' }}
-      </button>
-      <button
-        type="button"
-        class="rounded border border-[var(--line)] px-5 py-2.5 transition
-               hover:border-[var(--accent)]"
-        @click="emit('cancel')"
-      >
-        取消
-      </button>
+      </AppButton>
+      <AppButton variant="secondary" @click="emit('cancel')">取消</AppButton>
     </div>
   </form>
 </template>

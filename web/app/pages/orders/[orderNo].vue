@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useApi } from '~/composables/useApi'
-import type { OrderView } from '~/types/api'
+import type { OrderView, ShipmentView } from '~/types/api'
 
 /**
  * 訂單詳情與付款。
@@ -14,6 +14,8 @@ const orderNo = route.params.orderNo as string
 const { request } = useApi()
 
 const order = ref<OrderView | null>(null)
+/** 出貨進度另外取：訂單尚未付款時還沒有出貨單，查不到是正常的 */
+const shipment = ref<ShipmentView | null>(null)
 const loadError = ref<string | null>(null)
 const paying = ref(false)
 
@@ -22,6 +24,10 @@ async function load() {
     order.value = await request<OrderView>(`/api/v1/orders/${orderNo}`, {
       authenticated: true,
     })
+    // 查不到出貨單不是錯誤——訂單還沒付款時本來就還沒建立
+    shipment.value = await request<ShipmentView>(`/api/v1/orders/${orderNo}/shipment`, {
+      authenticated: true,
+    }).catch(() => null)
   } catch (error) {
     loadError.value = (error as { message?: string }).message ?? '無法載入訂單'
   }
@@ -42,102 +48,109 @@ async function pay() {
   }
 }
 
-const statusLabel = computed(() => {
-  switch (order.value?.status) {
-    case 'PENDING_PAYMENT': return '待付款'
-    case 'PAID': return '已付款'
-    case 'CANCELLED': return '已取消'
-    case 'FAILED': return '建立失敗'
-    default: return order.value?.status ?? ''
-  }
-})
-
 onMounted(load)
 useHead({ title: `訂單 ${orderNo}` })
 </script>
 
 <template>
-  <main class="mx-auto max-w-3xl px-5 py-10">
-    <NuxtLink to="/products" class="text-sm text-[var(--ink-muted)] hover:underline">
-      ← 繼續購物
-    </NuxtLink>
+  <div>
+    <template v-if="order">
+      <PageHeader eyebrow="Order" :title="order.orderNo">
+        <template #actions>
+          <StatusBadge :status="order.status" />
+        </template>
+      </PageHeader>
 
-    <div v-if="order" class="mt-4">
-      <header class="flex flex-wrap items-baseline justify-between gap-3">
-        <h1 class="font-mono text-2xl font-bold">{{ order.orderNo }}</h1>
-        <span
-          class="rounded border px-3 py-1 text-sm"
-          :class="order.status === 'PAID'
-            ? 'border-[var(--accent)] text-[var(--accent)]'
-            : 'border-[var(--line)] text-[var(--ink-muted)]'"
-        >
-          {{ statusLabel }}
-        </span>
-      </header>
-
-      <p v-if="order.closeReason" class="mt-2 text-sm text-[var(--ink-muted)]">
+      <p v-if="order.closeReason" class="-mt-4 mb-6 text-sm text-ink-muted">
         {{ order.closeReason }}
       </p>
 
-      <ul class="mt-6 flex flex-col gap-2">
-        <li
-          v-for="line in order.lines"
-          :key="line.skuId"
-          class="flex items-baseline justify-between gap-4 rounded border border-[var(--line)]
-                 bg-[var(--surface)] p-4"
-        >
-          <!-- 顯示的是下單當下的快照，不是商品現在的名稱。
-               商家日後改名或調價，這張訂單不能跟著變。 -->
-          <div>
-            <div class="font-medium">{{ line.skuSnapshot }}</div>
-            <div class="mt-1 font-mono text-sm text-[var(--ink-muted)]">
-              NT$ {{ line.unitPrice.toLocaleString() }} × {{ line.quantity }}
-            </div>
-          </div>
-          <div class="tabular font-mono font-semibold">
-            NT$ {{ line.subtotal.toLocaleString() }}
-          </div>
-        </li>
-      </ul>
+      <div class="grid gap-8 lg:grid-cols-[1fr_20rem] lg:items-start">
+        <div class="flex flex-col gap-8">
+          <section aria-labelledby="lines-heading">
+            <h2 id="lines-heading" class="eyebrow mb-3">訂單內容</h2>
+            <ul class="flex flex-col gap-2">
+              <li v-for="line in order.lines" :key="line.skuId">
+                <AppCard class="flex flex-wrap items-baseline justify-between gap-4 p-4">
+                  <!-- 顯示的是下單當下的快照，不是商品現在的名稱。
+                       商家日後改名或調價，這張訂單不能跟著變。 -->
+                  <div>
+                    <p class="font-medium">{{ line.skuSnapshot }}</p>
+                    <p class="mt-1 flex items-baseline gap-1.5 text-sm text-ink-muted">
+                      <MoneyText :amount="line.unitPrice" size="sm" tone="muted" />
+                      <span class="figure">× {{ line.quantity }}</span>
+                    </p>
+                  </div>
+                  <MoneyText :amount="line.subtotal" />
+                </AppCard>
+              </li>
+            </ul>
+          </section>
 
-      <p class="mt-6 text-right font-mono text-2xl font-bold">
-        NT$ {{ (order.totalAmount ?? 0).toLocaleString() }}
-      </p>
+          <section v-if="order.shipping" aria-labelledby="shipping-heading">
+            <h2 id="shipping-heading" class="eyebrow mb-3">寄送資訊</h2>
+            <AppCard class="p-4">
+              <p>
+                <span class="font-medium">{{ order.shipping.recipientName }}</span>
+                <span class="figure ml-3 text-sm text-ink-faint">{{ order.shipping.phone }}</span>
+              </p>
+              <p class="mt-1 text-sm text-ink-muted">{{ order.shipping.fullAddress }}</p>
+            </AppCard>
+          </section>
 
-      <!-- 顯示的是下單當下的地址快照。使用者之後改了地址簿甚至把那筆刪掉，
-           這裡都不會變——那是出貨紀錄，不是一個會跟著更新的欄位。 -->
-      <section v-if="order.shipping" class="mt-8" aria-labelledby="shipping-heading">
-        <h2 id="shipping-heading" class="text-sm font-semibold text-[var(--ink-muted)]">
-          寄送資訊
-        </h2>
-        <div class="mt-2 rounded border border-[var(--line)] bg-[var(--surface)] p-4">
-          <div>
-            <span class="font-medium">{{ order.shipping.recipientName }}</span>
-            <span class="ml-3 font-mono text-sm text-[var(--ink-muted)]">
-              {{ order.shipping.phone }}
-            </span>
-          </div>
-          <p class="mt-1 text-sm text-[var(--ink-muted)]">
-            {{ order.shipping.fullAddress }}
-          </p>
+          <section v-if="shipment" aria-labelledby="tracking-heading">
+            <h2 id="tracking-heading" class="eyebrow mb-3">物流進度</h2>
+            <AppCard class="p-4">
+              <div class="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p class="font-medium">{{ shipment.carrierName ?? '尚未指派承運商' }}</p>
+                  <p v-if="shipment.trackingNumber" class="figure mt-1 text-sm text-ink-muted">
+                    {{ shipment.trackingNumber }}
+                  </p>
+                </div>
+                <StatusBadge :status="shipment.status" />
+              </div>
+              <p v-if="shipment.failureReason" class="mt-3 text-sm text-danger">
+                {{ shipment.failureReason }}
+              </p>
+              <a
+                v-if="shipment.trackingUrl"
+                :href="shipment.trackingUrl" target="_blank" rel="noopener noreferrer"
+                class="mt-3 inline-block text-sm text-accent hover:underline"
+              >
+                到承運商網站追蹤 →
+              </a>
+            </AppCard>
+          </section>
         </div>
-      </section>
 
-      <button
-        v-if="order.status === 'PENDING_PAYMENT'"
-        type="button"
-        :disabled="paying"
-        class="mt-6 w-full rounded bg-[var(--accent)] px-6 py-4 font-semibold text-white
-               transition disabled:opacity-40"
-        @click="pay"
-      >
-        {{ paying ? '前往付款⋯' : '前往付款' }}
-      </button>
-    </div>
+        <AppCard class="p-5 lg:sticky lg:top-24">
+          <h2 class="eyebrow mb-4">訂單金額</h2>
+          <MoneyText :amount="order.totalAmount" size="xl" />
 
-    <p v-else-if="loadError" class="mt-6 text-[var(--danger)]" role="alert">
-      {{ loadError }}
-    </p>
-    <p v-else class="mt-6 text-[var(--ink-muted)]">載入中⋯</p>
-  </main>
+          <AppButton
+            v-if="order.status === 'PENDING_PAYMENT'"
+            class="mt-6" size="lg" block :disabled="paying" @click="pay"
+          >
+            {{ paying ? '前往付款⋯' : '前往付款' }}
+          </AppButton>
+
+          <NuxtLink
+            to="/products"
+            class="mt-4 block text-center text-sm text-ink-muted transition-colors hover:text-ink"
+          >
+            繼續購物
+          </NuxtLink>
+        </AppCard>
+      </div>
+    </template>
+
+    <EmptyState v-else-if="loadError" :title="loadError">
+      <AppButton variant="secondary" size="sm" @click="navigateTo('/products')">
+        回商品列表
+      </AppButton>
+    </EmptyState>
+
+    <p v-else class="text-ink-muted">載入中⋯</p>
+  </div>
 </template>

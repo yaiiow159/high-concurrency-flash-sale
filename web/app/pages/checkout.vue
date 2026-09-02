@@ -80,93 +80,96 @@ useHead({ title: '結帳' })
 </script>
 
 <template>
-  <main class="mx-auto max-w-3xl px-5 py-10">
-    <NuxtLink to="/cart" class="text-sm text-[var(--ink-muted)] hover:underline">
-      ← 回購物車
-    </NuxtLink>
-    <h1 class="mt-4 text-3xl font-black tracking-tight">結帳</h1>
+  <div>
+    <PageHeader eyebrow="Checkout" title="結帳">
+      <template #actions>
+        <NuxtLink to="/cart" class="text-sm text-ink-muted transition-colors hover:text-ink">
+          ← 回購物車
+        </NuxtLink>
+      </template>
+    </PageHeader>
 
-    <AuthPanel v-if="!auth.isAuthenticated" class="mt-8" />
+    <AuthPanel v-if="!auth.isAuthenticated" class="max-w-prose" />
 
-    <template v-else-if="items.length > 0">
-      <section class="mt-8" aria-labelledby="items-heading">
-        <h2 id="items-heading" class="text-sm font-semibold text-[var(--ink-muted)]">
-          訂單內容
-        </h2>
-        <ul class="mt-3 flex flex-col gap-2">
-          <li
-            v-for="item in items"
-            :key="item.skuId"
-            class="flex items-baseline justify-between gap-4 rounded border border-[var(--line)]
-                   bg-[var(--surface)] p-4"
-          >
-            <div>
-              <div class="font-medium">{{ item.productName }}</div>
-              <div class="mt-1 text-sm text-[var(--ink-muted)]">
-                {{ item.specDisplay }}
-                <span v-if="!item.purchasable" class="text-[var(--danger)]">（已下架）</span>
-              </div>
-            </div>
-            <div class="tabular font-mono">
-              NT$ {{ item.unitPrice.toLocaleString() }} × {{ item.quantity }}
-            </div>
-          </li>
-        </ul>
-      </section>
+    <div
+      v-else-if="items.length > 0"
+      class="grid gap-8 lg:grid-cols-[1fr_20rem] lg:items-start"
+    >
+      <div class="flex flex-col gap-8">
+        <section aria-labelledby="items-heading">
+          <h2 id="items-heading" class="eyebrow mb-3">訂單內容</h2>
+          <ul class="flex flex-col gap-2">
+            <li v-for="item in items" :key="item.skuId">
+              <AppCard class="flex flex-wrap items-baseline justify-between gap-4 p-4">
+                <div>
+                  <p class="font-medium">{{ item.productName }}</p>
+                  <p class="mt-1 text-sm text-ink-muted">
+                    {{ item.specDisplay }}
+                    <span v-if="!item.purchasable" class="text-danger">（已下架）</span>
+                  </p>
+                </div>
+                <p class="flex items-baseline gap-1.5 text-sm text-ink-muted">
+                  <MoneyText :amount="item.unitPrice" size="sm" tone="muted" />
+                  <span class="figure">× {{ item.quantity }}</span>
+                </p>
+              </AppCard>
+            </li>
+          </ul>
+        </section>
 
-      <section class="mt-8" aria-labelledby="address-heading">
-        <h2 id="address-heading" class="text-sm font-semibold text-[var(--ink-muted)]">
-          寄送至
-        </h2>
-        <div v-if="addresses.length > 0" class="mt-3 flex flex-col gap-2">
-          <label
-            v-for="address in addresses"
-            :key="address.addressId"
-            class="flex cursor-pointer items-start gap-3 rounded border p-4 transition"
-            :class="address.addressId === selectedAddressId
-              ? 'border-[var(--accent)]'
-              : 'border-[var(--line)] hover:border-[var(--accent)]'"
-          >
-            <input
-              v-model="selectedAddressId" type="radio" name="address"
-              :value="address.addressId" class="mt-1"
+        <section aria-labelledby="address-heading">
+          <h2 id="address-heading" class="eyebrow mb-3">寄送至</h2>
+          <div v-if="addresses.length > 0" class="flex flex-col gap-2">
+            <label
+              v-for="address in addresses"
+              :key="address.addressId"
+              class="flex cursor-pointer items-start gap-3 rounded-sm border p-4
+                     text-sm transition-colors"
+              :class="address.addressId === selectedAddressId
+                ? 'border-accent bg-accent-soft'
+                : 'border-line hover:border-line-strong'"
             >
-            <span>
-              <span class="font-medium">{{ address.recipientName }}</span>
-              <span class="mt-1 block text-sm text-[var(--ink-muted)]">
-                {{ address.fullAddress }}
+              <input
+                v-model="selectedAddressId" type="radio" name="address"
+                :value="address.addressId" class="mt-1 accent-[var(--accent)]"
+              >
+              <span>
+                <span class="font-medium">{{ address.recipientName }}</span>
+                <span class="figure ml-2 text-xs text-ink-faint">{{ address.phone }}</span>
+                <span class="mt-1 block text-ink-muted">{{ address.fullAddress }}</span>
               </span>
-            </span>
-          </label>
-        </div>
-        <p v-else class="mt-3 text-sm text-[var(--ink-muted)]">
-          還沒有收貨地址，
-          <NuxtLink to="/addresses" class="text-[var(--accent)] hover:underline">
-            先新增一筆
-          </NuxtLink>
-          才能結帳。
+            </label>
+          </div>
+          <p v-else class="text-sm text-ink-muted">
+            還沒有收貨地址，
+            <NuxtLink to="/addresses" class="text-accent hover:underline">先新增一筆</NuxtLink>
+            才能結帳。
+          </p>
+        </section>
+      </div>
+
+      <AppCard class="p-5 lg:sticky lg:top-24">
+        <h2 class="eyebrow mb-4">應付金額</h2>
+        <MoneyText :amount="cart.remote?.totalAmount" size="xl" />
+
+        <AppButton class="mt-6" size="lg" block :disabled="!canSubmit" @click="submit">
+          {{ submitting ? '處理中⋯' : '確認下單' }}
+        </AppButton>
+
+        <p
+          v-if="error"
+          class="mt-4 rounded-sm border border-danger/40 bg-danger-soft p-3 text-sm text-danger"
+          role="alert"
+        >
+          {{ error }}
         </p>
-      </section>
+      </AppCard>
+    </div>
 
-      <p class="mt-8 text-right font-mono text-2xl font-bold">
-        NT$ {{ (cart.remote?.totalAmount ?? 0).toLocaleString() }}
-      </p>
-
-      <button
-        type="button" :disabled="!canSubmit"
-        class="mt-6 w-full rounded bg-[var(--accent)] px-6 py-4 font-semibold text-white
-               transition disabled:cursor-not-allowed disabled:opacity-40"
-        @click="submit"
-      >
-        {{ submitting ? '處理中⋯' : '確認下單' }}
-      </button>
-
-      <p v-if="error" class="mt-4 text-sm text-[var(--danger)]" role="alert">{{ error }}</p>
-    </template>
-
-    <p v-else class="mt-8 text-[var(--ink-muted)]">
-      購物車是空的，
-      <NuxtLink to="/products" class="text-[var(--accent)] hover:underline">去逛逛</NuxtLink>。
-    </p>
-  </main>
+    <EmptyState v-else title="購物車是空的。" hint="加點東西再回來結帳。">
+      <AppButton variant="secondary" size="sm" @click="navigateTo('/products')">
+        去逛商品
+      </AppButton>
+    </EmptyState>
+  </div>
 </template>

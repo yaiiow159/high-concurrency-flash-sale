@@ -32,16 +32,16 @@ async function submit(): Promise<void> {
 </script>
 
 <template>
-  <div class="rounded border border-[var(--line)] bg-[var(--surface)] p-5">
+  <div class="rounded border border-line bg-surface p-5">
     <template v-if="auth.isAuthenticated">
       <div class="flex items-center justify-between gap-4">
         <div class="text-sm">
-          <div class="font-semibold">已登入</div>
-          <div class="text-[var(--ink-muted)]">{{ auth.userEmail ?? '' }}</div>
+          <div class="font-medium">已登入</div>
+          <div class="text-ink-muted">{{ auth.userEmail ?? '' }}</div>
         </div>
         <button
           type="button"
-          class="rounded border border-[var(--line)] px-3 py-1.5 text-sm hover:bg-slate-50"
+          class="rounded-sm border border-line px-3 py-1.5 text-sm transition-colors hover:border-accent hover:text-accent"
           @click="auth.logout()"
         >
           登出
@@ -53,14 +53,14 @@ async function submit(): Promise<void> {
       <div class="mb-3 flex gap-4 text-sm">
         <button
           type="button"
-          :class="mode === 'login' ? 'font-bold text-[var(--accent)]' : 'text-[var(--ink-muted)]'"
+          :class="mode === 'login' ? 'font-semibold text-accent' : 'text-ink-muted hover:text-ink'"
           @click="mode = 'login'"
         >
           登入
         </button>
         <button
           type="button"
-          :class="mode === 'register' ? 'font-bold text-[var(--accent)]' : 'text-[var(--ink-muted)]'"
+          :class="mode === 'register' ? 'font-semibold text-accent' : 'text-ink-muted hover:text-ink'"
           @click="mode = 'register'"
         >
           註冊
@@ -74,7 +74,7 @@ async function submit(): Promise<void> {
           required
           placeholder="電子郵件"
           autocomplete="email"
-          class="rounded border border-[var(--line)] px-3 py-2 text-sm"
+          class="rounded-sm border border-line bg-surface px-3 py-2 text-sm"
         >
         <input
           v-model="password"
@@ -83,26 +83,21 @@ async function submit(): Promise<void> {
           minlength="8"
           placeholder="密碼（至少 8 碼）"
           :autocomplete="mode === 'login' ? 'current-password' : 'new-password'"
-          class="rounded border border-[var(--line)] px-3 py-2 text-sm"
+          class="rounded-sm border border-line bg-surface px-3 py-2 text-sm"
         >
         <input
           v-if="mode === 'register'"
           v-model="displayName"
           required
           placeholder="顯示名稱"
-          class="rounded border border-[var(--line)] px-3 py-2 text-sm"
+          class="rounded-sm border border-line bg-surface px-3 py-2 text-sm"
         >
-        <button
-          type="submit"
-          :disabled="busy"
-          class="rounded bg-[var(--accent)] px-3 py-2 text-sm font-semibold text-white
-                 disabled:bg-slate-300"
-        >
+        <AppButton type="submit" :disabled="busy" block>
           {{ busy ? '處理中⋯' : mode === 'login' ? '登入' : '註冊並登入' }}
-        </button>
+        </AppButton>
       </form>
 
-      <p v-if="error" class="mt-2 text-sm text-[var(--danger)]">{{ error }}</p>
+      <p v-if="error" class="mt-2 text-sm text-danger">{{ error }}</p>
     </template>
   </div>
 </template>

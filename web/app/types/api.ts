@@ -190,3 +190,23 @@ export interface CartView {
   /** 本次查詢中因商品已被刪除而移除的品項數，必須告訴使用者 */
   removedCount: number
 }
+
+// ---------------------------------------------------------------------------
+// 履約
+// ---------------------------------------------------------------------------
+
+export interface ShipmentView {
+  shipmentNo: string
+  orderNo: string
+  carrier: string | null
+  carrierName: string | null
+  trackingNumber: string | null
+  /** 由承運商列舉算出；沒有外部查詢系統的承運商為 null 而非假連結 */
+  trackingUrl: string | null
+  status: string
+  failureReason: string | null
+  /** 大於 1 代表曾配送失敗後重送 */
+  dispatchCount: number
+  shippedAt: string | null
+  deliveredAt: string | null
+}
