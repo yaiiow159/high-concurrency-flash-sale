@@ -111,8 +111,17 @@ public class JdbcStandardInventory implements InventoryService {
             log.debug("{} 的庫存已退回過，略過", movement.refNo());
             return false;
         }
-        inventoryJpaRepository.restoreAvailable(
+        int updated = inventoryJpaRepository.restoreAvailable(
                 command.skuId(), command.quantity(), clock.instant());
+        if (updated == 0) {
+            // 與 deduct 不同：扣不動是正常的業務結果（賣完了），
+            // 退不動則一定是資料異常——SKU 沒有庫存列。
+            // 不檢查的話流水記了 +q 而 available 沒動，兩邊從此對不上，
+            // 而且完全無聲，要等對帳跑出來才會發現
+            throw new IllegalStateException(
+                    "退回庫存時找不到 SKU %d 的庫存列，流水已記但數量未變"
+                            .formatted(command.skuId()));
+        }
         return true;
     }
 }

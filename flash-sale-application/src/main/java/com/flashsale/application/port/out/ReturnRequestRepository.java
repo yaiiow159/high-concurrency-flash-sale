@@ -16,6 +16,9 @@ public interface ReturnRequestRepository {
 
     Optional<ReturnRequest> findByReturnNo(ReturnNo returnNo);
 
+    /** 冪等查詢：同一個 requestId 只該有一張退貨單。 */
+    Optional<ReturnRequest> findByRequestId(String requestId);
+
     /**
      * 某張訂單的所有退貨單。
      *

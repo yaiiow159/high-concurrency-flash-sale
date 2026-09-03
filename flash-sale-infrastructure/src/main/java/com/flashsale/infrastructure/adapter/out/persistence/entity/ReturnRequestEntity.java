@@ -41,6 +41,10 @@ public class ReturnRequestEntity {
     @Column(name = "user_id", nullable = false, updatable = false)
     private Long userId;
 
+    /** 冪等鍵。唯一索引在 V12，是防重複申請的最後一道。 */
+    @Column(name = "request_id", nullable = false, length = 64, updatable = false)
+    private String requestId;
+
     @Column(name = "reason", nullable = false, length = 24, updatable = false)
     private String reason;
 
@@ -82,12 +86,13 @@ public class ReturnRequestEntity {
         // JPA 專用
     }
 
-    public ReturnRequestEntity(String returnNo, String orderNo, Long userId, String reason,
-                               String reasonDetail, boolean requiresGoodsReturn, String status,
-                               Instant createdAt) {
+    public ReturnRequestEntity(String returnNo, String orderNo, Long userId, String requestId,
+                               String reason, String reasonDetail, boolean requiresGoodsReturn,
+                               String status, Instant createdAt) {
         this.returnNo = returnNo;
         this.orderNo = orderNo;
         this.userId = userId;
+        this.requestId = requestId;
         this.reason = reason;
         this.reasonDetail = reasonDetail;
         this.requiresGoodsReturn = requiresGoodsReturn;
@@ -139,6 +144,10 @@ public class ReturnRequestEntity {
 
     public Long getUserId() {
         return userId;
+    }
+
+    public String getRequestId() {
+        return requestId;
     }
 
     public String getReason() {

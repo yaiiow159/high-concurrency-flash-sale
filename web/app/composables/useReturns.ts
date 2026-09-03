@@ -47,9 +47,21 @@ export function useReturns() {
     })
   }
 
-  function open(orderNo: string, payload: OpenReturnPayload): Promise<ReturnRequestView> {
+  /**
+   * 送出退貨申請。
+   *
+   * <b>冪等鍵由呼叫端在送出前產生並在重試之間保留</b>（見 return.vue）。
+   * 每次重試都換新值的話，網路逾時後再按一次，同一批商品就會被申請兩次退貨——
+   * 而「累計退款 ≤ 已付金額」那道上限管的是金額總和不是每個品項的數量，
+   * 攔不到「退兩次 A、都不退 B」這種組合。
+   */
+  function open(
+    orderNo: string,
+    payload: OpenReturnPayload,
+    requestId: string,
+  ): Promise<ReturnRequestView> {
     return request<ReturnRequestView>(`/api/v1/orders/${orderNo}/returns`, {
-      method: 'POST', authenticated: true, body: payload,
+      method: 'POST', authenticated: true, body: { ...payload, requestId },
     })
   }
 

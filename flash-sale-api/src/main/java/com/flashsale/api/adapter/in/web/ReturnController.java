@@ -66,7 +66,8 @@ public class ReturnController {
                 .map(item -> new OpenReturnCommand.Item(item.skuId(), item.quantity()))
                 .toList();
         return ApiResponse.ok(returnUseCase.open(new OpenReturnCommand(
-                orderNo, userId, items, request.reason(), request.reasonDetail())));
+                orderNo, userId, request.requestId(), items,
+                request.reason(), request.reasonDetail())));
     }
 
     @GetMapping("/api/v1/returns")

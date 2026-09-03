@@ -10,7 +10,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestHeaderException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.util.Map;
@@ -40,6 +43,8 @@ public class GlobalExceptionHandler {
     // 會是一個難以一眼看出原因的編譯錯誤。
     private static final Map<ErrorCode, HttpStatus> STATUS_MAPPING = Map.ofEntries(
             Map.entry(ErrorCode.INVALID_PARAMETER, HttpStatus.BAD_REQUEST),
+            Map.entry(ErrorCode.ENDPOINT_NOT_FOUND, HttpStatus.NOT_FOUND),
+            Map.entry(ErrorCode.CONCURRENT_MODIFICATION, HttpStatus.CONFLICT),
             Map.entry(ErrorCode.RATE_LIMITED, HttpStatus.TOO_MANY_REQUESTS),
             Map.entry(ErrorCode.UNAUTHENTICATED, HttpStatus.UNAUTHORIZED),
             // 認證失敗一律 401：前端攔截器靠這個狀態碼決定要不要觸發續期或導向登入。
@@ -125,6 +130,42 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleMissingHeader(MissingRequestHeaderException e) {
         return ResponseEntity.badRequest()
                 .body(ApiResponse.error(ErrorCode.INVALID_PARAMETER, "缺少必要標頭: " + e.getHeaderName()));
+    }
+
+    /**
+     * 樂觀鎖衝突。
+     *
+     * <p>兩個人同時處理同一張單時，輸的那一方整筆回滾——這是<b>預期中的結果</b>，
+     * 不是系統故障。落到兜底處理會變成 500「系統異常」，
+     * 客服看到的是「系統壞了」而不是「這張單剛剛被別人處理過，請重新整理」。
+     *
+     * <p>回 409 而非 500，也讓客戶端能據此決定重讀後再試。
+     */
+    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+    public ResponseEntity<ApiResponse<Void>> handleConcurrentModification(
+            ObjectOptimisticLockingFailureException e) {
+        log.warn("併發修改衝突，請求已回滾", e);
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiResponse.error(ErrorCode.CONCURRENT_MODIFICATION,
+                        "這筆資料剛剛被其他人修改過，請重新整理後再試"));
+    }
+
+    /**
+     * 路徑不存在。
+     *
+     * <p><b>不讓它落到兜底處理</b>。兜底會回 500、把 {@code retryable} 標成 true，
+     * 並記下一整份堆疊——而觸發它的通常只是打錯的網址或掃描器的例行探測。
+     * 三個後果都不對：客戶端會去重試一個永遠不會成功的請求；
+     * 呼叫端分不出「網址寫錯」與「伺服器壞了」；
+     * 而真正的系統錯誤會被淹沒在探測噪音裡。
+     *
+     * <p>不記日誌是刻意的，理由與對帳只在異常時輸出同一個：
+     * 每一筆都記，等於沒有記。
+     */
+    @ExceptionHandler({NoResourceFoundException.class, NoHandlerFoundException.class})
+    public ResponseEntity<ApiResponse<Void>> handleNotFound(Exception e) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(ApiResponse.error(ErrorCode.ENDPOINT_NOT_FOUND, "找不到這個路徑"));
     }
 
     /**

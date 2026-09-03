@@ -5,6 +5,8 @@ import org.springframework.data.domain.Limit;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import jakarta.persistence.LockModeType;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -24,6 +26,11 @@ public interface OrderJpaRepository extends JpaRepository<OrderEntity, Long> {
      */
     @EntityGraph(attributePaths = "lines")
     Optional<OrderEntity> findByOrderNo(String orderNo);
+
+    /** 悲觀寫鎖，用於序列化同一張訂單的退貨額度計算。 */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select o from OrderEntity o where o.orderNo = :orderNo")
+    Optional<OrderEntity> findByOrderNoForUpdate(@Param("orderNo") String orderNo);
 
     @EntityGraph(attributePaths = "lines")
     Optional<OrderEntity> findByRequestId(String requestId);

@@ -93,6 +93,7 @@ class ReturnServiceTest {
         when(returnRepository.save(any())).thenAnswer(call -> call.getArgument(0));
         when(returnRepository.update(any())).thenAnswer(call -> call.getArgument(0));
         when(returnRepository.findByOrderNo(ORDER_NO)).thenReturn(List.of());
+        when(returnRepository.findByRequestId(any())).thenReturn(Optional.empty());
     }
 
     /** 兩行：SKU 1 買 2 件 @990、SKU 2 買 1 件 @500，總額 2480。 */
@@ -107,13 +108,13 @@ class ReturnServiceTest {
 
     private static ReturnRequest existingReturn(ReturnStatus status, long skuId, int quantity) {
         return ReturnRequest.restore(1L, ReturnNo.of("RMA-220956648921890111"),
-                OrderNo.of(ORDER_NO), USER, ReturnReason.CHANGED_MIND, null, true,
+                OrderNo.of(ORDER_NO), USER, "req-existing", ReturnReason.CHANGED_MIND, null, true,
                 List.of(ReturnLine.of(skuId, "商品一", new BigDecimal("990"), quantity)),
                 status, null, NOW, null, null, null, 0L);
     }
 
     private static OpenReturnCommand openCommand(long skuId, int quantity) {
-        return new OpenReturnCommand(ORDER_NO, USER,
+        return new OpenReturnCommand(ORDER_NO, USER, "req-" + skuId + "-" + quantity,
                 List.of(new OpenReturnCommand.Item(skuId, quantity)),
                 ReturnReason.CHANGED_MIND, null);
     }
@@ -125,6 +126,7 @@ class ReturnServiceTest {
         @Test
         @DisplayName("審核中的退貨單也佔用額度，否則可在審核期間開第二張單重複退")
         void inFlightRequestConsumesQuota() {
+            when(orderRepository.findByOrderNoForUpdate(any())).thenReturn(Optional.of(order(OrderStatus.SHIPPED)));
             when(orderRepository.findByOrderNo(any())).thenReturn(Optional.of(order(OrderStatus.SHIPPED)));
             // SKU 1 共買 2 件，已有一張「申請中」的單退了 2 件
             when(returnRepository.findByOrderNo(ORDER_NO))
@@ -138,6 +140,7 @@ class ReturnServiceTest {
         @Test
         @DisplayName("被駁回的單釋放額度，否則被駁回一次就永遠不能再申請")
         void rejectedRequestReleasesQuota() {
+            when(orderRepository.findByOrderNoForUpdate(any())).thenReturn(Optional.of(order(OrderStatus.SHIPPED)));
             when(orderRepository.findByOrderNo(any())).thenReturn(Optional.of(order(OrderStatus.SHIPPED)));
             when(returnRepository.findByOrderNo(ORDER_NO))
                     .thenReturn(List.of(existingReturn(ReturnStatus.REJECTED, 1L, 2)));
@@ -151,6 +154,7 @@ class ReturnServiceTest {
         @Test
         @DisplayName("超過訂單行的數量會被拒絕")
         void refuseMoreThanOrdered() {
+            when(orderRepository.findByOrderNoForUpdate(any())).thenReturn(Optional.of(order(OrderStatus.SHIPPED)));
             when(orderRepository.findByOrderNo(any())).thenReturn(Optional.of(order(OrderStatus.SHIPPED)));
 
             assertThatThrownBy(() -> service.open(openCommand(1L, 3)))
@@ -161,11 +165,12 @@ class ReturnServiceTest {
         @Test
         @DisplayName("同一張申請裡重複列出同一個 SKU 時額度要連續扣減")
         void quotaDecrementsWithinOneRequest() {
+            when(orderRepository.findByOrderNoForUpdate(any())).thenReturn(Optional.of(order(OrderStatus.SHIPPED)));
             when(orderRepository.findByOrderNo(any())).thenReturn(Optional.of(order(OrderStatus.SHIPPED)));
 
             // 兩行各退 2 件，合計 4 件 > 訂單的 2 件。
             // 若各自對照原始餘額，兩行都會通過
-            OpenReturnCommand command = new OpenReturnCommand(ORDER_NO, USER,
+            OpenReturnCommand command = new OpenReturnCommand(ORDER_NO, USER, "req-dup",
                     List.of(new OpenReturnCommand.Item(1L, 2),
                             new OpenReturnCommand.Item(1L, 2)),
                     ReturnReason.CHANGED_MIND, null);
@@ -178,6 +183,7 @@ class ReturnServiceTest {
         @Test
         @DisplayName("訂單上沒有的 SKU 不能退")
         void refuseUnknownSku() {
+            when(orderRepository.findByOrderNoForUpdate(any())).thenReturn(Optional.of(order(OrderStatus.SHIPPED)));
             when(orderRepository.findByOrderNo(any())).thenReturn(Optional.of(order(OrderStatus.SHIPPED)));
 
             assertThatThrownBy(() -> service.open(openCommand(999L, 1)))
@@ -193,6 +199,7 @@ class ReturnServiceTest {
         @Test
         @DisplayName("扣掉審核中的退貨單後回報剩餘可退數量")
         void reportsRemainingAfterInFlightRequests() {
+            when(orderRepository.findByOrderNoForUpdate(any())).thenReturn(Optional.of(order(OrderStatus.SHIPPED)));
             when(orderRepository.findByOrderNo(any())).thenReturn(Optional.of(order(OrderStatus.SHIPPED)));
             when(returnRepository.findByOrderNo(ORDER_NO))
                     .thenReturn(List.of(existingReturn(ReturnStatus.REQUESTED, 1L, 1)));
@@ -212,6 +219,7 @@ class ReturnServiceTest {
         @Test
         @DisplayName("全部申請過之後整張訂單不可再退，且說得出原因")
         void notReturnableOnceEverythingIsClaimed() {
+            when(orderRepository.findByOrderNoForUpdate(any())).thenReturn(Optional.of(order(OrderStatus.SHIPPED)));
             when(orderRepository.findByOrderNo(any())).thenReturn(Optional.of(order(OrderStatus.SHIPPED)));
             when(returnRepository.findByOrderNo(ORDER_NO)).thenReturn(List.of(
                     existingReturn(ReturnStatus.REFUNDED, 1L, 2),
@@ -226,8 +234,9 @@ class ReturnServiceTest {
         @Test
         @DisplayName("待付款的訂單回報不可退，並指出正確的操作是取消")
         void explainsWhyPendingPaymentCannotBeReturned() {
-            when(orderRepository.findByOrderNo(any()))
-                    .thenReturn(Optional.of(order(OrderStatus.PENDING_PAYMENT)));
+            Optional<Order> pending = Optional.of(order(OrderStatus.PENDING_PAYMENT));
+            when(orderRepository.findByOrderNoForUpdate(any())).thenReturn(pending);
+            when(orderRepository.findByOrderNo(any())).thenReturn(pending);
 
             ReturnableView view = service.inspectReturnable(ORDER_NO, USER);
 
@@ -238,6 +247,7 @@ class ReturnServiceTest {
         @Test
         @DisplayName("未出貨的訂單免寄回，這件事要在申請前就講明")
         void flagsNoGoodsReturnBeforeShipping() {
+            when(orderRepository.findByOrderNoForUpdate(any())).thenReturn(Optional.of(order(OrderStatus.PAID)));
             when(orderRepository.findByOrderNo(any())).thenReturn(Optional.of(order(OrderStatus.PAID)));
 
             assertThat(service.inspectReturnable(ORDER_NO, USER).requiresGoodsReturn()).isFalse();
@@ -251,8 +261,9 @@ class ReturnServiceTest {
         @Test
         @DisplayName("待付款的訂單不能退——錢都還沒收，正確操作是取消")
         void refusePendingPayment() {
-            when(orderRepository.findByOrderNo(any()))
-                    .thenReturn(Optional.of(order(OrderStatus.PENDING_PAYMENT)));
+            Optional<Order> pending = Optional.of(order(OrderStatus.PENDING_PAYMENT));
+            when(orderRepository.findByOrderNoForUpdate(any())).thenReturn(pending);
+            when(orderRepository.findByOrderNo(any())).thenReturn(pending);
 
             assertThatThrownBy(() -> service.open(openCommand(1L, 1)))
                     .isInstanceOf(BusinessException.class)
@@ -262,6 +273,7 @@ class ReturnServiceTest {
         @Test
         @DisplayName("未出貨時免寄回——貨還在倉庫，沒有東西要寄回來")
         void paidOrderNeedsNoGoodsReturn() {
+            when(orderRepository.findByOrderNoForUpdate(any())).thenReturn(Optional.of(order(OrderStatus.PAID)));
             when(orderRepository.findByOrderNo(any())).thenReturn(Optional.of(order(OrderStatus.PAID)));
 
             assertThat(service.open(openCommand(1L, 1)).requiresGoodsReturn()).isFalse();
@@ -270,9 +282,11 @@ class ReturnServiceTest {
         @Test
         @DisplayName("已出貨與已完成都需要寄回")
         void shippedOrderRequiresGoodsReturn() {
+            when(orderRepository.findByOrderNoForUpdate(any())).thenReturn(Optional.of(order(OrderStatus.SHIPPED)));
             when(orderRepository.findByOrderNo(any())).thenReturn(Optional.of(order(OrderStatus.SHIPPED)));
             assertThat(service.open(openCommand(1L, 1)).requiresGoodsReturn()).isTrue();
 
+            when(orderRepository.findByOrderNoForUpdate(any())).thenReturn(Optional.of(order(OrderStatus.COMPLETED)));
             when(orderRepository.findByOrderNo(any())).thenReturn(Optional.of(order(OrderStatus.COMPLETED)));
             assertThat(service.open(openCommand(1L, 1)).requiresGoodsReturn()).isTrue();
         }
@@ -280,9 +294,10 @@ class ReturnServiceTest {
         @Test
         @DisplayName("別人的訂單一律回「不存在」，不回「無權限」")
         void otherUsersOrderLooksMissing() {
+            when(orderRepository.findByOrderNoForUpdate(any())).thenReturn(Optional.of(order(OrderStatus.SHIPPED)));
             when(orderRepository.findByOrderNo(any())).thenReturn(Optional.of(order(OrderStatus.SHIPPED)));
 
-            OpenReturnCommand command = new OpenReturnCommand(ORDER_NO, USER + 1,
+            OpenReturnCommand command = new OpenReturnCommand(ORDER_NO, USER + 1, "req-other",
                     List.of(new OpenReturnCommand.Item(1L, 1)), ReturnReason.CHANGED_MIND, null);
 
             assertThatThrownBy(() -> service.open(command))
@@ -298,7 +313,7 @@ class ReturnServiceTest {
 
         private ReturnRequest approvedReturn(int quantity) {
             ReturnRequest request = ReturnRequest.restore(1L, ReturnNo.of(RETURN_NO),
-                    OrderNo.of(ORDER_NO), USER, ReturnReason.CHANGED_MIND, null, false,
+                    OrderNo.of(ORDER_NO), USER, "req-approved", ReturnReason.CHANGED_MIND, null, false,
                     List.of(ReturnLine.of(1L, "商品一", new BigDecimal("990"), quantity)),
                     ReturnStatus.APPROVED, null, NOW, NOW, null, null, 0L);
             when(returnRepository.findByReturnNo(any())).thenReturn(Optional.of(request));
@@ -319,6 +334,7 @@ class ReturnServiceTest {
         void partialRefundLeavesOrderAlone() {
             approvedReturn(1);
             paidPayment();
+            when(orderRepository.findByOrderNoForUpdate(any())).thenReturn(Optional.of(order(OrderStatus.COMPLETED)));
             when(orderRepository.findByOrderNo(any())).thenReturn(Optional.of(order(OrderStatus.COMPLETED)));
 
             service.refund(RETURN_NO);
@@ -331,13 +347,14 @@ class ReturnServiceTest {
         void fullRefundClosesTheOrder() {
             // 2 件 × 990 + 1 件 × 500 = 2480，剛好是訂單總額
             ReturnRequest request = ReturnRequest.restore(1L, ReturnNo.of(RETURN_NO),
-                    OrderNo.of(ORDER_NO), USER, ReturnReason.CHANGED_MIND, null, false,
+                    OrderNo.of(ORDER_NO), USER, "req-approved", ReturnReason.CHANGED_MIND, null, false,
                     List.of(ReturnLine.of(1L, "商品一", new BigDecimal("990"), 2),
                             ReturnLine.of(2L, "商品二", new BigDecimal("500"), 1)),
                     ReturnStatus.APPROVED, null, NOW, NOW, null, null, 0L);
             when(returnRepository.findByReturnNo(any())).thenReturn(Optional.of(request));
             paidPayment();
             Order order = order(OrderStatus.COMPLETED);
+            when(orderRepository.findByOrderNoForUpdate(any())).thenReturn(Optional.of(order));
             when(orderRepository.findByOrderNo(any())).thenReturn(Optional.of(order));
 
             service.refund(RETURN_NO);
@@ -351,6 +368,7 @@ class ReturnServiceTest {
         void refundGoesThroughOutbox() {
             approvedReturn(1);
             paidPayment();
+            when(orderRepository.findByOrderNoForUpdate(any())).thenReturn(Optional.of(order(OrderStatus.COMPLETED)));
             when(orderRepository.findByOrderNo(any())).thenReturn(Optional.of(order(OrderStatus.COMPLETED)));
 
             service.refund(RETURN_NO);

@@ -43,6 +43,7 @@ public class JpaReturnRequestRepository implements ReturnRequestRepository {
                 request.returnNo().value(),
                 request.orderNo().value(),
                 request.userId(),
+                request.requestId(),
                 request.reason().name(),
                 request.reasonDetail(),
                 request.requiresGoodsReturn(),
@@ -81,6 +82,13 @@ public class JpaReturnRequestRepository implements ReturnRequestRepository {
 
     @Override
     @Transactional(readOnly = true)
+    public Optional<ReturnRequest> findByRequestId(String requestId) {
+        return jpaRepository.findByRequestId(requestId)
+                .map(JpaReturnRequestRepository::toDomain);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<ReturnRequest> findByOrderNo(String orderNo) {
         return jpaRepository.findByOrderNo(orderNo).stream()
                 .map(JpaReturnRequestRepository::toDomain)
@@ -114,6 +122,7 @@ public class JpaReturnRequestRepository implements ReturnRequestRepository {
                 ReturnNo.of(entity.getReturnNo()),
                 OrderNo.of(entity.getOrderNo()),
                 entity.getUserId(),
+                entity.getRequestId(),
                 ReturnReason.valueOf(entity.getReason()),
                 entity.getReasonDetail(),
                 entity.isRequiresGoodsReturn(),

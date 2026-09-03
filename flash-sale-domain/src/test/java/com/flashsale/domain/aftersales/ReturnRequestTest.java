@@ -31,8 +31,8 @@ class ReturnRequestTest {
     }
 
     private static ReturnRequest open(boolean requiresGoodsReturn, ReturnLine... lines) {
-        return ReturnRequest.open(RETURN_NO, ORDER_NO, USER, List.of(lines),
-                ReturnReason.CHANGED_MIND, null, requiresGoodsReturn, NOW);
+        return ReturnRequest.open(RETURN_NO, ORDER_NO, USER, "req-" + requiresGoodsReturn,
+                List.of(lines), ReturnReason.CHANGED_MIND, null, requiresGoodsReturn, NOW);
     }
 
     @Nested

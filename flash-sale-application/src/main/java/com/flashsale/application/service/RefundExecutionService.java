@@ -74,16 +74,22 @@ public class RefundExecutionService implements RefundExecutionUseCase {
                 paymentGateway.refund(payment, event.refundAmount(), event.returnNo());
         if (!outcome.succeeded()) {
             metrics.recordRefund(false);
-            // 拋出去讓 Kafka 重試。退款沒有補償動作可做——
-            // 「已核可的退款」只能往前推到成功，不能回頭當作沒發生
-            throw new IllegalStateException(
+            // 必須是**可重試**的錯誤碼（C 系列）。退款沒有補償動作可做——
+            // 「已核可的退款」只能往前推到成功，不能回頭當作沒發生。
+            //
+            // 先前這裡丟 IllegalStateException，而那個型別在 KafkaConsumerConfig
+            // 被歸為不可重試，於是閘道一次暫時性故障就讓訊息直接進死信，
+            // 但付款紀錄早已 commit 成「已退」——帳上退了、錢沒退
+            throw new BusinessException(ErrorCode.PAYMENT_GATEWAY_UNAVAILABLE,
                     "退款失敗 returnNo=%s, 原因=%s".formatted(event.returnNo(), outcome.failureReason()));
         }
-        metrics.recordRefund(true);
         log.info("已退款 returnNo={}, 金額={}, 閘道編號={}",
                 event.returnNo(), event.refundAmount(), outcome.gatewayReference());
 
         restock(event);
+        // 計數放在庫存回補之後：擺在前面的話，回補失敗被重投時會重複計數，
+        // 而那個指標正是用來看「退款成功了幾筆」的
+        metrics.recordRefund(true);
     }
 
     /**

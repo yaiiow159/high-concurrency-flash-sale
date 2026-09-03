@@ -81,6 +81,12 @@ public class JpaOrderRepository implements OrderRepository {
     }
 
     @Override
+    @Transactional
+    public Optional<Order> findByOrderNoForUpdate(OrderNo orderNo) {
+        return jpaRepository.findByOrderNoForUpdate(orderNo.value()).map(OrderMapper::toDomain);
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public Optional<Order> findByRequestId(String requestId) {
         return jpaRepository.findByRequestId(requestId).map(OrderMapper::toDomain);
