@@ -69,6 +69,7 @@ public enum ErrorCode {
     ORDER_NOT_RETURNABLE("B0035", "此訂單目前無法申請退貨"),
     RETURN_QUANTITY_EXCEEDED("B0036", "退貨數量超過可退數量"),
     REFUND_AMOUNT_EXCEEDED("B0037", "退款金額超過已付金額"),
+    NOTIFICATION_NOT_FOUND("B0038", "通知不存在"),
 
     // ---- C：系統/依賴故障 ----
     STOCK_SERVICE_UNAVAILABLE("C0001", "庫存服務暫時不可用"),

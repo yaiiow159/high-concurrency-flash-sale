@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useAuthStore } from '~/stores/auth'
 import { useCartStore } from '~/stores/cart'
+import { useNotifications } from '~/composables/useNotifications'
 
 /**
  * 全站頁首。
@@ -14,6 +15,28 @@ import { useCartStore } from '~/stores/cart'
  */
 const auth = useAuthStore()
 const cart = useCartStore()
+
+/**
+ * 未讀數。
+ *
+ * <p>只在<b>登入狀態變成 true</b> 時取一次，不做輪詢。
+ * 通知不是即時通訊——為了讓紅點早幾秒出現而每 10 秒打一次，
+ * 是拿伺服器成本換一個沒有人在等的更新。
+ *
+ * <p>使用者實際開啟通知頁時那一頁自己會重取，紅點也會跟著更新。
+ */
+const { unreadCount, refreshUnreadCount } = useNotifications()
+
+onMounted(() => {
+  if (auth.isAuthenticated) {
+    refreshUnreadCount()
+  }
+})
+watch(() => auth.isAuthenticated, (loggedIn) => {
+  if (loggedIn) {
+    refreshUnreadCount()
+  }
+})
 const route = useRoute()
 
 const links = [
@@ -52,7 +75,15 @@ function isActive(to: string): boolean {
         </NuxtLink>
       </nav>
 
-      <div class="ml-auto flex items-center gap-0.5 text-[13px] sm:gap-1 sm:text-sm">
+      <!--
+        允許換行。導覽項目加到第六個之後，375px 就裝不下了——
+        實測溢出 21px，而頁面本體橫捲是這個專案明確禁止的。
+        換行讓手機上的標題列高一點，但沒有任何項目被藏起來；
+        把「通知」藏到 sm: 之後才顯示是更糟的取捨，
+        因為未讀紅點正是手機上最需要看到的東西。
+      -->
+      <div class="ml-auto flex flex-wrap items-center justify-end gap-0.5
+                  text-[13px] sm:gap-1 sm:text-sm">
         <NuxtLink
           to="/cart"
           class="flex items-center gap-1.5 rounded-sm px-2 py-1.5 transition-colors sm:px-2.5"
@@ -75,6 +106,22 @@ function isActive(to: string): boolean {
             :class="isActive('/orders') ? 'font-medium text-accent' : ''"
           >
             訂單
+          </NuxtLink>
+          <NuxtLink
+            to="/notifications"
+            class="relative flex items-center gap-1.5 rounded-sm px-2 py-1.5 text-ink-muted
+                   transition-colors hover:text-ink sm:px-2.5"
+            :class="isActive('/notifications') ? 'font-medium text-accent' : ''"
+          >
+            通知
+            <!-- 未讀數用等寬，否則從 9 變 10 時整條導覽會位移；
+                 超過 99 顯示 99+，三位數會把導覽撐開 -->
+            <span
+              v-if="unreadCount > 0"
+              class="figure rounded-sm bg-danger px-1.5 py-0.5 text-xs text-white"
+            >
+              {{ unreadCount > 99 ? '99+' : unreadCount }}
+            </span>
           </NuxtLink>
           <NuxtLink
             to="/returns"

@@ -44,6 +44,9 @@ export default defineNuxtConfig({
     '/orders': { isr: false },
     '/orders/**': { isr: false },
 
+    /** 通知同理：它帶著訂單號與金額，而且是寫給特定一個人看的。 */
+    '/notifications': { isr: false },
+
     /** 退貨單同理：它帶著訂單號、商品與金額，是個人資料。 */
     '/returns': { isr: false },
     '/returns/**': { isr: false },
