@@ -7,7 +7,6 @@ import com.flashsale.domain.notification.NotificationStatus;
 import com.flashsale.domain.notification.NotificationType;
 import com.flashsale.infrastructure.adapter.out.persistence.entity.NotificationEntity;
 import com.flashsale.infrastructure.adapter.out.persistence.jpa.NotificationJpaRepository;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Limit;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Repository;
@@ -29,22 +28,16 @@ public class JpaNotificationRepository implements NotificationRepository {
     /**
      * {@inheritDoc}
      *
-     * <p><b>先查再寫，並且接住唯一索引的衝突。</b>先查是為了讓絕大多數的重複
-     * 走便宜的路徑；接住衝突是因為兩個消費者實例可能同時處理同一個事件，
-     * 那時兩邊都會查不到、都嘗試寫入，而輸的那一方要當作「已存在」而非錯誤。
-     *
-     * <p>與 {@code JpaOrderRepository.saveIfAbsent} 同一個手法。
+     * <p>用資料庫的 upsert 而不是「先查、再寫、接住衝突」——
+     * 後者在加入外層交易時，唯一索引衝突會把整個交易標記成 rollback-only，
+     * 而站內信與 Email 是同一個迴圈裡的兩次寫入：Email 撞衝突會連
+     * 站內信那筆一起回滾。詳見 {@code NotificationJpaRepository.insertIfAbsent}。
      */
     @Override
     @Transactional
     public Optional<Notification> saveIfAbsent(Notification notification) {
         String channel = notification.channel().name();
-        if (jpaRepository.findBySourceEventIdAndChannel(
-                notification.sourceEventId(), channel).isPresent()) {
-            return Optional.empty();
-        }
-
-        NotificationEntity entity = new NotificationEntity(
+        int inserted = jpaRepository.insertIfAbsent(
                 notification.userId(),
                 channel,
                 notification.type().name(),
@@ -55,12 +48,13 @@ public class JpaNotificationRepository implements NotificationRepository {
                 notification.status().name(),
                 notification.createdAt(),
                 notification.sentAt());
-        try {
-            return Optional.of(toDomain(jpaRepository.saveAndFlush(entity)));
-        } catch (DataIntegrityViolationException e) {
-            // 另一個實例剛好搶先寫入。這是重複投遞，不是錯誤
+        if (inserted == 0) {
             return Optional.empty();
         }
+        // 重讀一次是為了把資料庫產生的 id 帶回領域物件。
+        // 直接回傳傳入的那個會少了 id，而後續要更新它時就找不到紀錄
+        return jpaRepository.findBySourceEventIdAndChannel(notification.sourceEventId(), channel)
+                .map(JpaNotificationRepository::toDomain);
     }
 
     @Override
@@ -86,7 +80,7 @@ public class JpaNotificationRepository implements NotificationRepository {
     public List<Notification> findInAppByUserId(Long userId, int limit, int offset) {
         return jpaRepository.findByUserIdAndChannelOrderByCreatedAtDesc(
                         userId, NotificationChannel.IN_APP.name(),
-                        PageRequest.of(offset / limit, limit)).stream()
+                        PageRequest.of(offset / Math.max(limit, 1), limit)).stream()
                 .map(JpaNotificationRepository::toDomain)
                 .toList();
     }
@@ -96,6 +90,15 @@ public class JpaNotificationRepository implements NotificationRepository {
     public long countUnread(Long userId) {
         return jpaRepository.countByUserIdAndChannelAndReadAtIsNull(
                 userId, NotificationChannel.IN_APP.name());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Notification> findUnreadInApp(Long userId, int limit) {
+        return jpaRepository.findByUserIdAndChannelAndReadAtIsNullOrderByCreatedAtAsc(
+                        userId, NotificationChannel.IN_APP.name(), Limit.of(limit)).stream()
+                .map(JpaNotificationRepository::toDomain)
+                .toList();
     }
 
     @Override

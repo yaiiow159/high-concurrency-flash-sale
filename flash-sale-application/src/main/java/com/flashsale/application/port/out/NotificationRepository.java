@@ -30,6 +30,16 @@ public interface NotificationRepository {
     long countUnread(Long userId);
 
     /**
+     * 某使用者<b>未讀</b>的站內信。
+     *
+     * <p>與 {@link #findInAppByUserId} 分開是必要的，不是重複：
+     * 後者回傳的是最新的一頁，而未讀的那些可能全都比那一頁更舊。
+     * 用它來實作「全部標為已讀」會標不到任何一筆——
+     * 而症狀是使用者按了沒反應、紅點永遠清不掉。
+     */
+    List<Notification> findUnreadInApp(Long userId, int limit);
+
+    /**
      * 待寄送的通知，供排程撈取。
      *
      * <p>含 {@code FAILED}——寄信失敗最常見的成因是 SMTP 暫時故障，
