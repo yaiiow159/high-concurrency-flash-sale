@@ -99,7 +99,7 @@ public class JpaReturnRequestRepository implements ReturnRequestRepository {
     @Transactional(readOnly = true)
     public List<ReturnRequest> findByUserId(Long userId, int limit, int offset) {
         return jpaRepository.findByUserIdOrderByCreatedAtDesc(
-                        userId, PageRequest.of(offset / limit, limit)).stream()
+                        userId, PageRequest.of(offset / Math.max(limit, 1), limit)).stream()
                 .map(JpaReturnRequestRepository::toDomain)
                 .toList();
     }
