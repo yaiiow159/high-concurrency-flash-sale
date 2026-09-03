@@ -7,5 +7,12 @@
   "compilerOptions": {
     // nuxt.config.ts 與 server/ 跑在 Node 上，會用到 process.env
     "types": ["node"]
-  }
+  },
+  // vitest.config.ts 不在 `nuxt typecheck` 的檢查範圍內。
+  //
+  // 它的 plugin 陣列型別在 vitest 的 defineConfig 與 Nuxt 內建的 Vite 之間對不上
+  // （兩邊各自帶了一份 Vite 型別）。那是工具設定檔的相依衝突，
+  // 不是應用程式的型別問題——而把它留在範圍內，等於讓一個永遠紅的錯誤
+  // 掩蓋掉真正該看的那些。Vitest 執行時本來就會自己解析這個檔案。
+  "exclude": ["vitest.config.ts"]
 }

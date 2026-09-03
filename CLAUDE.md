@@ -212,6 +212,8 @@ docker compose up -d                                  # 啟動依賴
 curl -X POST localhost:8080/api/v1/auth/register -H "Content-Type: application/json" -d '{"email":"a@b.com","password":"password123","displayName":"A"}'
 curl -X POST localhost:8080/api/v1/auth/login    -H "Content-Type: application/json" -d '{"email":"a@b.com","password":"password123"}'
 mvn spring-boot:run -pl flash-sale-api                # 啟動應用
+cd web && npm test                                    # 前端測試（Vitest，約 2 秒，不需 Docker）
+cd web && npx nuxt typecheck                          # 前端型別檢查
 ```
 
 **改動 Lua 腳本、`StockRepository`、或任何併發相關程式碼後，
