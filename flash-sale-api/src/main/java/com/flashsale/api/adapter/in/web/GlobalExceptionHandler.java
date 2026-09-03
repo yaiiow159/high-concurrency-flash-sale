@@ -45,6 +45,7 @@ public class GlobalExceptionHandler {
             Map.entry(ErrorCode.INVALID_PARAMETER, HttpStatus.BAD_REQUEST),
             Map.entry(ErrorCode.ENDPOINT_NOT_FOUND, HttpStatus.NOT_FOUND),
             Map.entry(ErrorCode.CONCURRENT_MODIFICATION, HttpStatus.CONFLICT),
+            Map.entry(ErrorCode.ILLEGAL_ACTIVITY_STATE_TRANSITION, HttpStatus.CONFLICT),
             Map.entry(ErrorCode.RATE_LIMITED, HttpStatus.TOO_MANY_REQUESTS),
             Map.entry(ErrorCode.UNAUTHENTICATED, HttpStatus.UNAUTHORIZED),
             // 認證失敗一律 401：前端攔截器靠這個狀態碼決定要不要觸發續期或導向登入。

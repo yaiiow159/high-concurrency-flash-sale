@@ -17,6 +17,19 @@ public interface ActivityRepository {
 
     Optional<SeckillActivity> findById(Long activityId);
 
+    /**
+     * 更新活動。
+     *
+     * <p><b>快取失效綁在這個方法上，而不是另開一個 evict 埠。</b>
+     * 「寫入時讓快取失效」是快取實作自己的責任；把它抬到埠上，
+     * 應用層就得記得每次寫完再呼叫一次——而那種「記得」遲早會有人忘記。
+     *
+     * <p>先前這個埠是唯讀的，活動狀態只能靠直接改資料庫變更，
+     * 於是沒有任何寫入路徑可以掛失效邏輯：緊急下架後最壞 6 分鐘內
+     * 請求還是進得來、庫存照樣扣。
+     */
+    SeckillActivity update(SeckillActivity activity);
+
     /** 已上架且尚未結束的活動，用於啟動預熱與首頁列表。 */
     List<SeckillActivity> findOnlineActivities();
 

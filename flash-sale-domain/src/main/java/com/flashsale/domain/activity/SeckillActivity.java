@@ -89,6 +89,44 @@ public final class SeckillActivity {
         }
     }
 
+    /**
+     * 上架。
+     *
+     * <p>回傳新實例而不是就地改狀態——這個聚合根刻意全欄位 final。
+     * 熱路徑上每個請求都會讀到它（多級快取裡也放著同一個物件），
+     * 可變的話就得為每一次讀取擔心可見性。
+     */
+    public SeckillActivity publish() {
+        return withStatus(ActivityStatus.ONLINE);
+    }
+
+    /**
+     * 下架。
+     *
+     * <p><b>下架只擋住新的搶購，不會動已經扣掉的庫存。</b>
+     * 已成立的訂單照常付款出貨；要收回庫存是另一件事（活動結束後的釋放）。
+     * 把兩者綁在一起，緊急下架就會變成一個沒有人敢按的按鈕。
+     */
+    public SeckillActivity takeOffline() {
+        return withStatus(ActivityStatus.OFFLINE);
+    }
+
+    private SeckillActivity withStatus(ActivityStatus target) {
+        if (status == target) {
+            throw new BusinessException(ErrorCode.ILLEGAL_ACTIVITY_STATE_TRANSITION,
+                    "活動 %d 已經是 %s".formatted(id, target));
+        }
+        if (!status.canTransitionTo(target)) {
+            throw new BusinessException(ErrorCode.ILLEGAL_ACTIVITY_STATE_TRANSITION,
+                    "活動 %d 無法從 %s 轉為 %s".formatted(id, status, target));
+        }
+        return builder()
+                .id(id).skuId(skuId).productName(productName).seckillPrice(seckillPrice)
+                .totalStock(totalStock).perUserLimit(perUserLimit).period(period)
+                .status(target).version(version)
+                .build();
+    }
+
     public boolean isPurchasableAt(Instant now) {
         return status == ActivityStatus.ONLINE && period.contains(now);
     }

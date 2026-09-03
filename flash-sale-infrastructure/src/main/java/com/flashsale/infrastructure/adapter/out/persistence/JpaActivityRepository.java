@@ -2,6 +2,9 @@ package com.flashsale.infrastructure.adapter.out.persistence;
 
 import com.flashsale.application.port.out.ActivityRepository;
 import com.flashsale.domain.activity.SeckillActivity;
+import com.flashsale.infrastructure.adapter.out.persistence.entity.SeckillActivityEntity;
+import com.flashsale.domain.shared.BusinessException;
+import com.flashsale.domain.shared.ErrorCode;
 import com.flashsale.infrastructure.adapter.out.persistence.jpa.SeckillActivityJpaRepository;
 import com.flashsale.infrastructure.adapter.out.persistence.mapper.ActivityMapper;
 import org.springframework.stereotype.Repository;
@@ -34,6 +37,16 @@ public class JpaActivityRepository implements ActivityRepository {
     @Transactional(readOnly = true)
     public Optional<SeckillActivity> findById(Long activityId) {
         return jpaRepository.findById(activityId).map(ActivityMapper::toDomain);
+    }
+
+    @Override
+    @Transactional
+    public SeckillActivity update(SeckillActivity activity) {
+        SeckillActivityEntity entity = jpaRepository.findById(activity.id())
+                .orElseThrow(() -> new BusinessException(ErrorCode.ACTIVITY_NOT_FOUND,
+                        "活動不存在: " + activity.id()));
+        entity.applyStatus(activity.status().name());
+        return ActivityMapper.toDomain(entity);
     }
 
     @Override
