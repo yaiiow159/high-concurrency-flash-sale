@@ -2,6 +2,7 @@ package com.flashsale.application.port.in;
 
 import com.flashsale.application.port.in.command.OpenReturnCommand;
 import com.flashsale.application.port.in.dto.ReturnRequestView;
+import com.flashsale.application.port.in.dto.ReturnableView;
 import com.flashsale.domain.aftersales.ReturnStatus;
 
 import java.util.List;
@@ -18,6 +19,15 @@ import java.util.Map;
  * 因此防重複是三層（退貨單狀態機、訂單行累計數量、付款聚合根）。
  */
 public interface ReturnUseCase {
+
+    /**
+     * 這張訂單現在能退什麼。
+     *
+     * <p>供退貨表單使用。可退數量由後端算而不是前端自己扣——
+     * 那條規則（審核中的單也佔額度）住在領域層，
+     * 前端再寫一次的話，症狀會是「畫面說可以退，送出卻被拒絕」。
+     */
+    ReturnableView inspectReturnable(String orderNo, Long userId);
 
     /** 買家開立退貨申請。可以只退訂單的一部分。 */
     ReturnRequestView open(OpenReturnCommand command);

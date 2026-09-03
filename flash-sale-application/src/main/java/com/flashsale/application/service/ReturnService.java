@@ -3,6 +3,7 @@ package com.flashsale.application.service;
 import com.flashsale.application.port.in.ReturnUseCase;
 import com.flashsale.application.port.in.command.OpenReturnCommand;
 import com.flashsale.application.port.in.dto.ReturnRequestView;
+import com.flashsale.application.port.in.dto.ReturnableView;
 import com.flashsale.application.port.out.EventOutbox;
 import com.flashsale.application.port.out.OrderRepository;
 import com.flashsale.application.port.out.PaymentRepository;
@@ -96,6 +97,40 @@ public class ReturnService implements ReturnUseCase {
         this.paymentRepository = paymentRepository;
         this.eventOutbox = eventOutbox;
         this.clock = clock;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ReturnableView inspectReturnable(String orderNo, Long userId) {
+        Order order = requireOwnedOrder(orderNo, userId);
+        if (!RETURNABLE_STATUSES.contains(order.status())) {
+            return new ReturnableView(orderNo, false,
+                    unreturnableReason(order.status()), false, List.of());
+        }
+
+        Map<Long, Integer> remaining = returnableQuantities(order);
+        List<ReturnableView.Line> lines = order.lines().stream()
+                .map(line -> new ReturnableView.Line(line.skuId(), line.skuSnapshot(),
+                        line.unitPrice(), line.quantity(),
+                        Math.max(remaining.getOrDefault(line.skuId(), 0), 0)))
+                .toList();
+
+        // 每一項都退完了就等於整張不能再退。回 true 卻沒有任何可選項目，
+        // 使用者會看到一張空表單而不知道為什麼
+        boolean anythingLeft = lines.stream().anyMatch(line -> line.returnableQuantity() > 0);
+        return new ReturnableView(orderNo, anythingLeft,
+                anythingLeft ? null : "這張訂單的品項都已經申請過退貨了",
+                REQUIRES_GOODS_RETURN.contains(order.status()), lines);
+    }
+
+    /** 把「為什麼不能退」講清楚。只回一個 false 會讓使用者以為是系統壞了。 */
+    private static String unreturnableReason(OrderStatus status) {
+        return switch (status) {
+            case PENDING_PAYMENT -> "這張訂單還沒付款，不需要退款——直接取消即可";
+            case REFUNDED -> "這張訂單已經全額退款完成";
+            case CANCELLED, FAILED -> "這張訂單已經取消，沒有款項需要退回";
+            default -> "這張訂單目前的狀態無法申請退貨";
+        };
     }
 
     @Override

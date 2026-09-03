@@ -44,6 +44,10 @@ export default defineNuxtConfig({
     '/orders': { isr: false },
     '/orders/**': { isr: false },
 
+    /** 退貨單同理：它帶著訂單號、商品與金額，是個人資料。 */
+    '/returns': { isr: false },
+    '/returns/**': { isr: false },
+
     /** 地址簿同理：個資進了快取的 HTML 就等於發給下一個訪客。 */
     '/addresses': { isr: false },
 

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useApi } from '~/composables/useApi'
+import { useReturns } from '~/composables/useReturns'
 import type { OrderView, ShipmentView } from '~/types/api'
 
 /**
@@ -12,10 +13,19 @@ import type { OrderView, ShipmentView } from '~/types/api'
 const route = useRoute()
 const orderNo = route.params.orderNo as string
 const { request } = useApi()
+const { inspect } = useReturns()
 
 const order = ref<OrderView | null>(null)
 /** 出貨進度另外取：訂單尚未付款時還沒有出貨單，查不到是正常的 */
 const shipment = ref<ShipmentView | null>(null)
+/**
+ * 這張訂單現在還能不能退。
+ *
+ * 只憑訂單狀態判斷會誤導：品項全部申請過退貨之後，訂單仍然是 COMPLETED，
+ * 但已經沒有東西可退了。那時還顯示「申請退貨」，
+ * 按下去只會得到一個空表單。
+ */
+const canReturn = ref(false)
 const loadError = ref<string | null>(null)
 const paying = ref(false)
 
@@ -28,6 +38,10 @@ async function load() {
     shipment.value = await request<ShipmentView>(`/api/v1/orders/${orderNo}/shipment`, {
       authenticated: true,
     }).catch(() => null)
+    // 退貨資格查不到也不該讓整頁失敗——訂單本身仍然應該看得到
+    canReturn.value = await inspect(orderNo)
+      .then((view) => view.returnable)
+      .catch(() => false)
   } catch (error) {
     loadError.value = (error as { message?: string }).message ?? '無法載入訂單'
   }
@@ -133,6 +147,16 @@ useHead({ title: `訂單 ${orderNo}` })
             class="mt-6" size="lg" block :disabled="paying" @click="pay"
           >
             {{ paying ? '前往付款⋯' : '前往付款' }}
+          </AppButton>
+
+          <!-- 退貨是次要動作，用 secondary：它不是我們希望使用者做的事，
+               但也不該藏起來讓人找不到而只好打客服 -->
+          <AppButton
+            v-if="canReturn"
+            class="mt-6" variant="secondary" block
+            @click="navigateTo(`/orders/${orderNo}/return`)"
+          >
+            申請退貨
           </AppButton>
 
           <NuxtLink
