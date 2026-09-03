@@ -31,7 +31,12 @@ public class DomainEventDeadLetterConsumer {
 
     private static final Logger log = LoggerFactory.getLogger(DomainEventDeadLetterConsumer.class);
 
-    private static final String METRIC = "domain_event_dead_letter_total";
+    /**
+     * 用點號分隔，與專案其他指標一致（Micrometer 會依註冊表轉換成該系統的慣例，
+     * Prometheus 上會是 {@code domain_event_dead_letter_total}）。
+     * 直接寫底線雖然在 Prometheus 上結果相同，但換一種註冊表時就只有這一個名字不對。
+     */
+    private static final String METRIC = "domain.event.dead-letter.total";
 
     private final MeterRegistry meterRegistry;
 
