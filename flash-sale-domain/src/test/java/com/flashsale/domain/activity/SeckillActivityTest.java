@@ -133,6 +133,77 @@ class SeckillActivityTest {
         }
     }
 
+    @Nested
+    @DisplayName("上下架")
+    class Listing {
+
+        @Test
+        @DisplayName("下架後任何時間都不可搶購，即使還在活動窗口內")
+        void offlineBlocksPurchaseInsideWindow() {
+            SeckillActivity offline = onlineActivity().takeOffline();
+
+            assertThat(offline.status()).isEqualTo(ActivityStatus.OFFLINE);
+            // START 與 END 之間的時刻，上架時本來是可以買的
+            assertThat(offline.isPurchasableAt(START.plusSeconds(60))).isFalse();
+        }
+
+        @Test
+        @DisplayName("回傳新實例，原本那個不受影響——熱路徑上每個請求都讀得到它")
+        void transitionsReturnNewInstance() {
+            SeckillActivity online = onlineActivity();
+
+            SeckillActivity offline = online.takeOffline();
+
+            assertThat(offline).isNotSameAs(online);
+            assertThat(online.status()).isEqualTo(ActivityStatus.ONLINE);
+        }
+
+        @Test
+        @DisplayName("誤下架可以重新上架——不給回頭路只會逼營運去直接改資料庫")
+        void offlineCanBeRepublished() {
+            SeckillActivity republished = onlineActivity().takeOffline().publish();
+
+            assertThat(republished.status()).isEqualTo(ActivityStatus.ONLINE);
+        }
+
+        @Test
+        @DisplayName("重複下架會被擋下，避免把「已經下架了」誤讀成「這次才生效」")
+        void cannotTakeOfflineTwice() {
+            SeckillActivity offline = onlineActivity().takeOffline();
+
+            assertThatThrownBy(offline::takeOffline)
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode",
+                            ErrorCode.ILLEGAL_ACTIVITY_STATE_TRANSITION);
+        }
+
+        @Test
+        @DisplayName("草稿不能直接下架——它從來沒上架過，那個轉移沒有意義")
+        void draftCannotBeTakenOffline() {
+            SeckillActivity draft = activityBuilder().status(ActivityStatus.DRAFT).build();
+
+            assertThatThrownBy(draft::takeOffline)
+                    .isInstanceOf(BusinessException.class)
+                    .hasFieldOrPropertyWithValue("errorCode",
+                            ErrorCode.ILLEGAL_ACTIVITY_STATE_TRANSITION);
+        }
+
+        @Test
+        @DisplayName("下架不改動價格、庫存與時間窗口——那些改了會讓既有訂單對不上")
+        void transitionPreservesEverythingElse() {
+            SeckillActivity online = onlineActivity();
+
+            SeckillActivity offline = online.takeOffline();
+
+            assertThat(offline.id()).isEqualTo(online.id());
+            assertThat(offline.skuId()).isEqualTo(online.skuId());
+            assertThat(offline.seckillPrice()).isEqualByComparingTo(online.seckillPrice());
+            assertThat(offline.totalStock()).isEqualTo(online.totalStock());
+            assertThat(offline.perUserLimit()).isEqualTo(online.perUserLimit());
+            assertThat(offline.period()).isEqualTo(online.period());
+        }
+    }
+
     private static SeckillActivity onlineActivity() {
         return activityBuilder().status(ActivityStatus.ONLINE).build();
     }

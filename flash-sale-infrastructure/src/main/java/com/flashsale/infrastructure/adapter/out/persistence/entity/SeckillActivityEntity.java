@@ -93,6 +93,17 @@ public class SeckillActivityEntity {
         return status;
     }
 
+    /**
+     * 變更上架狀態。
+     *
+     * <p>只開放這一個欄位可寫：活動的價格、庫存、時間窗口一旦有人搶過就不能再動，
+     * 那會讓已成立的訂單與活動本身對不上。上架狀態是唯一
+     * 「改了也不影響既有訂單」的欄位。
+     */
+    public void applyStatus(String status) {
+        this.status = status;
+    }
+
     public long getVersion() {
         return version;
     }

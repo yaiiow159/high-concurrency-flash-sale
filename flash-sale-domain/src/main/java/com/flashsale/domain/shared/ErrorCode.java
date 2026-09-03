@@ -36,6 +36,7 @@ public enum ErrorCode {
     ACTIVITY_NOT_STARTED("B0002", "活動尚未開始"),
     ACTIVITY_ENDED("B0003", "活動已結束"),
     ACTIVITY_OFFLINE("B0004", "活動未上架"),
+    ILLEGAL_ACTIVITY_STATE_TRANSITION("B0038", "活動狀態不允許此操作"),
     SOLD_OUT("B0005", "商品已售罄"),
     USER_PURCHASE_LIMIT_EXCEEDED("B0006", "已達個人限購數量"),
     ORDER_NOT_FOUND("B0007", "訂單不存在"),

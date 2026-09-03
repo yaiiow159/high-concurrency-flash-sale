@@ -78,10 +78,12 @@ public class MultiLevelActivityRepository implements ActivityRepository {
      * 錯在它會讓維運在緊急下架一個有問題的活動後，
      * 以為沒生效是別的原因——而實際上請求還會照樣進來、庫存照樣扣好幾分鐘。
      *
-     * <p>要收斂這個窗口，需要在活動狀態變更的寫入路徑上主動刪除快取鍵——
-     * 而那個管理端點目前還不存在（記在 roadmap）。
-     * 預熱排程也幫不上忙：它讀活動走的是<b>這個裝飾器本身</b>，
-     * 拿到的同樣是快取值，覆寫回去只會把舊資料再寫一次。
+     * <p>{@link #update} 會在寫入後主動清掉 L2 與本機 L1，因此
+     * <b>經由管理端點下架時，這 5 秒是真的上界</b>：清完 L2 之後，
+     * 其他節點最慢 5 秒（L1 TTL）就會回源看到新狀態。
+     *
+     * <p>但直接改資料庫仍然繞得過去——那條路沒有任何地方可以掛失效邏輯，
+     * 最壞要等 L2 的 6 分鐘。營運要下架請走端點。
      */
     private final Cache<Long, Optional<SeckillActivity>> localCache = Caffeine.newBuilder()
             .maximumSize(5_000)
@@ -124,6 +126,38 @@ public class MultiLevelActivityRepository implements ActivityRepository {
         // 列表查詢不在秒殺熱路徑上（只有首頁會呼叫），單層本機快取已足夠。
         // 不為了對稱而硬套三級結構——沒有必要的複雜度就是負債。
         return onlineListCache.get(RedisKeys.onlineActivitiesCache(), key -> delegate.findOnlineActivities());
+    }
+
+    /**
+     * 寫入後立刻讓快取失效。
+     *
+     * <p><b>順序是先寫資料庫、再清快取。</b> 反過來（先清再寫）會開一個窗口：
+     * 清完之後、commit 之前，有請求回源讀到<b>舊值</b>並把它重新寫進快取，
+     * 於是下架完成的瞬間快取裡剛好又是「上架中」，而且這次沒有東西會再清它。
+     *
+     * <p><b>其他節點的 L1 仍會保留最多 5 秒。</b>Caffeine 是行程內的，
+     * 刪 Redis 鍵刪不掉別台機器的記憶體。這正是 L1 TTL 只設 5 秒的理由——
+     * 那 5 秒是「營運按下下架後，最壞多久所有節點都會看到」的上界。
+     * 要真正即時就得再加一層 pub/sub 廣播，那是為了 5 秒引進一個新的故障點。
+     */
+    @Override
+    public SeckillActivity update(SeckillActivity activity) {
+        SeckillActivity updated = delegate.update(activity);
+        evict(activity.id());
+        return updated;
+    }
+
+    private void evict(Long activityId) {
+        try {
+            redisTemplate.delete(RedisKeys.activityCache(activityId));
+        } catch (RuntimeException e) {
+            // Redis 掛了不該讓下架失敗——資料庫已經寫進去了，L2 最多 6 分鐘後也會自己過期。
+            // 但要記下來，讓人知道這段期間快取是髒的
+            log.warn("活動 {} 的 L2 快取清除失敗，最壞需等 TTL 過期才會一致", activityId, e);
+        }
+        localCache.invalidate(activityId);
+        // 上架清單也含這個活動，不清的話首頁會繼續列出已下架的活動
+        onlineListCache.invalidate(RedisKeys.onlineActivitiesCache());
     }
 
     /**
