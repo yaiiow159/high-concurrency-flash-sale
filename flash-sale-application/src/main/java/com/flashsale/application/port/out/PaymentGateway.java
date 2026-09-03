@@ -37,9 +37,20 @@ public interface PaymentGateway {
     /**
      * 退款。
      *
-     * @param amount 退款金額，目前僅支援全額
+     * <p>支援部分退款（ADR-0011）：多品項訂單可以只退其中一件。
+     * 「累計退款不可超過已收金額」由 {@code Payment} 聚合根把關，
+     * 不在這一層——閘道埠的責任是把錢送出去，不是判斷該不該送。
+     *
+     * <p><b>{@code idempotencyKey} 不是可選的。</b>退款的冪等最終只能由閘道保證：
+     * 「請求已送達但回應遺失」這個狀態只有對方知道，我們這邊看到的是逾時，
+     * 而逾時之後除了重試沒有別的選擇。呼叫端能做的是每次重試都送同一把鍵，
+     * 讓對方認出這是同一筆而不是第二筆。真實金流（Stripe、綠界）都支援這件事，
+     * 不用它等於自己承擔重複退款的風險。
+     *
+     * @param amount         本次退款金額，可小於已付金額
+     * @param idempotencyKey 同一筆退款的重試必須使用同一把鍵；本專案用退貨單號
      */
-    RefundOutcome refund(Payment payment, BigDecimal amount);
+    RefundOutcome refund(Payment payment, BigDecimal amount, String idempotencyKey);
 
     /** 發起付款的結果。 */
     record PaymentIntent(String gatewayReference, String paymentUrl) {

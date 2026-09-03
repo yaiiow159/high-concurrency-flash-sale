@@ -12,13 +12,20 @@ import java.util.Set;
  * 新增狀態時只需改這張表，編譯器與單元測試會找出所有受影響處。
  *
  * <pre>
- *   PENDING_PAYMENT ──pay()──▶ PAID ──ship()──▶ SHIPPED ──complete()──▶ COMPLETED (終態)
+ *   PENDING_PAYMENT ──pay()──▶ PAID ──ship()──▶ SHIPPED ──complete()──▶ COMPLETED
+ *          │                     │                  │                       │
+ *          │                     └──────────────────┴───────────────────────┘
+ *          │                                        │
+ *          │                              markFullyRefunded()
+ *          │                                        ▼
+ *          │                                   REFUNDED (終態)
  *          │
  *          ├────────cancel()───────▶ CANCELLED   (終態，觸發庫存補償)
  *          └────────markFailed()──▶ FAILED       (終態，觸發庫存補償)
  *
  *   付款之後就沒有回頭路：PAID / SHIPPED / COMPLETED 都不可轉為 CANCELLED，
- *   因為取消只退庫存不退錢。退款是另一條流程，會有自己的狀態。
+ *   因為取消只退庫存不退錢。要退錢必須走退貨流程（ADR-0011），
+ *   而那條流程只在「全部退完」時才回頭改訂單狀態。
  * </pre>
  *
  * <h2>這裡只記里程碑，不記物流細節</h2>
@@ -56,6 +63,18 @@ public enum OrderStatus {
     /** 已送達，訂單完成。 */
     COMPLETED,
 
+    /**
+     * 全額退款完成（終態）。
+     *
+     * <p><b>只在整張訂單都退完時才進入。</b>部分退款不改變訂單狀態——
+     * 沒退的那些行仍然可以出貨、可以再申請退貨，訂單的生命還沒結束。
+     *
+     * <p>沒有對應的 {@code REFUNDING} 中間狀態，理由見本類別開頭的判準：
+     * 退款進行中，買家能做的事沒有改變。擋住重複申請的是退貨單，
+     * 不是訂單狀態。加了它，訂單狀態會隨退貨單的開立與完成來回翻動。
+     */
+    REFUNDED,
+
     /** 已取消（逾時未付款或使用者主動取消），需補償預扣庫存。 */
     CANCELLED,
 
@@ -73,11 +92,13 @@ public enum OrderStatus {
             //
             // 已付款的訂單要退錢必須走退款流程，那會有自己的狀態，
             // 不能借用 CANCELLED——兩者對庫存與金流的意義完全不同。
-            PAID, EnumSet.of(SHIPPED),
+            PAID, EnumSet.of(SHIPPED, REFUNDED),
             // 出貨後不可取消。要退錢必須走退貨（P3 的退款 Saga），
             // 因為此時貨在路上，庫存不能直接退回可售池
-            SHIPPED, EnumSet.of(COMPLETED),
-            COMPLETED, Collections.emptySet(),
+            SHIPPED, EnumSet.of(COMPLETED, REFUNDED),
+            // 已完成仍可全額退款：七天鑑賞期是在送達之後才開始的
+            COMPLETED, EnumSet.of(REFUNDED),
+            REFUNDED, Collections.emptySet(),
             CANCELLED, Collections.emptySet(),
             FAILED, Collections.emptySet()
     );
@@ -102,9 +123,17 @@ public enum OrderStatus {
      * <p>對帳用這個判斷「哪些訂單的數量該算進已售出」。
      * <b>出貨與完成也算佔用</b>——貨已經離開倉庫，那批庫存確實不在了。
      * 少算它們會讓對帳把正常出貨誤判成庫存洩漏。
+     *
+     * <p><b>已退款也算佔用</b>，這條最反直覺（ADR-0011 決策 3）。
+     * 秒殺的對帳恆等式是「Redis 餘量 + 進行中訂單數量 = 活動總量」，
+     * 而退回的貨進的是<b>一般庫存</b>，Redis 餘量不會增加。
+     * 若這裡回 false，等號左邊就少了那個數量，對帳會報 STOCK_LEAKED——
+     * 但實際上什麼都沒洩漏。從活動的角度看，那一件確實賣掉了，
+     * 只是後來被退回一般庫存池；活動的配額從頭到尾就是被消耗掉的。
      */
     public boolean holdsStock() {
         return this == PENDING_PAYMENT || this == PAID
-                || this == SHIPPED || this == COMPLETED;
+                || this == SHIPPED || this == COMPLETED
+                || this == REFUNDED;
     }
 }

@@ -53,6 +53,11 @@ public enum ErrorCode {
     SHIPMENT_NOT_FOUND("B0030", "出貨單不存在"),
     ILLEGAL_SHIPMENT_STATE_TRANSITION("B0031", "出貨狀態不允許此操作"),
     ORDER_NOT_SHIPPABLE("B0032", "此訂單目前無法出貨"),
+    RETURN_REQUEST_NOT_FOUND("B0033", "退貨單不存在"),
+    ILLEGAL_RETURN_STATE_TRANSITION("B0034", "退貨狀態不允許此操作"),
+    ORDER_NOT_RETURNABLE("B0035", "此訂單目前無法申請退貨"),
+    RETURN_QUANTITY_EXCEEDED("B0036", "退貨數量超過可退數量"),
+    REFUND_AMOUNT_EXCEEDED("B0037", "退款金額超過已付金額"),
 
     // ---- C：系統/依賴故障 ----
     STOCK_SERVICE_UNAVAILABLE("C0001", "庫存服務暫時不可用"),

@@ -67,6 +67,10 @@ public class PaymentEntity {
     @Column(name = "failure_reason", length = 256)
     private String failureReason;
 
+    /** 累計已退金額。上限檢查在聚合根，這裡只是持久化。 */
+    @Column(name = "refunded_amount", nullable = false, precision = 12, scale = 2)
+    private BigDecimal refundedAmount;
+
     @Version
     @Column(name = "version", nullable = false)
     private long version;
@@ -87,14 +91,20 @@ public class PaymentEntity {
         this.createdAt = createdAt;
         this.paidAt = paidAt;
         this.failureReason = failureReason;
+        this.refundedAmount = BigDecimal.ZERO;
     }
 
-    public void applyStateChange(String status, String gatewayTransactionId,
-                                 Instant paidAt, String failureReason) {
+    public void applyStateChange(String status, String gatewayTransactionId, Instant paidAt,
+                                 String failureReason, BigDecimal refundedAmount) {
         this.status = status;
         this.gatewayTransactionId = gatewayTransactionId;
         this.paidAt = paidAt;
         this.failureReason = failureReason;
+        this.refundedAmount = refundedAmount;
+    }
+
+    public BigDecimal getRefundedAmount() {
+        return refundedAmount;
     }
 
     public Long getId() {

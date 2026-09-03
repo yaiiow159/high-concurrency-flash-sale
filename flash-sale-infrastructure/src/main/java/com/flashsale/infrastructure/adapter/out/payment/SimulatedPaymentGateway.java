@@ -17,6 +17,7 @@ import java.util.HexFormat;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 模擬金流閘道。
@@ -37,6 +38,9 @@ public class SimulatedPaymentGateway implements PaymentGateway {
 
     private static final String SIGNATURE_PARAM = "signature";
     private static final String HMAC_ALGORITHM = "HmacSHA256";
+
+    /** 冪等鍵 → 退款結果。模擬真實閘道辨識重試的能力。 */
+    private final Map<String, RefundOutcome> refundsByKey = new ConcurrentHashMap<>();
 
     private final PaymentProperties properties;
 
@@ -111,9 +115,30 @@ public class SimulatedPaymentGateway implements PaymentGateway {
                 a.getBytes(StandardCharsets.UTF_8), b.getBytes(StandardCharsets.UTF_8));
     }
 
+    /**
+     * 模擬退款。
+     *
+     * <p><b>模擬的是「真實閘道會怎麼做」，而不是「因為是模擬所以走捷徑」。</b>
+     * 真實閘道用冪等鍵認出重試並回傳<b>原本那筆</b>的結果，
+     * 這裡用一個記憶體 Map 做同一件事——少了它，
+     * 消費端重投時會拿到一個新的退款編號，測試就永遠看不到重複退款的問題。
+     *
+     * <p>記憶體 Map 在多節點下當然不成立，但那正是真實閘道存在的理由：
+     * 冪等要在收錢的那一端保證，不是在我們這端。
+     */
     @Override
-    public RefundOutcome refund(Payment payment, BigDecimal amount) {
-        log.info("模擬閘道執行退款 paymentNo={}, 金額={}", payment.paymentNo(), amount);
-        return RefundOutcome.success("SIM-REFUND-" + UUID.randomUUID().toString().replace("-", ""));
+    public RefundOutcome refund(Payment payment, BigDecimal amount, String idempotencyKey) {
+        RefundOutcome existing = refundsByKey.get(idempotencyKey);
+        if (existing != null) {
+            log.info("模擬閘道辨識出重複退款請求，回傳原結果 key={}, ref={}",
+                    idempotencyKey, existing.gatewayReference());
+            return existing;
+        }
+        log.info("模擬閘道執行退款 paymentNo={}, 金額={}, key={}",
+                payment.paymentNo(), amount, idempotencyKey);
+        RefundOutcome outcome = RefundOutcome.success(
+                "SIM-REFUND-" + UUID.randomUUID().toString().replace("-", ""));
+        RefundOutcome raced = refundsByKey.putIfAbsent(idempotencyKey, outcome);
+        return raced == null ? outcome : raced;
     }
 }

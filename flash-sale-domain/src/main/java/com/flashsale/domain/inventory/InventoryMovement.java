@@ -61,10 +61,25 @@ public record InventoryMovement(
                 -requirePositive(quantity), 0, RefType.ORDER, orderNo, at);
     }
 
-    /** 取消或退貨退回可售量。 */
+    /** 訂單取消或建單失敗，退回可售量。 */
     public static InventoryMovement restore(Long skuId, int quantity, String orderNo, Instant at) {
         return new InventoryMovement(skuId, InventoryMovementType.RESTORE,
                 requirePositive(quantity), 0, RefType.ORDER, orderNo, at);
+    }
+
+    /**
+     * 退貨驗收後退回可售量（ADR-0011）。
+     *
+     * <p><b>來源記退貨單號而非訂單號</b>，這是正確性問題不只是分類問題：
+     * 流水的唯一鍵是 {@code (ref_type, ref_no, type, sku_id)}，
+     * 而一張訂單可以有多張退貨單。若都記訂單號，第二張退貨單的回補
+     * 會被判定為重複而<b>安靜地略過</b>——貨收了但庫存永遠回不來，
+     * 而對帳只會看到一筆說不出原因的短少。
+     */
+    public static InventoryMovement restoreFromReturn(Long skuId, int quantity,
+                                                      String returnNo, Instant at) {
+        return new InventoryMovement(skuId, InventoryMovementType.RESTORE,
+                requirePositive(quantity), 0, RefType.RETURN, returnNo, at);
     }
 
     /** 劃撥給活動：可售量搬到劃撥量，總量不變。 */
@@ -118,6 +133,8 @@ public record InventoryMovement(
         public static final String ORDER = "ORDER";
         public static final String ACTIVITY = "ACTIVITY";
         public static final String MANUAL = "MANUAL";
+        /** 退貨單。與 ORDER 分開，因為一張訂單可以有多張退貨單。 */
+        public static final String RETURN = "RETURN";
 
         private RefType() {
         }

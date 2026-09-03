@@ -75,6 +75,12 @@ public class GlobalExceptionHandler {
             Map.entry(ErrorCode.ILLEGAL_SHIPMENT_STATE_TRANSITION, HttpStatus.CONFLICT),
             Map.entry(ErrorCode.ORDER_NOT_SHIPPABLE, HttpStatus.CONFLICT),
             Map.entry(ErrorCode.SHIPPING_INFO_REQUIRED, HttpStatus.CONFLICT),
+            // 查不到退貨單同樣回 404，理由與地址一致：回 403 等於確認這個單號存在
+            Map.entry(ErrorCode.RETURN_REQUEST_NOT_FOUND, HttpStatus.NOT_FOUND),
+            Map.entry(ErrorCode.ILLEGAL_RETURN_STATE_TRANSITION, HttpStatus.CONFLICT),
+            Map.entry(ErrorCode.ORDER_NOT_RETURNABLE, HttpStatus.CONFLICT),
+            Map.entry(ErrorCode.RETURN_QUANTITY_EXCEEDED, HttpStatus.CONFLICT),
+            Map.entry(ErrorCode.REFUND_AMOUNT_EXCEEDED, HttpStatus.CONFLICT),
             Map.entry(ErrorCode.INSUFFICIENT_INVENTORY_TO_ALLOCATE, HttpStatus.CONFLICT),
             Map.entry(ErrorCode.INVENTORY_RELEASE_EXCEEDS_ALLOCATION, HttpStatus.CONFLICT),
             Map.entry(ErrorCode.ACTIVITY_STOCK_ALREADY_RELEASED, HttpStatus.CONFLICT),

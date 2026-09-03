@@ -115,7 +115,10 @@ public class PaymentRefundScheduler {
         private boolean refundOne(Payment payment) {
             try {
                 PaymentGateway.RefundOutcome outcome =
-                        paymentGateway.refund(payment, payment.amount());
+                        // 冪等鍵用付款單號：這條路徑一定是全額退款，
+                        // 同一張付款單重試幾次都是同一筆退款
+                        paymentGateway.refund(payment, payment.amount(),
+                                payment.paymentNo().value());
                 if (!outcome.succeeded()) {
                     log.error("退款失敗，將於下一輪重試 paymentNo={}, 原因={}",
                             payment.paymentNo(), outcome.failureReason());

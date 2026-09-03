@@ -41,7 +41,7 @@ public class JpaPaymentRepository implements PaymentRepository {
                 .orElseThrow(() -> new IllegalStateException(
                         "更新付款單時找不到紀錄 id=" + payment.id()));
         entity.applyStateChange(payment.status().name(), payment.gatewayTransactionId(),
-                payment.paidAt(), payment.failureReason());
+                payment.paidAt(), payment.failureReason(), payment.refundedAmount());
         return entity;
     }
 
@@ -77,6 +77,7 @@ public class JpaPaymentRepository implements PaymentRepository {
                 entity.getCreatedAt(),
                 entity.getPaidAt(),
                 entity.getFailureReason(),
+                entity.getRefundedAmount(),
                 entity.getVersion());
     }
 }

@@ -59,6 +59,9 @@ public interface OrderJpaRepository extends JpaRepository<OrderEntity, Long> {
      * 出貨與完成的訂單同樣佔用庫存——貨已經離開倉庫，那批貨確實不在了。
      * 漏掉它們，對帳會把每一筆正常出貨都誤判成庫存洩漏。
      *
+     * <p><b>已退款的訂單也在清單裡</b>：退回的貨進的是一般庫存，
+     * 不是活動的 Redis 餘量（ADR-0011 決策 3）。
+     *
      * <p>這份清單寫死在 JPQL 裡是不得已的（查詢要能下推到資料庫），
      * 因此新增訂單狀態時<b>必須回來檢查這裡</b>——
      * {@code OrderStatusStockHoldingTest} 會比對兩邊是否同步。
@@ -67,7 +70,7 @@ public interface OrderJpaRepository extends JpaRepository<OrderEntity, Long> {
             select coalesce(sum(l.quantity), 0)
             from OrderLineEntity l join l.order o
             where l.sourceActivityId = :activityId
-              and o.status in ('PENDING_PAYMENT', 'PAID', 'SHIPPED', 'COMPLETED')
+              and o.status in ('PENDING_PAYMENT', 'PAID', 'SHIPPED', 'COMPLETED', 'REFUNDED')
             """)
     long sumActiveQuantityByActivity(@Param("activityId") Long activityId);
 
