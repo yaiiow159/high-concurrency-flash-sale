@@ -70,6 +70,13 @@ function isActive(to: string): boolean {
 
         <template v-if="auth.isAuthenticated">
           <NuxtLink
+            to="/orders"
+            class="rounded-sm px-2 py-1.5 text-ink-muted transition-colors hover:text-ink sm:px-2.5"
+            :class="isActive('/orders') ? 'font-medium text-accent' : ''"
+          >
+            訂單
+          </NuxtLink>
+          <NuxtLink
             to="/addresses"
             class="hidden rounded-sm px-2.5 py-1.5 text-ink-muted transition-colors hover:text-ink sm:block"
             :class="isActive('/addresses') ? 'font-medium text-accent' : ''"

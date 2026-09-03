@@ -12,6 +12,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Limit;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -89,6 +90,17 @@ public class JpaOrderRepository implements OrderRepository {
     @Transactional(readOnly = true)
     public long sumActiveQuantity(Long activityId) {
         return jpaRepository.sumActiveQuantityByActivity(activityId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Order> findByUserId(Long userId, int limit, int offset) {
+        return jpaRepository
+                .findByUserIdOrderByCreatedAtDesc(userId,
+                        PageRequest.of(offset / Math.max(limit, 1), limit))
+                .stream()
+                .map(OrderMapper::toDomain)
+                .toList();
     }
 
     @Override

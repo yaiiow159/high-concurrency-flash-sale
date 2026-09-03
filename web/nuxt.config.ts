@@ -41,6 +41,7 @@ export default defineNuxtConfig({
      * 訂單是每個使用者專屬的資料，被 CDN 快取等於把某個人的訂單
      * 發給下一個訪客。這一條不是效能取捨，是安全邊界。
      */
+    '/orders': { isr: false },
     '/orders/**': { isr: false },
 
     /** 地址簿同理：個資進了快取的 HTML 就等於發給下一個訪客。 */
