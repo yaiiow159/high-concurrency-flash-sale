@@ -317,12 +317,14 @@ class PaymentApplicationServiceTest {
 
     private static Payment pendingPayment() {
         return Payment.restore(1L, PaymentNo.of(PAYMENT_NO), OrderNo.of(ORDER_NO), USER_ID,
-                AMOUNT, PaymentStatus.PENDING, null, NOW.minusSeconds(60), null, null, 0L);
+                AMOUNT, PaymentStatus.PENDING, null, NOW.minusSeconds(60), null, null,
+                BigDecimal.ZERO, 0L);
     }
 
     private static Payment succeededPayment() {
         return Payment.restore(1L, PaymentNo.of(PAYMENT_NO), OrderNo.of(ORDER_NO), USER_ID,
-                AMOUNT, PaymentStatus.SUCCEEDED, TXN_ID, NOW.minusSeconds(60), NOW, null, 0L);
+                AMOUNT, PaymentStatus.SUCCEEDED, TXN_ID, NOW.minusSeconds(60), NOW, null,
+                BigDecimal.ZERO, 0L);
     }
 
     private static Map<String, String> successCallback() {

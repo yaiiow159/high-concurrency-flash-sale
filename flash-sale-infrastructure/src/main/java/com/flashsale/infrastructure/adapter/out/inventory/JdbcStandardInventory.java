@@ -97,11 +97,18 @@ public class JdbcStandardInventory implements InventoryService {
     @Override
     @Transactional
     public boolean restore(RestoreCommand command) {
+        // 退貨的來源記退貨單號而非訂單號——一張訂單可以有多張退貨單，
+        // 都記訂單號的話第二張會被判定為重複而安靜略過（ADR-0011）
+        InventoryMovement movement = command.returnNo() == null
+                ? InventoryMovement.restore(command.skuId(), command.quantity(),
+                        command.orderNo(), clock.instant())
+                : InventoryMovement.restoreFromReturn(command.skuId(), command.quantity(),
+                        command.returnNo(), clock.instant());
+
         // 退庫的判重與寫入合併在 recordMovement 裡：
         // 它回 false 就代表退過了，此時不該再加回可售量。
-        if (!inventoryRepository.recordMovement(InventoryMovement.restore(
-                command.skuId(), command.quantity(), command.orderNo(), clock.instant()))) {
-            log.debug("訂單 {} 的庫存已退回過，略過", command.orderNo());
+        if (!inventoryRepository.recordMovement(movement)) {
+            log.debug("{} 的庫存已退回過，略過", movement.refNo());
             return false;
         }
         inventoryJpaRepository.restoreAvailable(

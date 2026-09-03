@@ -37,13 +37,22 @@ public final class Payment {
     private String gatewayTransactionId;
     private Instant paidAt;
     private String failureReason;
+    /**
+     * 累計已退金額。
+     *
+     * <p><b>退款上限守在這裡，而不是在退貨流程裡算</b>（ADR-0011 決策 6）。
+     * 系統裡已經有兩條會退錢的路徑——使用者退貨與 {@code PaymentRefundScheduler}
+     * 的競態補償——而後者看不到退貨單。把上限放在流程裡，
+     * 意味著每條路徑都要自己記得檢查；放進聚合根，繞不過去。
+     */
+    private BigDecimal refundedAmount;
     private final long version;
 
     private final List<DomainEvent> domainEvents = new ArrayList<>();
 
     private Payment(Long id, PaymentNo paymentNo, OrderNo orderNo, Long userId, BigDecimal amount,
                     PaymentStatus status, String gatewayTransactionId, Instant createdAt,
-                    Instant paidAt, String failureReason, long version) {
+                    Instant paidAt, String failureReason, BigDecimal refundedAmount, long version) {
         this.id = id;
         this.paymentNo = Objects.requireNonNull(paymentNo, "paymentNo 不可為 null");
         this.orderNo = Objects.requireNonNull(orderNo, "orderNo 不可為 null");
@@ -54,6 +63,7 @@ public final class Payment {
         this.createdAt = Objects.requireNonNull(createdAt, "createdAt 不可為 null");
         this.paidAt = paidAt;
         this.failureReason = failureReason;
+        this.refundedAmount = refundedAmount == null ? BigDecimal.ZERO : refundedAmount;
         this.version = version;
     }
 
@@ -61,14 +71,15 @@ public final class Payment {
     public static Payment initiate(PaymentNo paymentNo, OrderNo orderNo, Long userId,
                                    BigDecimal amount, Instant now) {
         return new Payment(null, paymentNo, orderNo, userId, amount,
-                PaymentStatus.PENDING, null, now, null, null, 0L);
+                PaymentStatus.PENDING, null, now, null, null, BigDecimal.ZERO, 0L);
     }
 
     public static Payment restore(Long id, PaymentNo paymentNo, OrderNo orderNo, Long userId,
                                   BigDecimal amount, PaymentStatus status, String gatewayTransactionId,
-                                  Instant createdAt, Instant paidAt, String failureReason, long version) {
+                                  Instant createdAt, Instant paidAt, String failureReason,
+                                  BigDecimal refundedAmount, long version) {
         return new Payment(id, paymentNo, orderNo, userId, amount, status,
-                gatewayTransactionId, createdAt, paidAt, failureReason, version);
+                gatewayTransactionId, createdAt, paidAt, failureReason, refundedAmount, version);
     }
 
     /**
@@ -105,6 +116,42 @@ public final class Payment {
 
     public void markRefunded(Instant now) {
         transitionTo(PaymentStatus.REFUNDED);
+        this.refundedAmount = amount;
+    }
+
+    /**
+     * 退回一筆金額——防重複退款的第三層，也是最後一層（ADR-0011 決策 7）。
+     *
+     * <p>前兩層（退貨單狀態機、訂單行累計數量）都在退貨的脈絡裡，
+     * 而 {@code PaymentRefundScheduler} 走的是另一條路，看不到退貨單。
+     * 這一層是唯一兩條路都會經過的地方。
+     *
+     * <p>退成全額時進 {@code REFUNDED}，否則進 {@code PARTIALLY_REFUNDED}。
+     * 狀態由金額推導而不是由呼叫端指定——那樣就會出現
+     * 「說是全退但金額只退了一半」的紀錄。
+     */
+    public void applyRefund(BigDecimal delta, Instant now) {
+        if (delta == null || delta.signum() <= 0) {
+            throw new BusinessException(ErrorCode.INVALID_PARAMETER, "退款金額必須大於 0");
+        }
+        BigDecimal accumulated = refundedAmount.add(delta);
+        if (accumulated.compareTo(amount) > 0) {
+            throw new BusinessException(ErrorCode.REFUND_AMOUNT_EXCEEDED,
+                    "付款 %s 已付 %s，累計退款 %s 超出上限".formatted(paymentNo, amount, accumulated));
+        }
+        transitionTo(accumulated.compareTo(amount) == 0
+                ? PaymentStatus.REFUNDED
+                : PaymentStatus.PARTIALLY_REFUNDED);
+        this.refundedAmount = accumulated;
+    }
+
+    /** 尚可退回的金額。 */
+    public BigDecimal refundableAmount() {
+        return amount.subtract(refundedAmount);
+    }
+
+    public BigDecimal refundedAmount() {
+        return refundedAmount;
     }
 
     /** 失敗後重新發起，沿用同一張付款單。 */

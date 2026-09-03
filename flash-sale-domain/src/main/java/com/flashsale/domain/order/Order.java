@@ -161,6 +161,22 @@ public final class Order {
         registerEvent(OrderCompletedEvent.of(this, completedAt));
     }
 
+    /**
+     * 標記為全額退款完成。
+     *
+     * <p><b>刻意不發出任何事件。</b>庫存回補與退款都已經由退貨流程處理過了
+     * （ADR-0011），這裡只是把訂單的狀態校正到與事實一致。
+     * 若發出 {@code OrderCancelledEvent}，補償服務會再退一次庫存——
+     * 那是超賣。
+     *
+     * <p>由應用層在確認「所有訂單行都退完」之後呼叫。
+     * 訂單自己不知道有幾張退貨單，也不該知道。
+     */
+    public void markFullyRefunded(String reason, Instant now) {
+        transitionTo(OrderStatus.REFUNDED);
+        this.closeReason = reason;
+    }
+
     /** 取消訂單（逾時未付款或使用者主動取消），會觸發庫存補償事件。 */
     public void cancel(String reason, Instant now) {
         transitionTo(OrderStatus.CANCELLED);

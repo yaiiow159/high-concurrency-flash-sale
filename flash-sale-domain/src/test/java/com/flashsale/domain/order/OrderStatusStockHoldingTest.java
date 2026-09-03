@@ -33,7 +33,8 @@ class OrderStatusStockHoldingTest {
             OrderStatus.PENDING_PAYMENT,
             OrderStatus.PAID,
             OrderStatus.SHIPPED,
-            OrderStatus.COMPLETED);
+            OrderStatus.COMPLETED,
+            OrderStatus.REFUNDED);
 
     @Test
     @DisplayName("holdsStock() 與對帳查詢的狀態清單必須完全一致")
@@ -53,6 +54,17 @@ class OrderStatusStockHoldingTest {
     void shippedAndCompletedStillHoldStock() {
         assertThat(OrderStatus.SHIPPED.holdsStock()).isTrue();
         assertThat(OrderStatus.COMPLETED.holdsStock()).isTrue();
+    }
+
+    @Test
+    @DisplayName("已退款仍佔用秒殺庫存——退回的貨進的是一般庫存，不是活動的 Redis 餘量")
+    void refundedStillHoldsSeckillStock() {
+        // ADR-0011 決策 3。回 false 會讓對帳報 STOCK_LEAKED，
+        // 但實際上什麼都沒洩漏——從活動的角度看，那一件確實賣掉了
+        assertThat(OrderStatus.REFUNDED.holdsStock()).isTrue();
+        // 而且它不該再觸發庫存補償：庫存已經由退貨流程回補過了，
+        // 再補一次就是超賣
+        assertThat(OrderStatus.REFUNDED.requiresStockCompensation()).isFalse();
     }
 
     @Test

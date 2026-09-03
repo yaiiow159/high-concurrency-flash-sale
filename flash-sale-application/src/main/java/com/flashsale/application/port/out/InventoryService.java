@@ -99,7 +99,14 @@ public interface InventoryService {
         }
     }
 
-    /** 退庫指令。欄位需求與 {@link DeductCommand} 對稱。 */
+    /**
+     * 退庫指令。欄位需求與 {@link DeductCommand} 對稱。
+     *
+     * @param returnNo 非 {@code null} 時代表這次退庫是退貨造成的（ADR-0011）。
+     *                 它會成為庫存流水的來源單號，而流水的唯一鍵包含來源單號——
+     *                 一張訂單可以有多張退貨單，全都記訂單號的話，
+     *                 第二張的回補會被判定為重複而安靜略過
+     */
     record RestoreCommand(
             OrderChannel channel,
             Long skuId,
@@ -107,7 +114,8 @@ public interface InventoryService {
             Long userId,
             int quantity,
             String requestId,
-            String orderNo) {
+            String orderNo,
+            String returnNo) {
 
         public RestoreCommand {
             Objects.requireNonNull(channel, "channel 不可為 null");
@@ -120,13 +128,26 @@ public interface InventoryService {
         public static RestoreCommand forNormal(Long skuId, Long userId, int quantity,
                                                String requestId, String orderNo) {
             return new RestoreCommand(OrderChannel.NORMAL, skuId, null, userId,
-                    quantity, requestId, orderNo);
+                    quantity, requestId, orderNo, null);
         }
 
         public static RestoreCommand forSeckill(Long activityId, Long skuId, Long userId,
                                                 int quantity, String requestId, String orderNo) {
             return new RestoreCommand(OrderChannel.SECKILL, skuId, activityId, userId,
-                    quantity, requestId, orderNo);
+                    quantity, requestId, orderNo, null);
+        }
+
+        /**
+         * 退貨造成的退庫。
+         *
+         * <p><b>通道固定為 {@code NORMAL}，即使原本是秒殺訂單</b>（ADR-0011 決策 4）。
+         * 活動可能早就結束並釋放過額度了，把量寫回 Redis 等於復活一個已釋放的活動——
+         * 那正是 ADR-0008 明文禁止、且實際發生過的超賣路徑。
+         */
+        public static RestoreCommand forReturn(Long skuId, Long userId, int quantity,
+                                               String orderNo, String returnNo) {
+            return new RestoreCommand(OrderChannel.NORMAL, skuId, null, userId,
+                    quantity, returnNo, orderNo, returnNo);
         }
     }
 }
