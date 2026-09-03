@@ -86,6 +86,7 @@ public class GlobalExceptionHandler {
             Map.entry(ErrorCode.ORDER_NOT_RETURNABLE, HttpStatus.CONFLICT),
             Map.entry(ErrorCode.RETURN_QUANTITY_EXCEEDED, HttpStatus.CONFLICT),
             Map.entry(ErrorCode.REFUND_AMOUNT_EXCEEDED, HttpStatus.CONFLICT),
+            Map.entry(ErrorCode.NOTIFICATION_NOT_FOUND, HttpStatus.NOT_FOUND),
             Map.entry(ErrorCode.INSUFFICIENT_INVENTORY_TO_ALLOCATE, HttpStatus.CONFLICT),
             Map.entry(ErrorCode.INVENTORY_RELEASE_EXCEEDS_ALLOCATION, HttpStatus.CONFLICT),
             Map.entry(ErrorCode.ACTIVITY_STOCK_ALREADY_RELEASED, HttpStatus.CONFLICT),

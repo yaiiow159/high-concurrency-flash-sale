@@ -291,3 +291,31 @@ export interface OpenReturnPayload {
   reason: ReturnReason
   reasonDetail?: string
 }
+
+// ---------------------------------------------------------------------------
+
+/** 通知類型。只涵蓋會改變使用者預期的里程碑，不是每個領域事件都在這裡。 */
+export type NotificationType =
+  | 'ORDER_PAID'
+  | 'ORDER_SHIPPED'
+  | 'ORDER_COMPLETED'
+  | 'ORDER_CANCELLED'
+  | 'REFUND_SENT'
+
+/**
+ * 站內信。
+ *
+ * `title` 與 `body` 是後端在建立當下算好的**快照**，前端不做任何字串組裝——
+ * 在這裡拼字串等於讓「我們對使用者說過什麼」有第二個版本，
+ * 而客訴時只有後端那份算數。
+ */
+export interface NotificationView {
+  notificationId: number
+  type: NotificationType
+  title: string
+  body: string
+  /** 關聯的訂單號或退貨單號；後端在沒有關聯時會省略這個欄位 */
+  referenceNo?: string | null
+  unread: boolean
+  createdAt: string
+}
