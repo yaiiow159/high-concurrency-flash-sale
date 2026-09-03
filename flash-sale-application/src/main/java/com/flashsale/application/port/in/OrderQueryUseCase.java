@@ -2,6 +2,8 @@ package com.flashsale.application.port.in;
 
 import com.flashsale.application.port.in.dto.OrderView;
 
+import java.util.List;
+
 /** 訂單查詢入站埠，供前端在拿到受理憑證後輪詢最終結果。 */
 public interface OrderQueryUseCase {
 
@@ -12,4 +14,12 @@ public interface OrderQueryUseCase {
      * 是則回傳 {@code processing} 狀態而非拋出「訂單不存在」。
      */
     OrderView findByOrderNo(String orderNo, Long userId);
+
+    /**
+     * 某使用者的訂單列表，新到舊。
+     *
+     * <p>頁數上限由 Use Case 夾住：這是登入後就能無限次呼叫的端點，
+     * 沒有上限的話任何人都能用 {@code size=1000000} 讓資料庫掃全表。
+     */
+    List<OrderView> listForUser(Long userId, int page, int size);
 }

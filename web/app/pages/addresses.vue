@@ -78,7 +78,9 @@ useHead({ title: '收貨地址' })
     <AuthPanel v-if="!auth.isAuthenticated" class="max-w-prose" />
 
     <template v-else>
-      <p v-if="loading" class="text-ink-muted">載入中⋯</p>
+      <div v-if="loading" class="grid gap-3 sm:grid-cols-2">
+        <SkeletonCard v-for="n in 2" :key="n" variant="row" />
+      </div>
       <p v-else-if="error" class="text-danger" role="alert">{{ error }}</p>
 
       <ul v-else-if="addresses.length > 0" class="grid gap-3 sm:grid-cols-2">

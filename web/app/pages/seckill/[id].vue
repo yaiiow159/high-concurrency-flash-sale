@@ -255,6 +255,13 @@ useHead(() => ({
       </StickyActionBar>
     </template>
 
-    <p v-else class="text-ink-muted">載入中⋯</p>
+    <div v-else class="grid gap-8 lg:grid-cols-[minmax(0,1fr)_22rem]">
+      <div class="flex flex-col gap-6">
+        <SkeletonBlock height="aspect-[16/10]" width="w-full" rounded />
+        <SkeletonBlock height="h-8" width="w-2/3" />
+        <SkeletonBlock height="h-24" width="w-full" rounded />
+      </div>
+      <SkeletonBlock height="h-32" width="w-full" rounded />
+    </div>
   </div>
 </template>

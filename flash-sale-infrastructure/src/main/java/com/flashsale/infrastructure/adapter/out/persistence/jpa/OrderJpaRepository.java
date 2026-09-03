@@ -2,6 +2,7 @@ package com.flashsale.infrastructure.adapter.out.persistence.jpa;
 
 import com.flashsale.infrastructure.adapter.out.persistence.entity.OrderEntity;
 import org.springframework.data.domain.Limit;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -69,6 +70,15 @@ public interface OrderJpaRepository extends JpaRepository<OrderEntity, Long> {
               and o.status in ('PENDING_PAYMENT', 'PAID', 'SHIPPED', 'COMPLETED')
             """)
     long sumActiveQuantityByActivity(@Param("activityId") Long activityId);
+
+    /**
+     * 某使用者的訂單，新到舊。
+     *
+     * <p><b>用 EntityGraph 一次帶出訂單行</b>：列表要顯示品項摘要，
+     * 逐筆再查一次就是典型的 N+1——20 筆訂單變成 21 次查詢。
+     */
+    @EntityGraph(attributePaths = "lines")
+    List<OrderEntity> findByUserIdOrderByCreatedAtDesc(Long userId, Pageable pageable);
 
     /** 批次查詢存在的訂單號，供對帳比對孤兒扣減。 */
     @Query("select o.orderNo from OrderEntity o where o.orderNo in :orderNos")

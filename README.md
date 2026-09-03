@@ -164,6 +164,7 @@ curl http://localhost:8080/api/v1/seckill/orders/123456789 -H "Authorization: Be
 | `POST` | `/api/v1/seckill/orders` | Bearer | 發起搶購，回 202 + 訂單號 |
 | `GET` | `/api/v1/seckill/orders/{orderNo}` | Bearer | 查詢訂單，非同步處理中回 `PROCESSING` |
 | `POST` | `/api/v1/orders` | Bearer | 一般下單，回 201 + 完整訂單（同步，全有全無） |
+| `GET` | `/api/v1/orders` | Bearer | 我的訂單，新到舊（頁大小上限 50） |
 | `GET` | `/api/v1/orders/{orderNo}` | Bearer | 查詢訂單 |
 | `GET` | `/api/v1/addresses` | Bearer | 收貨地址列表，預設排最前 |
 | `POST` | `/api/v1/addresses` | Bearer | 新增地址，第一筆自動成為預設 |
@@ -541,7 +542,8 @@ t2  使用者完成付款 → 閘道回調「成功」
 | `/seckill/[id]` | 秒殺頁：倒數、庫存輪詢、開賣抖動 |
 | `/products` | 商品列表，可依類目篩選 |
 | `/products/[id]` | 商品詳情：選規格、直接購買 |
-| `/orders/[orderNo]` | 訂單詳情與付款（含收貨資訊快照） |
+| `/orders` | 我的訂單（載入更多分頁） |
+| `/orders/[orderNo]` | 訂單詳情、物流進度與付款 |
 | `/addresses` | 收貨地址簿管理 |
 | `/cart` | 購物車（未登入用 localStorage） |
 | `/checkout` | 結帳：選地址、確認下單 |

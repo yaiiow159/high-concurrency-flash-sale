@@ -151,6 +151,13 @@ useHead({ title: `訂單 ${orderNo}` })
       </AppButton>
     </EmptyState>
 
-    <p v-else class="text-ink-muted">載入中⋯</p>
+    <div v-else class="flex flex-col gap-8">
+      <div class="flex flex-col gap-3">
+        <SkeletonBlock height="h-3" width="w-16" />
+        <SkeletonBlock height="h-8" width="w-64" />
+      </div>
+      <SkeletonCard variant="row" />
+      <SkeletonCard variant="row" />
+    </div>
   </div>
 </template>

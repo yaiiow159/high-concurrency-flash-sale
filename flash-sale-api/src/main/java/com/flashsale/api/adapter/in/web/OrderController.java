@@ -18,7 +18,10 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 /**
  * 一般下單 API。
@@ -91,6 +94,16 @@ public class OrderController {
 
         OrderView order = checkoutUseCase.checkout(userId, request.requestId(), request.addressId());
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(order));
+    }
+
+    @GetMapping
+    @Operation(summary = "我的訂單", description = "新到舊；頁大小上限 50")
+    public ApiResponse<List<OrderView>> listForUser(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @CurrentUser Long userId) {
+
+        return ApiResponse.ok(orderQueryUseCase.listForUser(userId, page, size));
     }
 
     @GetMapping("/{orderNo}")

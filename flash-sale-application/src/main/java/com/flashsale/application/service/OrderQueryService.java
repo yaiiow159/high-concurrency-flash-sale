@@ -2,6 +2,8 @@ package com.flashsale.application.service;
 
 import com.flashsale.application.port.in.OrderQueryUseCase;
 import com.flashsale.application.port.in.dto.OrderView;
+
+import java.util.List;
 import com.flashsale.application.port.out.OrderRepository;
 import com.flashsale.application.port.out.SeckillRequestTracker;
 import com.flashsale.domain.order.OrderNo;
@@ -22,6 +24,9 @@ import java.util.Optional;
  */
 @Service
 public class OrderQueryService implements OrderQueryUseCase {
+
+    private static final int DEFAULT_PAGE_SIZE = 20;
+    private static final int MAX_PAGE_SIZE = 50;
 
     private final OrderRepository orderRepository;
     private final SeckillRequestTracker requestTracker;
@@ -63,5 +68,21 @@ public class OrderQueryService implements OrderQueryUseCase {
         if (ownerId != null && !ownerId.equals(requesterId)) {
             throw new BusinessException(ErrorCode.ORDER_NOT_FOUND);
         }
+    }
+
+    /**
+     * 訂單列表。
+     *
+     * <p>頁大小夾在 50：這是登入後就能無限次呼叫的端點，
+     * 沒有上限的話任何人都能用 {@code size=1000000} 讓資料庫掃全表。
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public List<OrderView> listForUser(Long userId, int page, int size) {
+        int safeSize = Math.clamp(size <= 0 ? DEFAULT_PAGE_SIZE : size, 1, MAX_PAGE_SIZE);
+        int safePage = Math.max(page, 0);
+        return orderRepository.findByUserId(userId, safeSize, safePage * safeSize).stream()
+                .map(OrderView::from)
+                .toList();
     }
 }

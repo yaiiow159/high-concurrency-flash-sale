@@ -58,4 +58,13 @@ public interface OrderRepository {
      * @param limit    單批上限，避免一次撈爆記憶體並拉長交易時間
      */
     List<Order> findExpiredPendingOrders(Instant deadline, int limit);
+
+    /**
+     * 某使用者的訂單，新到舊。
+     *
+     * <p>走 {@code idx_user_created (user_id, created_at)}——
+     * 這個索引在 V5 建立訂單表時就一起建了，順序也正好符合
+     * 「先用 user_id 過濾、再依時間排序」的查詢形狀，不需要額外的索引。
+     */
+    List<Order> findByUserId(Long userId, int limit, int offset);
 }
