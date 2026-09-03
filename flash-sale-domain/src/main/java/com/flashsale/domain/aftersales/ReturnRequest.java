@@ -37,6 +37,8 @@ public final class ReturnRequest {
     private final ReturnNo returnNo;
     private final OrderNo orderNo;
     private final Long userId;
+    /** 冪等鍵。由呼叫端在送出前產生並在重試間保留，配合唯一索引擋下重複申請。 */
+    private final String requestId;
     private final ReturnReason reason;
     private final String reasonDetail;
     private final boolean requiresGoodsReturn;
@@ -53,7 +55,8 @@ public final class ReturnRequest {
     private final List<DomainEvent> domainEvents = new ArrayList<>();
 
     private ReturnRequest(Long id, ReturnNo returnNo, OrderNo orderNo, Long userId,
-                          ReturnReason reason, String reasonDetail, boolean requiresGoodsReturn,
+                          String requestId, ReturnReason reason, String reasonDetail,
+                          boolean requiresGoodsReturn,
                           List<ReturnLine> lines, ReturnStatus status, String reviewNote,
                           Instant createdAt, Instant reviewedAt, Instant receivedAt,
                           Instant refundedAt, long version) {
@@ -61,6 +64,7 @@ public final class ReturnRequest {
         this.returnNo = Objects.requireNonNull(returnNo, "returnNo 不可為 null");
         this.orderNo = Objects.requireNonNull(orderNo, "orderNo 不可為 null");
         this.userId = Objects.requireNonNull(userId, "userId 不可為 null");
+        this.requestId = requireRequestId(requestId);
         this.reason = Objects.requireNonNull(reason, "reason 不可為 null");
         this.reasonDetail = reasonDetail;
         this.requiresGoodsReturn = requiresGoodsReturn;
@@ -82,21 +86,21 @@ public final class ReturnRequest {
      *                            不接受買家自己指定
      */
     public static ReturnRequest open(ReturnNo returnNo, OrderNo orderNo, Long userId,
-                                     List<ReturnLine> lines, ReturnReason reason,
+                                     String requestId, List<ReturnLine> lines, ReturnReason reason,
                                      String reasonDetail, boolean requiresGoodsReturn,
                                      Instant now) {
-        return new ReturnRequest(null, returnNo, orderNo, userId, reason, reasonDetail,
+        return new ReturnRequest(null, returnNo, orderNo, userId, requestId, reason, reasonDetail,
                 requiresGoodsReturn, lines, ReturnStatus.REQUESTED, null,
                 now, null, null, null, 0L);
     }
 
     public static ReturnRequest restore(Long id, ReturnNo returnNo, OrderNo orderNo, Long userId,
-                                        ReturnReason reason, String reasonDetail,
+                                        String requestId, ReturnReason reason, String reasonDetail,
                                         boolean requiresGoodsReturn, List<ReturnLine> lines,
                                         ReturnStatus status, String reviewNote, Instant createdAt,
                                         Instant reviewedAt, Instant receivedAt, Instant refundedAt,
                                         long version) {
-        return new ReturnRequest(id, returnNo, orderNo, userId, reason, reasonDetail,
+        return new ReturnRequest(id, returnNo, orderNo, userId, requestId, reason, reasonDetail,
                 requiresGoodsReturn, lines, status, reviewNote, createdAt,
                 reviewedAt, receivedAt, refundedAt, version);
     }
@@ -214,6 +218,13 @@ public final class ReturnRequest {
         return pulled;
     }
 
+    private static String requireRequestId(String candidate) {
+        if (candidate == null || candidate.isBlank()) {
+            throw new BusinessException(ErrorCode.INVALID_PARAMETER, "requestId 不可為空");
+        }
+        return candidate;
+    }
+
     private static List<ReturnLine> requireNonEmpty(List<ReturnLine> candidate) {
         if (candidate == null || candidate.isEmpty()) {
             throw new BusinessException(ErrorCode.INVALID_PARAMETER, "退貨單至少要有一個品項");
@@ -235,6 +246,10 @@ public final class ReturnRequest {
 
     public Long userId() {
         return userId;
+    }
+
+    public String requestId() {
+        return requestId;
     }
 
     public ReturnReason reason() {

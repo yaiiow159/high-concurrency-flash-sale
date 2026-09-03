@@ -136,7 +136,31 @@ public class ReturnService implements ReturnUseCase {
     @Override
     @Transactional
     public ReturnRequestView open(OpenReturnCommand command) {
-        Order order = requireOwnedOrder(command.orderNo(), command.userId());
+        // ⚠ 這一行必須是本交易的第一個查詢，順序是正確性的一部分。
+        //
+        // 它做兩件事：鎖住訂單那一列，把同一張訂單的額度計算序列化；
+        // 以及——關鍵——確保後續的一致性讀取拿到的是最新資料。
+        //
+        // InnoDB 在 REPEATABLE READ 下，交易的讀取快照建立於**第一次一致性讀取**。
+        // 若在取鎖之前先跑了任何一般 SELECT，快照就在那一刻定型；
+        // 之後即使等到鎖、對手也已 commit，後續的一般 SELECT 仍讀不到它的寫入。
+        // 這不是假設：先前把冪等查詢放在取鎖之前，八個併發執行緒
+        // 對一張只買 2 件的訂單全部申請成功，累計 16 件
+        // （ReturnConcurrencyIntegrationTest 會抓到）。
+        //
+        // FOR UPDATE 本身是當前讀、永遠讀得到最新已提交資料，
+        // 但它不建立快照——所以只要它排在最前面，
+        // 之後的一般 SELECT 才會以「拿到鎖的那一刻」為基準。
+        Order order = requireOwnedOrderForUpdate(command.orderNo(), command.userId());
+
+        // 冪等：逾時重送同一個 requestId 拿回同一張退貨單。
+        // 與下單同一個手法，理由更強——重複下單只是多一張待付款訂單，
+        // 重複退貨是同一批商品被退兩次
+        Optional<ReturnRequest> existing = returnRepository.findByRequestId(command.requestId());
+        if (existing.isPresent()) {
+            log.debug("requestId {} 已有退貨單，回傳既有結果", command.requestId());
+            return ReturnRequestView.from(existing.get());
+        }
         if (!RETURNABLE_STATUSES.contains(order.status())) {
             throw new BusinessException(ErrorCode.ORDER_NOT_RETURNABLE,
                     "訂單 %s 目前狀態為 %s，無法申請退貨".formatted(order.orderNo(), order.status()));
@@ -152,7 +176,7 @@ public class ReturnService implements ReturnUseCase {
 
         ReturnNo returnNo = returnNoGenerator.next();
         ReturnRequest request = ReturnRequest.open(returnNo, order.orderNo(), command.userId(),
-                lines, command.reason(), command.reasonDetail(),
+                command.requestId(), lines, command.reason(), command.reasonDetail(),
                 REQUIRES_GOODS_RETURN.contains(order.status()), clock.instant());
 
         ReturnRequest saved = returnRepository.save(request);
@@ -305,8 +329,20 @@ public class ReturnService implements ReturnUseCase {
                 orderLine.unitPrice(), item.quantity());
     }
 
+    /** 取訂單並鎖住那一列；只有真的要寫退貨單時才用，查詢一律走不加鎖的版本。 */
+    private Order requireOwnedOrderForUpdate(String orderNo, Long userId) {
+        Order order = orderRepository.findByOrderNoForUpdate(OrderNo.of(orderNo))
+                .orElseThrow(() -> new BusinessException(ErrorCode.ORDER_NOT_FOUND,
+                        "訂單不存在: " + orderNo));
+        return requireOwnership(order, orderNo, userId);
+    }
+
     private Order requireOwnedOrder(String orderNo, Long userId) {
         Order order = requireOrder(orderNo);
+        return requireOwnership(order, orderNo, userId);
+    }
+
+    private static Order requireOwnership(Order order, String orderNo, Long userId) {
         if (!order.belongsTo(userId)) {
             // 回「不存在」而非「無權限」：後者等於確認這個單號是有效的
             throw new BusinessException(ErrorCode.ORDER_NOT_FOUND, "訂單不存在: " + orderNo);

@@ -31,6 +31,22 @@ public interface OrderRepository {
 
     Optional<Order> findByOrderNo(OrderNo orderNo);
 
+    /**
+     * 取出訂單並鎖住那一列，直到當前交易結束。
+     *
+     * <p><b>用途是把「可退數量」的計算序列化。</b>那個計算是
+     * 讀既有退貨單 → 檢查餘額 → 寫新退貨單，三步之間沒有任何約束——
+     * 兩個併發請求都會讀到同一份舊資料、都通過檢查，於是同一批商品被退兩次。
+     * 資料庫層擋不住這件事：一張訂單本來就能有多張退貨單，
+     * 所以 return_request 上沒有、也不該有 order_no 的唯一鍵。
+     *
+     * <p>鎖的是<b>訂單那一列</b>，不同訂單之間完全不競爭。
+     * 這與 ADR-0003「不要用鎖包住庫存扣減」不衝突：那條講的是秒殺熱路徑，
+     * 所有請求搶同一行、加鎖會把並行度壓成 1；退貨是一天幾百筆的冷路徑，
+     * 而且臨界區裡的每一步都是資料庫操作，沒有遠端呼叫會把鎖撐住。
+     */
+    Optional<Order> findByOrderNoForUpdate(OrderNo orderNo);
+
     Optional<Order> findByRequestId(String requestId);
 
     /**

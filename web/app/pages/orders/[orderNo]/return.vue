@@ -26,6 +26,14 @@ const loadError = ref<string | null>(null)
 const submitting = ref(false)
 const submitError = ref<string | null>(null)
 
+/**
+ * 冪等鍵：<b>送出前產生，只在成功後才作廢</b>。
+ *
+ * 與下單同一個手法（見 useCheckout）。逾時重送同一個值會拿回同一張退貨單；
+ * 每次重試都換新值的話，使用者按兩次就會申請兩次退貨。
+ */
+let requestId: string | null = null
+
 /** skuId → 這次要退的數量。0 代表不退這一項。 */
 const quantities = reactive<Record<number, number>>({})
 
@@ -87,6 +95,7 @@ async function load() {
 async function submit() {
   submitting.value = true
   submitError.value = null
+  requestId ??= crypto.randomUUID()
   try {
     const created = await open(orderNo, {
       items: selectedLines.value.map((line) => ({
@@ -95,7 +104,8 @@ async function submit() {
       })),
       reason: reason.value,
       reasonDetail: reasonDetail.value.trim() || undefined,
-    })
+    }, requestId)
+    requestId = null
     await navigateTo(`/returns/${created.returnNo}`)
   } catch (cause) {
     submitError.value = (cause as { message?: string }).message ?? '申請失敗'

@@ -285,6 +285,7 @@ export interface ReturnableView {
   lines: ReturnableLineView[]
 }
 
+/** 送出的欄位。requestId 由 useReturns.open 另外帶入，不放在這裡以免被漏掉。 */
 export interface OpenReturnPayload {
   items: { skuId: number, quantity: number }[]
   reason: ReturnReason

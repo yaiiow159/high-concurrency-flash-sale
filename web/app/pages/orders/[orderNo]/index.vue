@@ -29,22 +29,31 @@ const canReturn = ref(false)
 const loadError = ref<string | null>(null)
 const paying = ref(false)
 
+/**
+ * 三個請求<b>並行發出</b>。
+ *
+ * 它們都只需要網址上的 orderNo，彼此不相依——先前是三個接連的 await，
+ * 在 200ms 延遲的行動網路上就是 600ms 才看得到畫面，而其中 400ms
+ * 純粹是排隊等前一個回來。
+ *
+ * 出貨單與退貨資格各自 catch：訂單還沒付款時本來就沒有出貨單，
+ * 而任一個附屬查詢失敗都不該讓整張訂單看不到。
+ */
 async function load() {
-  try {
-    order.value = await request<OrderView>(`/api/v1/orders/${orderNo}`, {
-      authenticated: true,
-    })
-    // 查不到出貨單不是錯誤——訂單還沒付款時本來就還沒建立
-    shipment.value = await request<ShipmentView>(`/api/v1/orders/${orderNo}/shipment`, {
-      authenticated: true,
-    }).catch(() => null)
-    // 退貨資格查不到也不該讓整頁失敗——訂單本身仍然應該看得到
-    canReturn.value = await inspect(orderNo)
-      .then((view) => view.returnable)
-      .catch(() => false)
-  } catch (error) {
-    loadError.value = (error as { message?: string }).message ?? '無法載入訂單'
-  }
+  const [orderResult, shipmentResult, returnable] = await Promise.all([
+    request<OrderView>(`/api/v1/orders/${orderNo}`, { authenticated: true })
+      .catch((error: { message?: string }) => {
+        loadError.value = error.message ?? '無法載入訂單'
+        return null
+      }),
+    request<ShipmentView>(`/api/v1/orders/${orderNo}/shipment`, { authenticated: true })
+      .catch(() => null),
+    inspect(orderNo).then((view) => view.returnable).catch(() => false),
+  ])
+
+  order.value = orderResult
+  shipment.value = shipmentResult
+  canReturn.value = returnable
 }
 
 async function pay() {

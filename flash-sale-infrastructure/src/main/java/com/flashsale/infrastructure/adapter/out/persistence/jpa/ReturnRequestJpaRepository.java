@@ -25,6 +25,9 @@ public interface ReturnRequestJpaRepository extends JpaRepository<ReturnRequestE
     List<ReturnRequestEntity> findByOrderNo(String orderNo);
 
     @EntityGraph(attributePaths = "lines")
+    Optional<ReturnRequestEntity> findByRequestId(String requestId);
+
+    @EntityGraph(attributePaths = "lines")
     List<ReturnRequestEntity> findByUserIdOrderByCreatedAtDesc(Long userId, Pageable pageable);
 
     @EntityGraph(attributePaths = "lines")

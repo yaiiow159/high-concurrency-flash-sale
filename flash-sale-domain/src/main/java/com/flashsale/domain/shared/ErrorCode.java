@@ -19,6 +19,17 @@ public enum ErrorCode {
     INVALID_CREDENTIALS("A0006", "帳號或密碼錯誤"),
     INVALID_REFRESH_TOKEN("A0007", "登入憑證已失效，請重新登入"),
     INVALID_CALLBACK_SIGNATURE("A0008", "回調簽章驗證失敗"),
+    /**
+     * 路徑或方法不存在。
+     *
+     * <p>放在 A 系列（呼叫端錯誤）而不是 C 系列（系統故障）是有實際後果的：
+     * 落到兜底處理時，一個打錯的網址會被記成帶堆疊的 ERROR 並回
+     * {@code retryable=true}——日誌被掃描器的探測淹沒，而客戶端會去重試
+     * 一個永遠不會成功的請求。
+     */
+    ENDPOINT_NOT_FOUND("A0009", "找不到這個路徑"),
+    /** 樂觀鎖衝突。是預期中的併發結果，不是系統故障，因此放在 A 系列。 */
+    CONCURRENT_MODIFICATION("A0010", "資料已被其他人修改，請重新整理後再試"),
 
     // ---- B：業務規則拒絕 ----
     ACTIVITY_NOT_FOUND("B0001", "活動不存在"),
@@ -63,7 +74,9 @@ public enum ErrorCode {
     STOCK_SERVICE_UNAVAILABLE("C0001", "庫存服務暫時不可用"),
     LOCK_ACQUIRE_FAILED("C0002", "取得分散式鎖失敗"),
     MESSAGE_PUBLISH_FAILED("C0003", "訊息投遞失敗"),
-    SYSTEM_BUSY("C0004", "系統繁忙，請稍後再試");
+    SYSTEM_BUSY("C0004", "系統繁忙，請稍後再試"),
+    /** 金流閘道暫時不可用。C 系列＝可重試，退款消費端靠這個分類才會被重投。 */
+    PAYMENT_GATEWAY_UNAVAILABLE("C0005", "金流服務暫時不可用");
 
     private final String code;
     private final String defaultMessage;
