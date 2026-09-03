@@ -8,6 +8,7 @@ import com.flashsale.api.adapter.in.web.security.CurrentUser;
 import com.flashsale.application.port.in.ReturnUseCase;
 import com.flashsale.application.port.in.command.OpenReturnCommand;
 import com.flashsale.application.port.in.dto.ReturnRequestView;
+import com.flashsale.application.port.in.dto.ReturnableView;
 import com.flashsale.domain.aftersales.ReturnStatus;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -47,6 +48,14 @@ public class ReturnController {
     }
 
     // ---- 買家 ----
+
+    @GetMapping("/api/v1/orders/{orderNo}/returnable")
+    @Operation(summary = "查詢這張訂單能退什麼",
+            description = "可退數量由後端算；前端不重算「審核中的單也佔額度」這條規則")
+    public ApiResponse<ReturnableView> inspectReturnable(@PathVariable String orderNo,
+                                                         @CurrentUser Long userId) {
+        return ApiResponse.ok(returnUseCase.inspectReturnable(orderNo, userId));
+    }
 
     @PostMapping("/api/v1/orders/{orderNo}/returns")
     @Operation(summary = "申請退貨", description = "可以只退訂單的一部分；金額由訂單快照算出")

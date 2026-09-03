@@ -210,3 +210,83 @@ export interface ShipmentView {
   shippedAt: string | null
   deliveredAt: string | null
 }
+
+// ---------------------------------------------------------------------------
+
+/** 退貨原因。責任歸屬由原因決定，不另開欄位。 */
+export type ReturnReason =
+  | 'DEFECTIVE'
+  | 'NOT_AS_DESCRIBED'
+  | 'WRONG_ITEM'
+  | 'CHANGED_MIND'
+  | 'OTHER'
+
+export interface ReturnLineView {
+  skuId: number
+  /** 下單當下的商品名稱快照，與訂單行同一份 */
+  skuSnapshot: string
+  unitPrice: number
+  quantity: number
+  /**
+   * 驗收結果。尚未驗收時後端會省略這個欄位，因此是 optional；
+   * 明確的 false 才代表「驗收過且判定不可再售」。
+   */
+  restockable?: boolean | null
+}
+
+/**
+ * 退貨單。
+ *
+ * <b>時間戳記宣告成 optional 而不是 `string | null`</b>，因為後端序列化時
+ * 會把 null 欄位整個省略——收到的是 `undefined` 而不是 `null`。
+ * 宣告成 `string | null` 的話，`x !== null` 這種嚴格比較會對 `undefined` 回 true，
+ * 於是「還沒發生的步驟」全部被當成已完成。這個 bug 真的發生過：
+ * 一張還在待審核的退貨單，進度條三個階段全亮。
+ */
+export interface ReturnRequestView {
+  returnNo: string
+  orderNo: string
+  status: string
+  reason: ReturnReason
+  reasonDetail?: string | null
+  /** 未出貨的訂單為 false——貨還在倉庫，沒有東西要寄回 */
+  requiresGoodsReturn: boolean
+  /** 由退貨行的快照單價算出。前端不自己乘一次，畫面與實際退款必須是同一個數字 */
+  refundAmount: number
+  lines: ReturnLineView[]
+  reviewNote?: string | null
+  createdAt: string
+  reviewedAt?: string | null
+  receivedAt?: string | null
+  refundedAt?: string | null
+}
+
+/**
+ * 這張訂單現在能退什麼。
+ *
+ * 可退數量由後端算——「審核中的退貨單也佔用額度」是領域規則，
+ * 前端再實作一次的話，症狀會是「畫面說可以退，送出卻被拒絕」。
+ */
+export interface ReturnableLineView {
+  skuId: number
+  skuSnapshot: string
+  unitPrice: number
+  orderedQuantity: number
+  /** 為 0 代表這一項已全部申請過，畫面應標成不可選 */
+  returnableQuantity: number
+}
+
+export interface ReturnableView {
+  orderNo: string
+  returnable: boolean
+  /** 不可退時的原因，直接顯示給使用者；可退時後端省略此欄位 */
+  reason?: string | null
+  requiresGoodsReturn: boolean
+  lines: ReturnableLineView[]
+}
+
+export interface OpenReturnPayload {
+  items: { skuId: number, quantity: number }[]
+  reason: ReturnReason
+  reasonDetail?: string
+}

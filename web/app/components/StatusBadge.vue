@@ -19,6 +19,12 @@ const LABELS: Record<string, string> = {
   READY: '待出貨',
   IN_TRANSIT: '運送中',
   DELIVERED: '已送達',
+  REFUNDED: '已退款',
+  // 退貨單的狀態。與訂單狀態同名的只有 REFUNDED，語意也一致
+  REQUESTED: '待審核',
+  APPROVED: '已核准',
+  RECEIVED: '已收到退貨',
+  REJECTED: '已駁回',
 }
 
 const TONES: Record<string, string> = {
@@ -27,6 +33,10 @@ const TONES: Record<string, string> = {
   PAID: 'ok',
   CANCELLED: 'danger',
   FAILED: 'danger',
+  REJECTED: 'danger',
+  // 已退款是中性而不是綠色：對買家來說錢回來了是好事，
+  // 但把它塗成跟「已完成」一樣的綠，兩種完全不同的結局在列表上會看起來一樣
+  REFUNDED: 'neutral',
 }
 
 const label = computed(() => LABELS[props.status] ?? props.status)

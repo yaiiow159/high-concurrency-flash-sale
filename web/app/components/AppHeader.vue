@@ -77,6 +77,13 @@ function isActive(to: string): boolean {
             訂單
           </NuxtLink>
           <NuxtLink
+            to="/returns"
+            class="hidden rounded-sm px-2.5 py-1.5 text-ink-muted transition-colors hover:text-ink sm:block"
+            :class="isActive('/returns') ? 'font-medium text-accent' : ''"
+          >
+            退貨
+          </NuxtLink>
+          <NuxtLink
             to="/addresses"
             class="hidden rounded-sm px-2.5 py-1.5 text-ink-muted transition-colors hover:text-ink sm:block"
             :class="isActive('/addresses') ? 'font-medium text-accent' : ''"

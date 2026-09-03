@@ -2,6 +2,7 @@ package com.flashsale.application.service;
 
 import com.flashsale.application.port.in.command.OpenReturnCommand;
 import com.flashsale.application.port.in.dto.ReturnRequestView;
+import com.flashsale.application.port.in.dto.ReturnableView;
 import com.flashsale.application.port.out.EventOutbox;
 import com.flashsale.application.port.out.OrderRepository;
 import com.flashsale.application.port.out.PaymentRepository;
@@ -43,6 +44,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -181,6 +183,64 @@ class ReturnServiceTest {
             assertThatThrownBy(() -> service.open(openCommand(999L, 1)))
                     .isInstanceOf(BusinessException.class)
                     .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_PARAMETER);
+        }
+    }
+
+    @Nested
+    @DisplayName("可退清單——畫面說可以退，送出就不該被拒絕")
+    class ReturnableInspection {
+
+        @Test
+        @DisplayName("扣掉審核中的退貨單後回報剩餘可退數量")
+        void reportsRemainingAfterInFlightRequests() {
+            when(orderRepository.findByOrderNo(any())).thenReturn(Optional.of(order(OrderStatus.SHIPPED)));
+            when(returnRepository.findByOrderNo(ORDER_NO))
+                    .thenReturn(List.of(existingReturn(ReturnStatus.REQUESTED, 1L, 1)));
+
+            ReturnableView view = service.inspectReturnable(ORDER_NO, USER);
+
+            assertThat(view.returnable()).isTrue();
+            assertThat(view.requiresGoodsReturn()).isTrue();
+            assertThat(view.lines())
+                    .extracting(ReturnableView.Line::skuId,
+                            ReturnableView.Line::orderedQuantity,
+                            ReturnableView.Line::returnableQuantity)
+                    // SKU 1 買 2 件、已申請 1 件，還能退 1 件
+                    .containsExactly(tuple(1L, 2, 1), tuple(2L, 1, 1));
+        }
+
+        @Test
+        @DisplayName("全部申請過之後整張訂單不可再退，且說得出原因")
+        void notReturnableOnceEverythingIsClaimed() {
+            when(orderRepository.findByOrderNo(any())).thenReturn(Optional.of(order(OrderStatus.SHIPPED)));
+            when(returnRepository.findByOrderNo(ORDER_NO)).thenReturn(List.of(
+                    existingReturn(ReturnStatus.REFUNDED, 1L, 2),
+                    existingReturn(ReturnStatus.APPROVED, 2L, 1)));
+
+            ReturnableView view = service.inspectReturnable(ORDER_NO, USER);
+
+            assertThat(view.returnable()).isFalse();
+            assertThat(view.reason()).isNotBlank();
+        }
+
+        @Test
+        @DisplayName("待付款的訂單回報不可退，並指出正確的操作是取消")
+        void explainsWhyPendingPaymentCannotBeReturned() {
+            when(orderRepository.findByOrderNo(any()))
+                    .thenReturn(Optional.of(order(OrderStatus.PENDING_PAYMENT)));
+
+            ReturnableView view = service.inspectReturnable(ORDER_NO, USER);
+
+            assertThat(view.returnable()).isFalse();
+            assertThat(view.reason()).contains("取消");
+        }
+
+        @Test
+        @DisplayName("未出貨的訂單免寄回，這件事要在申請前就講明")
+        void flagsNoGoodsReturnBeforeShipping() {
+            when(orderRepository.findByOrderNo(any())).thenReturn(Optional.of(order(OrderStatus.PAID)));
+
+            assertThat(service.inspectReturnable(ORDER_NO, USER).requiresGoodsReturn()).isFalse();
         }
     }
 
