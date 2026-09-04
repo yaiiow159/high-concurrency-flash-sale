@@ -4,7 +4,7 @@ import { useReviews } from '~/composables/useReviews'
 import { useCheckout } from '~/composables/useCheckout'
 import { useCartStore } from '~/stores/cart'
 import { useAuthStore } from '~/stores/auth'
-import type { ApiResponse, ProductView, SkuView } from '~/types/api'
+import type { ApiResponse, ProductView, SkuStockView, SkuView } from '~/types/api'
 
 /**
  * 商品詳情與直接購買。
@@ -100,6 +100,52 @@ watchEffect(() => {
   if (selectedSkuId.value === null && product.value) {
     selectedSkuId.value = product.value.skus.find((sku) => sku.purchasable)?.skuId ?? null
   }
+})
+
+/**
+ * 庫存。
+ *
+ * **另外請求，不併進商品頁的 SSR**——這一頁是 ISR 快取的，
+ * 庫存跟著被快取的話會顯示過期的數字，而使用者是照著它決定要不要買。
+ * 與評分同一個判斷：變動頻率不同的資料不共用快取。
+ *
+ * 失敗時整份留空，畫面就不顯示庫存狀態。fail-open：
+ * 庫存查詢掛掉不該讓人連商品都看不到。
+ */
+const stock = ref<Record<number, SkuStockView>>({})
+
+async function loadStock() {
+  const ids = product.value?.skus.map((sku) => sku.skuId) ?? []
+  if (ids.length === 0) {
+    return
+  }
+  try {
+    const { request } = useApi()
+    const rows = await request<SkuStockView[]>(
+      `/api/v1/catalog/stock?skuIds=${ids.join(',')}`)
+    stock.value = Object.fromEntries(rows.map((row) => [row.skuId, row]))
+  } catch {
+    stock.value = {}
+  }
+}
+
+onMounted(loadStock)
+
+const selectedStock = computed(() =>
+  selectedSkuId.value === null ? null : stock.value[selectedSkuId.value] ?? null)
+
+/** 庫存提示。查不到就不顯示，而不是顯示「缺貨」——那兩件事不一樣。 */
+const stockHint = computed(() => {
+  const current = selectedStock.value
+  if (!current) {
+    return null
+  }
+  if (!current.inStock) {
+    return { text: '已售完', urgent: true }
+  }
+  return current.lowStock && current.available !== null
+    ? { text: `僅剩 ${current.available} 件`, urgent: true }
+    : { text: '有現貨', urgent: false }
 })
 
 const selectedSku = computed<SkuView | null>(
@@ -283,6 +329,14 @@ useHead(() => ({ title: product.value?.name ?? '商品' }))
               才能直接購買。
             </p>
           </section>
+
+          <p
+            v-if="stockHint"
+            class="mt-5 text-sm"
+            :class="stockHint.urgent ? 'text-accent' : 'text-ink-muted'"
+          >
+            {{ stockHint.text }}
+          </p>
 
           <div class="mt-6 flex flex-col gap-2.5">
             <AppButton

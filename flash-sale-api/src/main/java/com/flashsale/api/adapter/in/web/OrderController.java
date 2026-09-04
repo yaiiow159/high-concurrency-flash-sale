@@ -136,13 +136,15 @@ public class OrderController {
     }
 
     @GetMapping
-    @Operation(summary = "我的訂單", description = "新到舊；頁大小上限 50")
+    @Operation(summary = "我的訂單",
+            description = "新到舊；頁大小上限 50；status 可篩選單一狀態（不帶為全部）")
     public ApiResponse<List<OrderView>> listForUser(
+            @RequestParam(required = false) String status,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @CurrentUser Long userId) {
 
-        return ApiResponse.ok(orderQueryUseCase.listForUser(userId, page, size));
+        return ApiResponse.ok(orderQueryUseCase.listForUser(userId, status, page, size));
     }
 
     @GetMapping("/{orderNo}")

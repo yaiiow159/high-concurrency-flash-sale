@@ -85,10 +85,10 @@ public class OrderQueryService implements OrderQueryUseCase {
      */
     @Override
     @Transactional(readOnly = true)
-    public List<OrderView> listForUser(Long userId, int page, int size) {
+    public List<OrderView> listForUser(Long userId, String status, int page, int size) {
         int safeSize = Math.clamp(size <= 0 ? DEFAULT_PAGE_SIZE : size, 1, MAX_PAGE_SIZE);
         int safePage = Math.max(page, 0);
-        return orderRepository.findByUserId(userId, safeSize, safePage * safeSize).stream()
+        return orderRepository.findByUserId(userId, status, safeSize, safePage * safeSize).stream()
                 .map(OrderView::from)
                 .toList();
     }

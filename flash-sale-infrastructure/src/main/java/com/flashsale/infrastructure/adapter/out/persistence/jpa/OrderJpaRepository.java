@@ -90,6 +90,23 @@ public interface OrderJpaRepository extends JpaRepository<OrderEntity, Long> {
     @EntityGraph(attributePaths = "lines")
     List<OrderEntity> findByUserIdOrderByCreatedAtDesc(Long userId, Pageable pageable);
 
+    /**
+     * 我的訂單，可依狀態篩選。
+     *
+     * <p>{@code :status is null} 才是「不限」——空字串不是不限，
+     * 那會是一個永遠比對不到的狀態值，而症狀是「訂單一片空白」。
+     * 這個坑在 findAllByStatus 上已經踩過一次。
+     */
+    @Query("""
+            select o from OrderEntity o
+            where o.userId = :userId
+              and (:status is null or o.status = :status)
+            order by o.createdAt desc
+            """)
+    List<OrderEntity> findByUserIdAndStatus(@Param("userId") Long userId,
+                                            @Param("status") String status,
+                                            Pageable pageable);
+
     /** 批次查詢存在的訂單號，供對帳比對孤兒扣減。 */
     @Query("select o.orderNo from OrderEntity o where o.orderNo in :orderNos")
     List<String> findExistingOrderNos(@Param("orderNos") Collection<String> orderNos);

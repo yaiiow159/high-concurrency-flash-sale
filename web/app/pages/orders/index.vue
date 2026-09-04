@@ -18,6 +18,24 @@ const { request } = useApi()
 
 const PAGE_SIZE = 20
 
+/**
+ * 狀態篩選。
+ *
+ * 在**伺服器端**篩，不是撈回來再過濾——「待付款」這種少數狀態
+ * 用前端過濾會需要翻很多頁才湊得滿一頁，而使用者只會看到一個
+ * 幾乎空白的清單。
+ */
+const STATUS_FILTERS = [
+  { value: null, label: '全部' },
+  { value: 'PENDING_PAYMENT', label: '待付款' },
+  { value: 'PAID', label: '待出貨' },
+  { value: 'SHIPPED', label: '待收貨' },
+  { value: 'COMPLETED', label: '已完成' },
+  { value: 'CLOSED', label: '已關閉' },
+] as const
+
+const activeStatus = ref<string | null>(null)
+
 const orders = ref<OrderView[]>([])
 const loading = ref(false)
 const loadingMore = ref(false)
@@ -36,8 +54,9 @@ async function load(reset = true) {
   error.value = null
 
   try {
+    const statusParam = activeStatus.value === null ? '' : `&status=${activeStatus.value}`
     const batch = await request<OrderView[]>(
-      `/api/v1/orders?page=${page.value}&size=${PAGE_SIZE}`,
+      `/api/v1/orders?page=${page.value}${statusParam}&size=${PAGE_SIZE}`,
       { authenticated: true },
     )
     orders.value = reset ? batch : [...orders.value, ...batch]
@@ -82,6 +101,9 @@ onMounted(() => {
     load()
   }
 })
+// 換篩選要重新從第一頁抓，而不是把新結果接在舊清單後面
+watch(activeStatus, () => { void load(true) })
+
 watch(() => auth.isAuthenticated, (loggedIn) => {
   if (loggedIn) {
     load()
@@ -98,6 +120,21 @@ useHead({ title: '我的訂單' })
       title="我的訂單"
       description="顯示的商品名稱與金額都是下單當下的快照，不會隨商家改名或調價而變動。"
     />
+
+    <nav v-if="auth.isAuthenticated" class="mb-6 flex flex-wrap gap-2" aria-label="訂單狀態篩選">
+      <button
+        v-for="filter in STATUS_FILTERS"
+        :key="filter.label"
+        type="button"
+        class="rounded-sm border px-3 py-1.5 text-sm transition-colors"
+        :class="activeStatus === filter.value
+          ? 'border-accent text-accent'
+          : 'border-line text-ink-muted hover:border-line-strong hover:text-ink'"
+        @click="activeStatus = filter.value"
+      >
+        {{ filter.label }}
+      </button>
+    </nav>
 
     <AuthPanel v-if="!auth.isAuthenticated" class="max-w-prose" />
 

@@ -5,6 +5,7 @@ import com.flashsale.application.port.in.CatalogQueryUseCase;
 import com.flashsale.application.port.in.dto.CategoryView;
 import com.flashsale.application.port.in.dto.ProductPage;
 import com.flashsale.application.port.in.dto.ProductView;
+import com.flashsale.application.port.in.dto.SkuStockView;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -39,34 +40,15 @@ public class CatalogController {
     @GetMapping("/products")
     @Operation(summary = "商品列表",
             description = "keyset 分頁：帶上一頁回傳的 nextCursor 取下一頁；"
-                    + "categoryId 包含該類目的整棵子樹")
+                    + "categoryId 包含該類目的整棵子樹；"
+                    + "sort 支援 NEWEST/PRICE_ASC/PRICE_DESC/BEST_SELLING/RATING")
     public ApiResponse<ProductPage> listProducts(
             @RequestParam(required = false) Long categoryId,
+            @RequestParam(required = false) String sort,
             @RequestParam(required = false) String cursor,
             @RequestParam(defaultValue = "20") int size) {
 
-        return ApiResponse.ok(catalogQueryUseCase.listProducts(categoryId, parseCursor(cursor), size));
-    }
-
-    /**
-     * 解析游標。
-     *
-     * <p><b>解析不了就當第一頁，不回 400。</b> 游標會出現在網址上，
-     * 而使用者會改它、也會貼舊連結——逛商品列表這件事
-     * 不該因為網址被改壞而失敗。
-     *
-     * <p>指向已下架商品的游標仍然是合法的：{@code id < 那個值} 依然成立，
-     * 只是那一筆不會出現在結果裡。這是對的行為，不需要特別處理。
-     */
-    private static Long parseCursor(String cursor) {
-        if (cursor == null || cursor.isBlank()) {
-            return null;
-        }
-        try {
-            return Long.parseLong(cursor.trim());
-        } catch (NumberFormatException ignored) {
-            return null;
-        }
+        return ApiResponse.ok(catalogQueryUseCase.listProducts(categoryId, sort, cursor, size));
     }
 
     @GetMapping("/products/{productId}")
@@ -83,6 +65,14 @@ public class CatalogController {
     public ApiResponse<List<CatalogQueryUseCase.SkuLookup>> findSkus(
             @RequestParam List<Long> ids) {
         return ApiResponse.ok(catalogQueryUseCase.findSkus(ids));
+    }
+
+    @GetMapping("/stock")
+    @Operation(summary = "批次查庫存",
+            description = "與商品資料分開請求：商品幾週才改一次、庫存每秒變動數千次。"
+                    + "充足時只回有無，低於門檻才給確切數量")
+    public ApiResponse<List<SkuStockView>> findStock(@RequestParam List<Long> skuIds) {
+        return ApiResponse.ok(catalogQueryUseCase.findStock(skuIds));
     }
 
     @GetMapping("/categories")

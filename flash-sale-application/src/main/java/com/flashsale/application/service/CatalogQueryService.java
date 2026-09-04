@@ -5,9 +5,14 @@ import com.flashsale.application.port.in.dto.CategoryView;
 import com.flashsale.application.port.in.dto.ProductPage;
 import com.flashsale.application.port.in.dto.ProductView;
 import com.flashsale.application.port.out.CategoryRepository;
+import com.flashsale.application.port.in.dto.SkuStockView;
+import com.flashsale.application.port.out.InventoryRepository;
+import com.flashsale.domain.inventory.Inventory;
 import com.flashsale.application.port.out.ProductRepository;
 import com.flashsale.domain.catalog.CategoryTree;
 import com.flashsale.domain.catalog.Product;
+import com.flashsale.domain.catalog.ProductCursor;
+import com.flashsale.domain.catalog.ProductSort;
 import com.flashsale.domain.catalog.ProductSummary;
 import com.flashsale.domain.catalog.Sku;
 import com.flashsale.domain.shared.BusinessException;
@@ -17,6 +22,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -36,22 +43,26 @@ public class CatalogQueryService implements CatalogQueryUseCase {
 
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
+    private final InventoryRepository inventoryRepository;
 
     public CatalogQueryService(ProductRepository productRepository,
-                               CategoryRepository categoryRepository) {
+                               CategoryRepository categoryRepository,
+                               InventoryRepository inventoryRepository) {
         this.productRepository = productRepository;
         this.categoryRepository = categoryRepository;
+        this.inventoryRepository = inventoryRepository;
     }
 
     @Override
     @Transactional(readOnly = true)
-    public ProductPage listProducts(Long categoryId, Long cursor, int size) {
+    public ProductPage listProducts(Long categoryId, String sortName, String cursor, int size) {
         int safeSize = Math.clamp(size <= 0 ? DEFAULT_PAGE_SIZE : size, 1, MAX_PAGE_SIZE);
+        ProductSort sort = ProductSort.parse(sortName);
 
         // 多取一筆來判斷還有沒有下一頁，而不是再打一次 COUNT(*)——
         // 在 5 萬列上那個 count 比查詢本身還貴，而它只是為了決定一個布林值
         List<ProductSummary> rows = productRepository.findOnShelfSummaries(
-                resolveCategoryFilter(categoryId), cursor, safeSize + 1);
+                resolveCategoryFilter(categoryId), sort, ProductCursor.decode(cursor), safeSize + 1);
 
         boolean hasMore = rows.size() > safeSize;
         List<ProductSummary> pageRows = hasMore ? rows.subList(0, safeSize) : rows;
@@ -59,10 +70,31 @@ public class CatalogQueryService implements CatalogQueryUseCase {
             return ProductPage.empty();
         }
 
-        // 游標是這一頁最後一筆的 ID。由伺服器給而不是讓前端自己取，
-        // 否則「排序鍵是什麼」就變成對外契約的一部分（ADR-0021）
-        Long nextCursor = hasMore ? pageRows.get(pageRows.size() - 1).id() : null;
+        // 游標取自這一頁最後一筆，而它是倉庫依當次排序鍵產生的（ADR-0021）
+        String nextCursor = hasMore ? pageRows.get(pageRows.size() - 1).cursor() : null;
         return ProductPage.of(pageRows.stream().map(ProductView::fromSummary).toList(), nextCursor);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<SkuStockView> findStock(List<Long> skuIds) {
+        if (skuIds == null || skuIds.isEmpty()) {
+            return List.of();
+        }
+        // 與批次 SKU 查詢同一個上限：沒有上限的話，任何人都能用一個
+        // 超長的 id 清單讓資料庫做一次大範圍查詢
+        List<Long> capped = skuIds.stream().distinct().limit(MAX_SKU_LOOKUP).toList();
+
+        Map<Long, Integer> availableBySku = inventoryRepository.findBySkuIds(capped).stream()
+                .collect(Collectors.toMap(Inventory::skuId, Inventory::available));
+
+        return capped.stream()
+                // 查不到庫存列的當成缺貨，不是「無限有貨」——
+                // 猜錯方向的代價是使用者買到系統沒有的東西
+                .map(skuId -> availableBySku.containsKey(skuId)
+                        ? SkuStockView.of(skuId, availableBySku.get(skuId))
+                        : SkuStockView.unknown(skuId))
+                .toList();
     }
 
     /**

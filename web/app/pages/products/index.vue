@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useApi } from '~/composables/useApi'
-import type { ApiResponse, CategoryView, ProductPage, ProductRatingView, ProductView } from '~/types/api'
+import type { ApiResponse, CategoryView, ProductPage, ProductRatingView, ProductView, SkuStockView } from '~/types/api'
 
 /**
  * 商品列表。
@@ -15,13 +15,32 @@ const categoryId = computed(() => {
   return typeof raw === 'string' ? Number(raw) : null
 })
 
+/** 排序方式。放在網址上，讓「依價格排序的第 3 頁」這種連結貼得出去。 */
+const SORT_OPTIONS = [
+  { value: 'NEWEST', label: '最新上架' },
+  { value: 'BEST_SELLING', label: '熱賣' },
+  { value: 'RATING', label: '評分' },
+  { value: 'PRICE_ASC', label: '價格低到高' },
+  { value: 'PRICE_DESC', label: '價格高到低' },
+] as const
+
+const sort = computed(() => {
+  const raw = route.query.sort
+  const value = typeof raw === 'string' ? raw.toUpperCase() : 'NEWEST'
+  return SORT_OPTIONS.some((option) => option.value === value) ? value : 'NEWEST'
+})
+
 const { data: categoryData } = await useFetch<ApiResponse<CategoryView[]>>(
   '/api/v1/catalog/categories',
 )
 const { data: productData } = await useFetch<ApiResponse<ProductPage>>(
   '/api/v1/catalog/products',
   // key 帶上類目，否則切換類目時 Nuxt 會沿用同一份快取結果
-  { query: { categoryId }, key: () => `products-${categoryId.value ?? 'all'}` },
+  {
+    query: { categoryId, sort },
+    // key 要帶上類目**與排序**，否則換排序時 Nuxt 會沿用同一份快取結果
+    key: () => `products-${categoryId.value ?? 'all'}-${sort.value}`,
+  },
 )
 
 const categories = computed(() => categoryData.value?.data ?? [])
@@ -39,12 +58,12 @@ const products = computed(() => [
   ...loadedMore.value,
 ])
 
-const cursor = ref<number | null>(null)
+const cursor = ref<string | null>(null)
 const hasMore = ref(false)
 const loadingMore = ref(false)
 
 // 換類目時已載入的第二頁以後全部作廢——它們屬於上一個類目
-watch(categoryId, () => {
+watch([categoryId, sort], () => {
   loadedMore.value = []
   cursor.value = productData.value?.data?.nextCursor ?? null
   hasMore.value = productData.value?.data?.hasMore ?? false
@@ -63,7 +82,7 @@ async function loadMore() {
   loadingMore.value = true
   try {
     const { request } = useApi()
-    const query = new URLSearchParams({ cursor: String(cursor.value) })
+    const query = new URLSearchParams({ cursor: cursor.value, sort: sort.value })
     if (categoryId.value !== null) {
       query.set('categoryId', String(categoryId.value))
     }
@@ -201,6 +220,25 @@ useHead({ title: '全部商品' })
         <span v-if="option.depth > 0" class="mr-1 text-ink-faint">└</span>{{ option.label }}
       </NuxtLink>
     </nav>
+
+    <!-- 排序。用連結而不是 select，讓每一種排序都是可以貼出去的網址 -->
+    <div class="mb-5 flex flex-wrap items-center gap-2">
+      <span class="eyebrow mr-1">排序</span>
+      <NuxtLink
+        v-for="option in SORT_OPTIONS"
+        :key="option.value"
+        :to="{ path: '/products', query: {
+          ...(categoryId === null ? {} : { category: categoryId }),
+          ...(option.value === 'NEWEST' ? {} : { sort: option.value }),
+        } }"
+        class="rounded-sm px-2.5 py-1 text-xs transition-colors"
+        :class="sort === option.value
+          ? 'bg-accent/10 text-accent'
+          : 'text-ink-muted hover:text-ink'"
+      >
+        {{ option.label }}
+      </NuxtLink>
+    </div>
 
     <ul
       v-if="products.length > 0"

@@ -18,6 +18,10 @@ import java.math.BigDecimal;
  * 而不是靠一個註解提醒後人不要碰 {@code skus()}。
  *
  * @param lowestPrice 最低可購買 SKU 的價格；沒有可購買的 SKU 時為 {@code null}
+ * @param cursor      從這一列往下翻的游標（ADR-0021）。
+ *                    <b>由倉庫產生而不是呼叫端組裝</b>——只有倉庫知道
+ *                    這次是依哪個鍵排序的，而游標的內容必須與排序鍵一致。
+ *                    讓上層自己拼，換一種排序就會有一個地方忘記改
  */
 public record ProductSummary(
         Long id,
@@ -25,6 +29,12 @@ public record ProductSummary(
         String name,
         String brand,
         ProductStatus status,
-        BigDecimal lowestPrice
+        BigDecimal lowestPrice,
+        String cursor
 ) {
+
+    /** 換一個最低價，其餘不變。倉庫批次補價格時用。 */
+    public ProductSummary withLowestPrice(BigDecimal price) {
+        return new ProductSummary(id, categoryId, name, brand, status, price, cursor);
+    }
 }
