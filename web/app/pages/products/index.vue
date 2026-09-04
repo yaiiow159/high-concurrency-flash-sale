@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import type { ApiResponse, CategoryView, ProductView } from '~/types/api'
+import { useApi } from '~/composables/useApi'
+import type { ApiResponse, CategoryView, ProductRatingView, ProductView } from '~/types/api'
 
 /**
  * 商品列表。
@@ -41,6 +42,38 @@ const categoryOptions = computed(() =>
 const activeCategoryName = computed(() =>
   categoryOptions.value.find((option) => option.id === categoryId.value)?.label ?? null,
 )
+
+/**
+ * 評分。
+ *
+ * **一次批次取回整頁的商品，不是每張卡各打一次**——一頁 24 件商品
+ * 逐件查就是 24 次往返，而那正是 N+1 在前端的樣子。
+ *
+ * 在客戶端載入而不是併進這一頁的 SSR：這一頁是 ISR 快取 5 分鐘的，
+ * 評分跟著一起被快取的話，新評價要等快取過期才看得到。
+ * 這與「庫存不進這一頁」是同一個判斷——變動頻率不同的資料不該共用快取。
+ *
+ * 失敗時整份留空，卡片就不顯示星等。fail-open：評分掛掉不該讓人逛不了商品。
+ */
+const ratings = ref<Record<number, ProductRatingView>>({})
+
+async function loadRatings() {
+  const ids = products.value.map((product) => product.productId)
+  if (ids.length === 0) {
+    return
+  }
+  try {
+    const { request } = useApi()
+    ratings.value = await request<Record<number, ProductRatingView>>(
+      `/api/v1/catalog/products/ratings?productIds=${ids.join(',')}`)
+  } catch {
+    ratings.value = {}
+  }
+}
+
+onMounted(loadRatings)
+// 切換類目時商品換了一批，星等要跟著重取
+watch(products, () => { void loadRatings() })
 
 useHead({ title: '全部商品' })
 </script>
@@ -97,6 +130,21 @@ useHead({ title: '全部商品' })
               <div>
                 <p v-if="product.brand" class="eyebrow mb-1">{{ product.brand }}</p>
                 <h2 class="text-sm font-medium leading-snug sm:text-base">{{ product.name }}</h2>
+
+                <!--
+                  沒有評價的商品**不顯示空星星**，整行留白。
+                  一排灰星星讀起來像「被評了 0 分」，
+                  而「還沒有人評價」與「評價很差」是完全不同的兩件事
+                -->
+                <p
+                  v-if="ratings[product.productId]?.count"
+                  class="mt-1.5 flex items-center gap-1.5"
+                >
+                  <StarRating :value="ratings[product.productId]!.average" size="sm" />
+                  <span class="figure text-xs text-ink-faint">
+                    {{ ratings[product.productId]!.count.toLocaleString() }}
+                  </span>
+                </p>
               </div>
               <div class="flex items-baseline gap-1">
                 <MoneyText :amount="product.lowestPrice" size="lg" />

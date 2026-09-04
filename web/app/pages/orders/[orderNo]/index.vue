@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useApi } from '~/composables/useApi'
 import { useReturns } from '~/composables/useReturns'
+import { useReviews } from '~/composables/useReviews'
 import type { OrderView, ShipmentView } from '~/types/api'
 
 /**
@@ -14,6 +15,7 @@ const route = useRoute()
 const orderNo = route.params.orderNo as string
 const { request } = useApi()
 const { inspect } = useReturns()
+const { reviewable } = useReviews()
 
 const order = ref<OrderView | null>(null)
 /** 出貨進度另外取：訂單尚未付款時還沒有出貨單，查不到是正常的 */
@@ -26,21 +28,29 @@ const shipment = ref<ShipmentView | null>(null)
  * 按下去只會得到一個空表單。
  */
 const canReturn = ref(false)
+/**
+ * 這張訂單還有沒有東西可以評價。
+ *
+ * 與 canReturn 同一個道理：只看訂單是不是 COMPLETED 會誤導——
+ * 品項全部評價過之後訂單仍然是 COMPLETED，那時還顯示「撰寫評價」，
+ * 按下去只會得到一個空清單。
+ */
+const canReview = ref(false)
 const loadError = ref<string | null>(null)
 const paying = ref(false)
 
 /**
- * 三個請求<b>並行發出</b>。
+ * 四個請求<b>並行發出</b>。
  *
  * 它們都只需要網址上的 orderNo，彼此不相依——先前是三個接連的 await，
  * 在 200ms 延遲的行動網路上就是 600ms 才看得到畫面，而其中 400ms
  * 純粹是排隊等前一個回來。
  *
- * 出貨單與退貨資格各自 catch：訂單還沒付款時本來就沒有出貨單，
+ * 出貨單、退貨資格與評價資格各自 catch：訂單還沒付款時本來就沒有出貨單，
  * 而任一個附屬查詢失敗都不該讓整張訂單看不到。
  */
 async function load() {
-  const [orderResult, shipmentResult, returnable] = await Promise.all([
+  const [orderResult, shipmentResult, returnable, reviewableNow] = await Promise.all([
     request<OrderView>(`/api/v1/orders/${orderNo}`, { authenticated: true })
       .catch((error: { message?: string }) => {
         loadError.value = error.message ?? '無法載入訂單'
@@ -49,11 +59,13 @@ async function load() {
     request<ShipmentView>(`/api/v1/orders/${orderNo}/shipment`, { authenticated: true })
       .catch(() => null),
     inspect(orderNo).then((view) => view.returnable).catch(() => false),
+    reviewable(orderNo).then((view) => view.reviewable).catch(() => false),
   ])
 
   order.value = orderResult
   shipment.value = shipmentResult
   canReturn.value = returnable
+  canReview.value = reviewableNow
 }
 
 async function pay() {
@@ -159,6 +171,19 @@ useHead({ title: `訂單 ${orderNo}` })
             class="mt-6" size="lg" block :disabled="paying" @click="pay"
           >
             {{ paying ? '前往付款⋯' : '前往付款' }}
+          </AppButton>
+
+          <!--
+            評價排在退貨前面，而且用 primary。
+            對一張已送達的訂單，「分享心得」才是我們希望使用者做的事；
+            把它擺在退貨下面等於暗示退貨比較重要
+          -->
+          <AppButton
+            v-if="canReview"
+            class="mt-6" size="lg" block
+            @click="navigateTo(`/orders/${orderNo}/review`)"
+          >
+            撰寫評價
           </AppButton>
 
           <!-- 退貨是次要動作，用 secondary：它不是我們希望使用者做的事，

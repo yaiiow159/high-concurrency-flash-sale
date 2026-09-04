@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useAddresses } from '~/composables/useAddresses'
+import { useReviews } from '~/composables/useReviews'
 import { useCheckout } from '~/composables/useCheckout'
 import { useCartStore } from '~/stores/cart'
 import { useAuthStore } from '~/stores/auth'
@@ -56,7 +57,22 @@ async function addToCart() {
 const { addresses, defaultAddress, load: loadAddresses } = useAddresses()
 const selectedAddressId = ref<number | null>(null)
 
+/**
+ * 評價。
+ *
+ * 在客戶端載入而不是併進這一頁的 SSR：評價變動比商品頻繁得多，
+ * 跟著 ISR 一起被快取的話，新評價要等快取過期才看得到。
+ *
+ * 失敗不擋住商品頁——這是 fail-open，代價只是「少看到評價」，
+ * 而使用者仍然買得到東西。
+ */
+const {
+  rating, reviews, loading: reviewsLoading, hasMore: hasMoreReviews,
+  load: loadReviews, loadMore: loadMoreReviews,
+} = useReviews()
+
 onMounted(() => {
+  void loadReviews(productId)
   if (auth.isAuthenticated) {
     loadAddresses()
   }
@@ -147,6 +163,23 @@ useHead(() => ({ title: product.value?.name ?? '商品' }))
           <h1 class="mt-1.5 text-2xl font-bold tracking-tight sm:text-3xl">
             {{ product.name }}
           </h1>
+          <!--
+            緊湊評分緊貼標題，那是電商商品頁的固定位置。
+            做成連結捲到評價區：使用者看到 4.3 分的下一個動作
+            就是想知道那 4.3 分是怎麼來的
+          -->
+          <a
+            v-if="rating && rating.count > 0"
+            href="#reviews"
+            class="mt-2.5 inline-flex items-center gap-2 text-sm transition-opacity hover:opacity-80"
+          >
+            <StarRating :value="rating.average" size="sm" />
+            <span class="figure font-medium">{{ rating.average.toFixed(1) }}</span>
+            <span class="text-ink-muted underline decoration-line underline-offset-4">
+              {{ rating.count.toLocaleString() }} 則評價
+            </span>
+          </a>
+
           <p v-if="product.description" class="mt-3 max-w-prose text-ink-muted">
             {{ product.description }}
           </p>
@@ -188,6 +221,26 @@ useHead(() => ({ title: product.value?.name ?? '商品' }))
             max="999"
             class="figure h-11 w-20 rounded-sm border border-line bg-surface px-3 text-center"
           >
+        </section>
+
+        <section id="reviews" class="mt-12 scroll-mt-24" aria-labelledby="reviews-heading">
+          <h2 id="reviews-heading" class="eyebrow mb-4">商品評價</h2>
+
+          <RatingSummary :rating="rating" :loading="reviewsLoading && reviews.length === 0" />
+
+          <!-- divide-y 而不是各自加邊框：最後一則不該有底線 -->
+          <div v-if="reviews.length > 0" class="mt-2 divide-y divide-line">
+            <ReviewCard v-for="review in reviews" :key="review.reviewId" :review="review" />
+          </div>
+
+          <div v-if="hasMoreReviews" class="mt-5 flex justify-center">
+            <AppButton
+              variant="secondary" size="sm" :disabled="reviewsLoading"
+              @click="loadMoreReviews(productId)"
+            >
+              {{ reviewsLoading ? '載入中⋯' : '看更多評價' }}
+            </AppButton>
+          </div>
         </section>
       </div>
 

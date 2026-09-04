@@ -127,6 +127,19 @@ Spring 的交易是動態代理，同一個 Bean 內部呼叫 `this.method()` **
 與 `OutboxRelayer` 拆分同理。**這個 bug 是實機驗證才發現的，
 mock 單元測試看到 `revokeFamily` 有被呼叫就會判定通過。**
 
+### 7-3. 聚合計數一律用增量 UPDATE，不可讀出來加完再寫回
+
+`product_rating` 的 `rating_sum` / `rating_count` / `count_1..5` 全部走
+`SET x = x + ?` 的增量 UPDATE。寫成「SELECT 出來、在 Java 裡加、UPDATE 回去」
+是 read-modify-write：兩個人同時評價同一件商品，兩邊都讀到 count=10、
+各自寫回 11，於是有一則評價從聚合上消失——而評價表裡還在。
+
+**存的是總和與筆數，不是平均值**。存平均就重建不出原始事實，
+新增一則要重算而重算需要筆數。與庫存流水記兩個增減量同一個道理。
+
+改評分時 `rating_count` **不變**，只動總和與兩個分佈桶。
+寫成「先移除再新增」會讓中間有一瞬間筆數少一，那一瞬間被讀到就是錯的平均分。
+
 ### 8. 對帳的自動修復預設關閉
 
 `StockReconciliationService` 只在能被證明安全的情況下才退庫：
@@ -244,5 +257,6 @@ cd web && npx nuxt typecheck                          # 前端型別檢查
 | 「認證改用 Session 比較簡單」 | [ADR-0005](docs/adr/0005-jwt-resource-server-over-custom-filter.md) |
 | 「折扣存一個總額就好」 | [ADR-0013](docs/adr/0013-promotion-pricing-engine.md) |
 | 「一張券用分散式鎖擋重複使用」 | [ADR-0013](docs/adr/0013-promotion-pricing-engine.md) 決策 6 |
+| 「評分聚合存平均值就好」 | [ADR-0014](docs/adr/0014-review-and-rating-aggregate.md) 決策 2 |
 
 若確實有新的理由推翻既有決策，**請新增一份 ADR 說明前提變化**，而不是直接改程式碼。

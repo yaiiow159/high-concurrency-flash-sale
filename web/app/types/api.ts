@@ -417,3 +417,63 @@ export interface ProductSearchResult {
   /** true 代表搜尋引擎故障、這份結果來自資料庫的模糊比對，沒有相關性排序 */
   degraded: boolean
 }
+
+// ---------------------------------------------------------------------------
+// 評價
+//
+// 星等分佈的百分比由**後端**算好。前端拿 count 自己除的話，
+// 兩邊的四捨五入遲早會不同，而那會表現成「長條加起來不是 100%」。
+// ---------------------------------------------------------------------------
+
+/** 一則公開的評價。**刻意沒有 userId**——帶上它等於讓人把某個 ID 的消費紀錄串起來看。 */
+export interface ReviewView {
+  reviewId: number
+  productId: number
+  skuId: number
+  /** 已由伺服器遮蔽（王＊＊）。完整姓名根本不在資料庫裡 */
+  authorName: string
+  stars: number
+  content: string
+  createdAt: string
+  /** 被改過。畫面要標出來——讀者有權知道這不是原始版本 */
+  edited: boolean
+  /** 還在七天修改窗口內。由伺服器判斷，前端不自己拿 createdAt 算 */
+  editable: boolean
+}
+
+export interface RatingBucket {
+  stars: number
+  count: number
+  /** 已算好的百分比（0–100），直接拿去畫長條寬度 */
+  percentage: number
+}
+
+export interface ProductRatingView {
+  productId: number
+  /** 小數一位。count 為 0 時是 0，畫面應顯示「尚無評價」而不是「0 分」 */
+  average: number
+  count: number
+  /** 由高星到低星 */
+  distribution: RatingBucket[]
+}
+
+/** 這張訂單現在能評什麼。可評項目由後端算，前端不自己比對。 */
+export interface ReviewableView {
+  orderNo: string
+  reviewable: boolean
+  /** 不能評時的原因，直接顯示；可評時後端省略此欄位 */
+  reason?: string | null
+  lines: Array<{
+    skuId: number
+    skuSnapshot: string
+    /** false 代表已評價過，畫面應標成已評價而不是隱藏 */
+    pending: boolean
+  }>
+}
+
+/** 發表與修改共用。沒有 authorName——那是伺服器從帳號取出並遮蔽的。 */
+export interface WriteReviewPayload {
+  skuId?: number
+  stars: number
+  content: string
+}
