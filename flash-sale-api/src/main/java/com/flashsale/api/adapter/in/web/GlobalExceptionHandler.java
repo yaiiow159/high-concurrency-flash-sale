@@ -106,7 +106,12 @@ public class GlobalExceptionHandler {
             // 其餘三種都是「狀態不允許」而不是「請求寫錯」
             Map.entry(ErrorCode.ORDER_NOT_REVIEWABLE, HttpStatus.CONFLICT),
             Map.entry(ErrorCode.ALREADY_REVIEWED, HttpStatus.CONFLICT),
-            Map.entry(ErrorCode.REVIEW_EDIT_WINDOW_CLOSED, HttpStatus.CONFLICT)
+            Map.entry(ErrorCode.REVIEW_EDIT_WINDOW_CLOSED, HttpStatus.CONFLICT),
+            Map.entry(ErrorCode.PROMOTION_NOT_FOUND, HttpStatus.NOT_FOUND),
+            // 「不開放兌換」與「積分不足」都是狀態問題而不是請求寫錯：
+            // 同一個請求在別的時間點或別的餘額下會成功
+            Map.entry(ErrorCode.PROMOTION_NOT_EXCHANGEABLE, HttpStatus.CONFLICT),
+            Map.entry(ErrorCode.INSUFFICIENT_POINTS, HttpStatus.CONFLICT)
     );
 
     @ExceptionHandler(BusinessException.class)

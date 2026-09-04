@@ -1,5 +1,6 @@
 package com.flashsale.application.service;
 
+import com.flashsale.application.port.in.MembershipUseCase;
 import com.flashsale.application.port.in.ReturnUseCase;
 import com.flashsale.application.port.in.command.OpenReturnCommand;
 import com.flashsale.application.port.in.dto.ReturnRequestView;
@@ -84,6 +85,7 @@ public class ReturnService implements ReturnUseCase {
     private final OrderRepository orderRepository;
     private final PaymentRepository paymentRepository;
     private final EventOutbox eventOutbox;
+    private final MembershipUseCase membershipUseCase;
     private final Clock clock;
 
     public ReturnService(ReturnRequestRepository returnRepository,
@@ -91,7 +93,9 @@ public class ReturnService implements ReturnUseCase {
                          OrderRepository orderRepository,
                          PaymentRepository paymentRepository,
                          EventOutbox eventOutbox,
+                         MembershipUseCase membershipUseCase,
                          Clock clock) {
+        this.membershipUseCase = membershipUseCase;
         this.returnRepository = returnRepository;
         this.returnNoGenerator = returnNoGenerator;
         this.orderRepository = orderRepository;
@@ -249,6 +253,19 @@ public class ReturnService implements ReturnUseCase {
             orderRepository.update(order);
             log.info("訂單 {} 已全額退款", order.orderNo());
         }
+
+        // 積分扣回，**在同一個交易裡**。
+        //
+        // 走事件的話會開一個窗口：錢已經退了、積分還沒扣，而那段時間
+        // 剛好夠使用者把點兌換掉。同一個交易則兩者同生共死——
+        // 這是「不要跨資源」原則的又一次應用（兩邊都是這個資料庫）。
+        //
+        // 用訂單的實付總額算比例，而不是行小計加總：有折扣的訂單
+        // 兩者不同，而積分當初是按實付發的（ADR-0016 決策 5）。
+        Order orderForPoints = requireOrder(request.orderNo().value());
+        membershipUseCase.clawbackForReturn(orderForPoints.userId(),
+                orderForPoints.orderNo().value(), returnNo,
+                request.refundAmount(), orderForPoints.totalAmount());
 
         eventOutbox.append(events);
         log.info("已送出退款 returnNo={}, 金額={}, 付款狀態={}",

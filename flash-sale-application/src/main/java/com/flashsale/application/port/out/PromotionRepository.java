@@ -38,4 +38,18 @@ public interface PromotionRepository {
      * @return {@code true} 表示這次真的核銷了；{@code false} 代表已被用掉
      */
     boolean redeem(Long couponId, String orderNo, Instant usedAt);
+
+    /** 開放用積分兌換的優惠。 */
+    List<Promotion> findExchangeable(Instant now);
+
+    /**
+     * 發一張券給使用者。
+     *
+     * <p>{@code MANDATORY} 語意：發券必須跟著扣點一起成功或一起回滾。
+     * 分開做的話，先扣點後發券則扣了點沒拿到券，
+     * 先發券後扣點則拿到券卻沒扣點——後者是可以無限重複的。
+     *
+     * @return 券號，前端要顯示給使用者
+     */
+    String issueCoupon(Long userId, Long promotionId, Instant expiresAt);
 }

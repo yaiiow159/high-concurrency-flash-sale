@@ -37,6 +37,10 @@ public class PromotionEntity {
     @Column(name = "max_discount", precision = 12, scale = 2)
     private BigDecimal maxDiscount;
 
+    /** 兌換所需積分；{@code null} 代表不開放兌換。 */
+    @Column(name = "point_cost")
+    private Long pointCost;
+
     @Column(name = "start_at", nullable = false)
     private Instant startAt;
 
@@ -76,6 +80,10 @@ public class PromotionEntity {
 
     public BigDecimal getMaxDiscount() {
         return maxDiscount;
+    }
+
+    public Long getPointCost() {
+        return pointCost;
     }
 
     public Instant getStartAt() {

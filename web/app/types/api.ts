@@ -477,3 +477,62 @@ export interface WriteReviewPayload {
   stars: number
   content: string
 }
+
+// ---------------------------------------------------------------------------
+// 會員
+//
+// 升級進度與「換不換得起」都由**後端**算好。前端拿門檻自己內插，
+// 會在「剛升級」與「已達頂級」兩個邊界算出 NaN 或超過 100 的值，
+// 而那會直接畫成一條超出容器的長條。
+// ---------------------------------------------------------------------------
+
+export interface MemberProfileView {
+  userId: number
+  /** 代號，供前端對應樣式 */
+  tier: string
+  tierName: string
+  /** 這個等級的積分回饋倍率。顯示出來讓「升級」有一個算得出來的價值 */
+  multiplier: number
+  pointBalance: number
+  /** 餘額為負：退貨扣回時使用者已經把點花掉了。那是真實的債務，不是錯誤 */
+  inDebt: boolean
+  cumulativeSpend: number
+  /** 已是最高等級時為 null——畫面要顯示「已達最高等級」而不是「還差 0 元」 */
+  nextTier: string | null
+  nextTierName: string | null
+  amountToNextTier: number
+  /** 0–100，已由後端夾住 */
+  progressToNextTier: number
+}
+
+export interface PointTransactionView {
+  id: number
+  /** 正數為入帳、負數為扣回 */
+  delta: number
+  /** 這一筆之後的餘額。讓使用者不必自己從最新餘額往回加 */
+  balanceAfter: number
+  reason: string
+  /** 已經翻好的中文。翻譯放後端——同一組代號也會出現在後台與客服工具上 */
+  reasonName: string
+  refNo: string
+  createdAt: string
+}
+
+export interface ExchangeableCouponView {
+  promotionId: number
+  name: string
+  rule: string
+  threshold: number
+  value: number
+  maxDiscount: number | null
+  pointCost: number
+  /** 目前餘額換不換得起。由後端算，避免三處各判斷一次而有一處寫成 > */
+  affordable: boolean
+}
+
+export interface ExchangeResult {
+  couponCode: string
+  promotionName: string
+  pointsSpent: number
+  balanceAfter: number
+}

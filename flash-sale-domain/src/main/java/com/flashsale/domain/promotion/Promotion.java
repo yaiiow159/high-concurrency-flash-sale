@@ -47,9 +47,19 @@ public final class Promotion {
     private final Instant endAt;
     private final boolean enabled;
 
+    /**
+     * 兌換所需積分；{@code null} 代表不開放兌換。
+     *
+     * <p>掛在這裡而不是另開一張「兌換商品表」：兌換出來的<b>就是一張券</b>，
+     * 而券的規則已經在這個聚合根裡了。另開一張表等於把同一件事描述兩次，
+     * 而兩份描述遲早會不一致。
+     */
+    private final Long pointCost;
+
     private Promotion(Long id, String name, DiscountType type, PromotionRule rule,
                       BigDecimal threshold, BigDecimal value, BigDecimal maxDiscount,
-                      Instant startAt, Instant endAt, boolean enabled) {
+                      Instant startAt, Instant endAt, boolean enabled, Long pointCost) {
+        this.pointCost = pointCost;
         this.id = id;
         this.name = requireName(name);
         this.type = Objects.requireNonNull(type, "type 不可為 null");
@@ -80,8 +90,15 @@ public final class Promotion {
     public static Promotion of(Long id, String name, DiscountType type, PromotionRule rule,
                                BigDecimal threshold, BigDecimal value, BigDecimal maxDiscount,
                                Instant startAt, Instant endAt, boolean enabled) {
+        return of(id, name, type, rule, threshold, value, maxDiscount,
+                startAt, endAt, enabled, null);
+    }
+
+    public static Promotion of(Long id, String name, DiscountType type, PromotionRule rule,
+                               BigDecimal threshold, BigDecimal value, BigDecimal maxDiscount,
+                               Instant startAt, Instant endAt, boolean enabled, Long pointCost) {
         return new Promotion(id, name, type, rule, threshold, value, maxDiscount,
-                startAt, endAt, enabled);
+                startAt, endAt, enabled, pointCost);
     }
 
     /**
@@ -167,5 +184,19 @@ public final class Promotion {
 
     public boolean enabled() {
         return enabled;
+    }
+
+    public Long pointCost() {
+        return pointCost;
+    }
+
+    /**
+     * 這個優惠能不能用積分換。
+     *
+     * <p>兌換價為 0 或負數視為不可兌換——免費的「兌換」不是兌換，
+     * 而那多半是資料填錯而不是刻意的設計。
+     */
+    public boolean isExchangeable() {
+        return pointCost != null && pointCost > 0;
     }
 }
