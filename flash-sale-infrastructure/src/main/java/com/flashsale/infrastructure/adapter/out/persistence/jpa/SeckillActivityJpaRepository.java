@@ -1,6 +1,7 @@
 package com.flashsale.infrastructure.adapter.out.persistence.jpa;
 
 import com.flashsale.infrastructure.adapter.out.persistence.entity.SeckillActivityEntity;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -17,6 +18,17 @@ public interface SeckillActivityJpaRepository extends JpaRepository<SeckillActiv
             order by a.startAt asc
             """)
     List<SeckillActivityEntity> findOnline(@Param("now") Instant now);
+
+    /**
+     * 後台用：所有活動，含草稿與已下架。
+     *
+     * <p>與 {@link #findOnline} 分開而不是加旗標：兩者的呼叫端完全不同，
+     * 而一個布林參數會讓「誰看得到草稿」變成呼叫端的自由心證。
+     *
+     * <p>由新到舊——後台關心的永遠是最近建的那幾檔。
+     */
+    @Query("select a from SeckillActivityEntity a order by a.id desc")
+    List<SeckillActivityEntity> findAllForAdmin(Pageable pageable);
 
     /**
      * 需要對帳的活動：已上架，且結束時間仍在保留窗口內。

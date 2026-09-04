@@ -33,6 +33,9 @@ public interface ActivityRepository {
     /** 已上架且尚未結束的活動，用於啟動預熱與首頁列表。 */
     List<SeckillActivity> findOnlineActivities();
 
+    /** 後台用：所有活動（含草稿與已下架），由新到舊。 */
+    List<SeckillActivity> findAllForAdmin(int limit, int offset);
+
     /**
      * 需要納入對帳的活動：進行中的，加上剛結束不久的。
      *

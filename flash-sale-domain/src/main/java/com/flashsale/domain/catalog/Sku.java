@@ -31,13 +31,27 @@ public final class Sku {
     private Sku(Long id, Long productId, SkuSpec spec, BigDecimal price,
                 String barcode, ProductStatus status) {
         this.id = id;
-        this.productId = Objects.requireNonNull(productId, "productId 不可為 null");
+        // productId 刻意允許為 null——見 create() 的說明。
+        // 重建路徑由 restore() 自己要求它不可為 null
+        this.productId = productId;
         this.spec = Objects.requireNonNull(spec, "spec 不可為 null");
         this.price = requirePositive(price);
         this.barcode = barcode;
         this.status = Objects.requireNonNull(status, "status 不可為 null");
     }
 
+    /**
+     * 建立一個新規格。
+     *
+     * <p><b>{@code productId} 允許為 {@code null}</b>，而且新建商品時本來就是 null：
+     * SKU 是 Product 聚合的一部分，兩者一起被建立，
+     * 而商品的 ID 要等持久化之後才存在。要求它非空等於要求
+     * 「先存商品、再存規格」——那會讓一個聚合分兩次寫入，
+     * 中間出錯就留下一個沒有規格的商品，而那正是我們不允許存在的東西。
+     *
+     * <p>持久化層本來就不讀這個欄位（SKU 的歸屬由 JPA 的關聯維護），
+     * 它只在<b>重建</b>之後才有值——因此 {@link #restore} 仍然要求它非空。
+     */
     public static Sku create(Long productId, SkuSpec spec, BigDecimal price, String barcode) {
         return new Sku(null, productId, spec, price, barcode, ProductStatus.DRAFT);
     }
@@ -45,7 +59,8 @@ public final class Sku {
     public static Sku restore(Long id, Long productId, SkuSpec spec, BigDecimal price,
                               String barcode, ProductStatus status) {
         return new Sku(Objects.requireNonNull(id, "重建時 id 不可為 null"),
-                productId, spec, price, barcode, status);
+                Objects.requireNonNull(productId, "重建時 productId 不可為 null"),
+                spec, price, barcode, status);
     }
 
     /**

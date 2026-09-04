@@ -200,4 +200,29 @@ class ProductTest {
         attributes.put("容量", capacity);
         return SkuSpec.of(attributes);
     }
+
+    @org.junit.jupiter.api.Nested
+    @DisplayName("建立時的 SKU 歸屬")
+    class SkuOwnershipOnCreate {
+
+        @Test
+        @DisplayName("新建的 SKU 沒有 productId——商品的 ID 要等持久化之後才存在")
+        void newSkuHasNoProductIdYet() {
+            // 要求它非空等於要求「先存商品、再存規格」，
+            // 而那會讓一個聚合分兩次寫入，中間出錯就留下沒有規格的商品
+            Sku sku = Sku.create(null, spec("256G"), new BigDecimal("29900"), "X-1");
+
+            assertThat(sku.productId()).isNull();
+            assertThat(sku.status()).isEqualTo(ProductStatus.DRAFT);
+        }
+
+        @Test
+        @DisplayName("重建時 productId 仍然必填——那時它一定有值")
+        void restoreStillRequiresProductId() {
+            assertThatThrownBy(() -> Sku.restore(1L, null, spec("256G"),
+                    new BigDecimal("29900"), "X-1", ProductStatus.ON_SHELF))
+                    .isInstanceOf(NullPointerException.class)
+                    .hasMessageContaining("productId");
+        }
+    }
 }

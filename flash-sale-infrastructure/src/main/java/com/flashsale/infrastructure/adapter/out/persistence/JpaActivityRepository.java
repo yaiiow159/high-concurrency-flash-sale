@@ -7,6 +7,7 @@ import com.flashsale.domain.shared.BusinessException;
 import com.flashsale.domain.shared.ErrorCode;
 import com.flashsale.infrastructure.adapter.out.persistence.jpa.SeckillActivityJpaRepository;
 import com.flashsale.infrastructure.adapter.out.persistence.mapper.ActivityMapper;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -47,6 +48,15 @@ public class JpaActivityRepository implements ActivityRepository {
                         "活動不存在: " + activity.id()));
         entity.applyStatus(activity.status().name());
         return ActivityMapper.toDomain(entity);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<SeckillActivity> findAllForAdmin(int limit, int offset) {
+        return jpaRepository
+                .findAllForAdmin(PageRequest.of(offset / Math.max(limit, 1), limit)).stream()
+                .map(ActivityMapper::toDomain)
+                .toList();
     }
 
     @Override

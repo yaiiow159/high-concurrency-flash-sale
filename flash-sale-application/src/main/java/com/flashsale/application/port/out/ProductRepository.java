@@ -38,6 +38,17 @@ public interface ProductRepository {
     List<Product> findOnShelf(Long categoryId, int limit, int offset);
 
     /**
+     * 後台用：列出<b>所有狀態</b>的商品。
+     *
+     * <p>與 {@link #findOnShelf} 分開而不是加一個「要不要含下架」的旗標：
+     * 兩者的呼叫端完全不同（前台 vs 後台），而一個布林參數會讓
+     * 「誰能看到草稿」這件事變成呼叫端的自由心證。
+     *
+     * @param status {@code null} 表示不限狀態
+     */
+    List<Product> findAllByStatus(String status, int limit, int offset);
+
+    /**
      * 依 SKU 反查其所屬商品。
      *
      * <p>秒殺活動引用的是 SKU，但要組出訂單行的商品快照需要商品名稱。

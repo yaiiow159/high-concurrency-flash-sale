@@ -121,6 +121,21 @@ public class MultiLevelActivityRepository implements ActivityRepository {
         return rebuild(activityId);
     }
 
+    /**
+     * 後台清單<b>一律直接回源，不經過任何一層快取</b>。
+     *
+     * <p>兩個理由。其一：後台看到的必須是當下的真實狀態——
+     * 維運剛下架一檔活動，後台卻因為快取還顯示「上架中」，
+     * 他會再按一次，而那才是真正危險的地方。
+     *
+     * <p>其二：這支查詢每天被呼叫幾十次，快取它省不到任何東西，
+     * 卻多一個會過期、會失效、會出錯的東西。
+     */
+    @Override
+    public List<SeckillActivity> findAllForAdmin(int limit, int offset) {
+        return delegate.findAllForAdmin(limit, offset);
+    }
+
     @Override
     public List<SeckillActivity> findOnlineActivities() {
         // 列表查詢不在秒殺熱路徑上（只有首頁會呼叫），單層本機快取已足夠。

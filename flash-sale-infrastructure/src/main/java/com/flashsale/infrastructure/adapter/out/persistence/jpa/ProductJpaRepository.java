@@ -32,6 +32,19 @@ public interface ProductJpaRepository extends JpaRepository<ProductEntity, Long>
             """)
     List<ProductEntity> findOnShelf(@Param("categoryId") Long categoryId, Pageable pageable);
 
+    /**
+     * 後台用：所有狀態的商品。
+     *
+     * <p>{@code :status is null} 才不限狀態——空字串不是「不限」，
+     * 那會是一個永遠比對不到的狀態值，而症狀是「後台一片空白」。
+     */
+    @Query("""
+            select p from ProductEntity p
+            where (:status is null or p.status = :status)
+            order by p.id desc
+            """)
+    List<ProductEntity> findAllByStatus(@Param("status") String status, Pageable pageable);
+
     /** 所有已上架商品的 ID。只取 ID——對帳問的是「在不在」，不需要內容。 */
     @Query("select p.id from ProductEntity p where p.status = 'ON_SHELF'")
     List<Long> findOnShelfIds();
