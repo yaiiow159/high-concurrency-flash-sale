@@ -39,10 +39,15 @@ public record PointTransaction(
             // 沒有來源單號的異動無法冪等，也無法追溯。人工調整也要給一個編號
             throw new BusinessException(ErrorCode.INVALID_PARAMETER, "積分異動必須有來源單號");
         }
-        if (delta == 0) {
-            // 零異動只會讓流水變長而說不出任何事情
-            throw new BusinessException(ErrorCode.INVALID_PARAMETER, "積分異動量不可為 0");
-        }
+        // delta 允許為 0。
+        //
+        // 一開始禁止它，理由是「零異動只會讓流水變長而說不出任何事情」——
+        // 那是錯的。一筆 50 元的訂單拿不到點（每 100 元 1 點），
+        // 但它**確實是消費**，必須計入累計消費否則等級永遠推不動。
+        //
+        // 而累計消費的冪等鍵就在這張流水表上，因此那筆訂單必須有一列。
+        // 它說的是「這張訂單算進會員資格了，只是不足一點」，
+        // 那是一句有內容的話。
     }
 
     public static PointTransaction of(Long userId, long delta, long balanceAfter,

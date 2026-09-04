@@ -1,5 +1,6 @@
 package com.flashsale.application.port.in;
 
+import com.flashsale.application.port.in.dto.ExchangeableCouponView;
 import com.flashsale.application.port.in.dto.MemberProfileView;
 import com.flashsale.application.port.in.dto.PointTransactionView;
 
@@ -14,6 +15,9 @@ public interface MembershipUseCase {
 
     /** 積分流水，新到舊。 */
     List<PointTransactionView> transactions(Long userId, int page, int size);
+
+    /** 目前開放兌換的券，並標好使用者換不換得起。 */
+    List<ExchangeableCouponView> exchangeableCoupons(Long userId);
 
     /**
      * 訂單完成入帳。

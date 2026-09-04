@@ -129,6 +129,14 @@ public class JpaMembershipRepository implements MembershipRepository {
      * Identity 認得 Membership，那是一條不必要的跨脈絡依賴。
      * 在這裡補是最便宜的做法：每次異動都問一次主鍵，成本可以忽略。
      */
+    @Override
+    @Transactional(readOnly = true)
+    public List<BalanceDrift> findBalanceDrifts() {
+        return accountJpaRepository.findBalanceDrifts().stream()
+                .map(row -> new BalanceDrift(row.getUserId(), row.getLedgerSum(), row.getBalance()))
+                .toList();
+    }
+
     /** 更新後的餘額。查不到時退回「只有這一筆」的假設，而那只會發生在資料被外力刪除時。 */
     private long balanceOf(Long userId, long fallbackDelta) {
         Long balance = accountJpaRepository.findBalance(userId);

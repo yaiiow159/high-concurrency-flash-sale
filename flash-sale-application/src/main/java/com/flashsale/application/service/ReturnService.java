@@ -247,8 +247,11 @@ public class ReturnService implements ReturnUseCase {
         // 全額退完才動訂單狀態。用付款聚合根的判斷而不是自己再算一次——
         // 它剛剛才根據累計金額決定了 REFUNDED 還是 PARTIALLY_REFUNDED，
         // 這裡重算等於製造第二個真實來源
+        // 訂單只查一次。先前這裡查了兩次（全額退款分支一次、積分扣回一次），
+        // 而它們要的是同一筆資料
+        Order order = requireOrder(request.orderNo().value());
+
         if (payment.status() == PaymentStatus.REFUNDED) {
-            Order order = requireOrder(request.orderNo().value());
             order.markFullyRefunded("退貨單 " + returnNo, now);
             orderRepository.update(order);
             log.info("訂單 {} 已全額退款", order.orderNo());
@@ -262,10 +265,8 @@ public class ReturnService implements ReturnUseCase {
         //
         // 用訂單的實付總額算比例，而不是行小計加總：有折扣的訂單
         // 兩者不同，而積分當初是按實付發的（ADR-0016 決策 5）。
-        Order orderForPoints = requireOrder(request.orderNo().value());
-        membershipUseCase.clawbackForReturn(orderForPoints.userId(),
-                orderForPoints.orderNo().value(), returnNo,
-                request.refundAmount(), orderForPoints.totalAmount());
+        membershipUseCase.clawbackForReturn(order.userId(), order.orderNo().value(),
+                returnNo, request.refundAmount(), order.totalAmount());
 
         eventOutbox.append(events);
         log.info("已送出退款 returnNo={}, 金額={}, 付款狀態={}",

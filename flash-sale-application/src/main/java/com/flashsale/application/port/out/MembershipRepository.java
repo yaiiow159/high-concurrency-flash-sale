@@ -63,4 +63,19 @@ public interface MembershipRepository {
 
     /** 某一筆來源單號的異動；退款要按比例扣回時需要查出原始入帳的點數。 */
     Optional<PointTransaction> findByReference(Long userId, PointReason reason, String refNo);
+
+    /**
+     * 對帳：餘額與流水加總不符的帳戶。
+     *
+     * <p><b>只回不平的</b>，帳平的不佔回應——與全量庫存對帳同一個做法。
+     * 回一整份「全部正常」的清單，會讓真正的問題埋在幾萬列裡。
+     *
+     * <p>用一句 SQL 在資料庫端比對，而不是把所有帳戶撈回來在 Java 裡加。
+     * 後者在帳戶數上萬時是一次全表搬運，而對帳的目的是「找出少數異常」。
+     */
+    List<BalanceDrift> findBalanceDrifts();
+
+    /** @param ledgerSum 流水的 delta 加總；{@code balance} 是帳戶上的快照 */
+    record BalanceDrift(Long userId, long ledgerSum, long balance) {
+    }
 }

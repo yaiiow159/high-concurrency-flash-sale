@@ -3,6 +3,8 @@ package com.flashsale.api.adapter.in.web;
 import com.flashsale.api.adapter.in.web.dto.ApiResponse;
 import com.flashsale.application.port.in.InventoryReconciliationUseCase;
 import com.flashsale.application.port.in.StockReconciliationUseCase;
+import com.flashsale.application.port.in.MembershipReconciliationUseCase;
+import com.flashsale.application.port.in.dto.PointBalanceReconciliation;
 import com.flashsale.application.port.in.StockReleaseUseCase;
 import com.flashsale.application.port.in.dto.ActivityReconciliation;
 import com.flashsale.application.port.in.dto.SkuReconciliation;
@@ -35,10 +37,13 @@ public class InventoryAdminController {
     private final StockReconciliationUseCase stockReconciliationUseCase;
     private final InventoryReconciliationUseCase inventoryReconciliationUseCase;
     private final StockReleaseUseCase stockReleaseUseCase;
+    private final MembershipReconciliationUseCase membershipReconciliationUseCase;
 
     public InventoryAdminController(StockReconciliationUseCase stockReconciliationUseCase,
                                     InventoryReconciliationUseCase inventoryReconciliationUseCase,
-                                    StockReleaseUseCase stockReleaseUseCase) {
+                                    StockReleaseUseCase stockReleaseUseCase,
+                                    MembershipReconciliationUseCase membershipReconciliationUseCase) {
+        this.membershipReconciliationUseCase = membershipReconciliationUseCase;
         this.stockReconciliationUseCase = stockReconciliationUseCase;
         this.inventoryReconciliationUseCase = inventoryReconciliationUseCase;
         this.stockReleaseUseCase = stockReleaseUseCase;
@@ -69,6 +74,19 @@ public class InventoryAdminController {
      * <b>不會繞過緩衝期的保護</b>：釋放本身仍以劃撥流水判斷是否已執行過，
      * 且 Redis 餘量是當下讀的——提早呼叫只會把還可能被補償退回的量算漏。
      */
+    /**
+     * 積分對帳：餘額與流水加總不符的帳戶。
+     *
+     * <p><b>只讀不修</b>——與一般庫存對帳同一個立場：這裡的偏差本身就代表
+     * 有東西繞過了正規路徑，此時「自動修正」等於用一個猜測覆蓋另一個猜測。
+     * 而且兩個方向都可能是對的：餘額多了可能是流水漏寫，也可能是有人直接改了餘額。
+     */
+    @GetMapping("/reconciliation/points")
+    @Operation(summary = "積分對帳", description = "只回不平的帳戶；只讀不修")
+    public ApiResponse<PointBalanceReconciliation> reconcilePoints() {
+        return ApiResponse.ok(membershipReconciliationUseCase.reconcile());
+    }
+
     @PostMapping("/activities/{activityId}/release")
     @Operation(summary = "釋放活動庫存", description = "把未售出的量歸還可售池；已釋放過則不重複執行")
     public ApiResponse<Map<String, Object>> release(@PathVariable Long activityId) {

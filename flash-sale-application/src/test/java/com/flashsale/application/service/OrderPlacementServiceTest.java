@@ -225,8 +225,8 @@ class OrderPlacementServiceTest {
         @DisplayName("下架商品不可下單，且錯誤碼要能區分原因")
         void refusesUnpurchasableProduct() {
             givenAddress();
-            when(productRepository.findBySkuId(SKU_A))
-                    .thenReturn(Optional.of(product(ProductStatus.OFF_SHELF)));
+            when(productRepository.findBySkuIds(any()))
+                    .thenReturn(List.of(product(ProductStatus.OFF_SHELF)));
 
             assertThatThrownBy(() -> service().place(command(new OrderItem(SKU_A, 1))))
                     .isInstanceOf(BusinessException.class)
@@ -241,7 +241,8 @@ class OrderPlacementServiceTest {
         @DisplayName("不存在的規格回 SKU_NOT_FOUND，不會靜默略過那一行")
         void refusesUnknownSku() {
             givenAddress();
-            when(productRepository.findBySkuId(9999L)).thenReturn(Optional.empty());
+            // 批次查回空清單 = 這個 SKU 不存在
+            when(productRepository.findBySkuIds(any())).thenReturn(List.of());
 
             assertThatThrownBy(() -> service().place(command(new OrderItem(9999L, 1))))
                     .isInstanceOf(BusinessException.class)
@@ -484,10 +485,10 @@ class OrderPlacementServiceTest {
         givenAddress();
         when(orderRepository.findByRequestId("req-1")).thenReturn(Optional.empty());
         when(orderNoGenerator.next()).thenReturn(OrderNo.of(ORDER_NO));
-        when(productRepository.findBySkuId(SKU_A))
-                .thenReturn(Optional.of(product(ProductStatus.ON_SHELF)));
-        when(productRepository.findBySkuId(SKU_B))
-                .thenReturn(Optional.of(product(ProductStatus.ON_SHELF)));
+        // 批次查：兩個 SKU 屬於同一個商品，因此回一筆就涵蓋兩者。
+        // 先前這裡 stub 的是逐筆的 findBySkuId，而那正是被修掉的 N+1
+        when(productRepository.findBySkuIds(any()))
+                .thenReturn(List.of(product(ProductStatus.ON_SHELF)));
     }
 
     private void givenAddress() {

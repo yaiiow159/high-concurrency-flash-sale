@@ -6,7 +6,6 @@ import com.flashsale.application.port.in.MembershipUseCase;
 import com.flashsale.application.port.in.dto.ExchangeableCouponView;
 import com.flashsale.application.port.in.dto.MemberProfileView;
 import com.flashsale.application.port.in.dto.PointTransactionView;
-import com.flashsale.application.service.MembershipService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -34,19 +33,9 @@ public class MembershipController {
     private static final int MAX_PAGE_SIZE = 50;
 
     private final MembershipUseCase membershipUseCase;
-    /**
-     * 兌換清單只在會員中心用得到，沒有進 use case 介面。
-     *
-     * <p>直接依賴實作是個取捨：為一個查詢在埠上多開一個方法，
-     * 換來的是「介面完整」這個抽象的好處；而這裡的呼叫端只有一個。
-     * 之後若有第二個呼叫端（例如後台要看兌換率），那時再提升它。
-     */
-    private final MembershipService membershipService;
 
-    public MembershipController(MembershipUseCase membershipUseCase,
-                                MembershipService membershipService) {
+    public MembershipController(MembershipUseCase membershipUseCase) {
         this.membershipUseCase = membershipUseCase;
-        this.membershipService = membershipService;
     }
 
     @GetMapping("/profile")
@@ -69,7 +58,7 @@ public class MembershipController {
     @GetMapping("/exchange")
     @Operation(summary = "可兌換的優惠券", description = "並標示目前餘額換不換得起")
     public ApiResponse<List<ExchangeableCouponView>> exchangeable(@CurrentUser Long userId) {
-        return ApiResponse.ok(membershipService.exchangeableCoupons(userId));
+        return ApiResponse.ok(membershipUseCase.exchangeableCoupons(userId));
     }
 
     /**

@@ -72,7 +72,7 @@ public class MembershipService implements MembershipUseCase {
                 .toList();
     }
 
-    /** 目前開放兌換的券，並標好使用者換不換得起。 */
+    @Override
     @Transactional(readOnly = true)
     public List<ExchangeableCouponView> exchangeableCoupons(Long userId) {
         long balance = membershipRepository.findAccount(userId).pointBalance();
@@ -96,12 +96,13 @@ public class MembershipService implements MembershipUseCase {
         MemberAccount account = membershipRepository.findAccount(userId);
         long points = account.tier().pointsFor(paidAmount);
 
-        if (points <= 0) {
-            // 金額不足一點。**累計消費仍然要記**——不記的話，
-            // 一連串小額訂單永遠推不動等級，而它們確實是消費
-            if (paidAmount != null && paidAmount.signum() > 0) {
-                log.debug("訂單 {} 金額 {} 不足一點，只累計消費", orderNo, paidAmount);
-            }
+        // 金額為 0 或負數才真的什麼都不做。
+        //
+        // **不足一點仍然要寫一列**：一筆 50 元的訂單拿不到點，但它確實是消費，
+        // 不計入累計消費的話，一連串小額訂單永遠推不動等級。
+        // 而累計消費的冪等鍵就在流水表上，因此那筆訂單必須有一列——
+        // 這也是 PointTransaction 允許 delta 為 0 的理由。
+        if (paidAmount == null || paidAmount.signum() <= 0) {
             return 0L;
         }
 
@@ -112,8 +113,8 @@ public class MembershipService implements MembershipUseCase {
             return 0L;
         }
 
-        log.info("積分入帳 userId={}, orderNo={}, 等級={}, 點數={}",
-                userId, orderNo, account.tier(), points);
+        log.info("積分入帳 userId={}, orderNo={}, 等級={}, 點數={}, 累計消費 +{}",
+                userId, orderNo, account.tier(), points, paidAmount);
         return points;
     }
 

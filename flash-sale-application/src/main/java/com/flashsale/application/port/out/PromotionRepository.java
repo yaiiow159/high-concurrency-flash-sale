@@ -5,6 +5,7 @@ import com.flashsale.domain.promotion.Promotion;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /** 優惠與券的持久化埠（出站）。 */
@@ -14,6 +15,17 @@ public interface PromotionRepository {
     List<Promotion> findActivePromotions(Instant now);
 
     Optional<Promotion> findPromotionById(Long promotionId);
+
+    /**
+     * 批次取規則，供「我的優惠券」使用。
+     *
+     * <p>存在的唯一理由是避免 N+1：使用者手上有 20 張券，逐張查規則就是
+     * 20 次往返，而這支在結帳頁載入時就會被打。
+     *
+     * <p>回傳的 Map <b>只包含查得到的</b>——規則被硬刪時那張券就沒有意義了，
+     * 呼叫端跳過它而不是拋例外。
+     */
+    Map<Long, Promotion> findPromotionsByIds(List<Long> promotionIds);
 
     Optional<Coupon> findCoupon(Long couponId);
 
