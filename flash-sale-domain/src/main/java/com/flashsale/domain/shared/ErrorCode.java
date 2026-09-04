@@ -78,7 +78,15 @@ public enum ErrorCode {
     MESSAGE_PUBLISH_FAILED("C0003", "訊息投遞失敗"),
     SYSTEM_BUSY("C0004", "系統繁忙，請稍後再試"),
     /** 金流閘道暫時不可用。C 系列＝可重試，退款消費端靠這個分類才會被重投。 */
-    PAYMENT_GATEWAY_UNAVAILABLE("C0005", "金流服務暫時不可用");
+    PAYMENT_GATEWAY_UNAVAILABLE("C0005", "金流服務暫時不可用"),
+    /**
+     * 搜尋索引暫時不可用。
+     *
+     * <p>C 系列＝可重試。這件事很重要：索引寫入失敗若被歸為不可重試，
+     * 訊息會第一次就進死信，而那件商品的索引<b>永久停在舊狀態</b>——
+     * 下架的繼續被搜到、上架的永遠搜不到，而且完全沒有錯誤訊息。
+     */
+    SEARCH_INDEX_UNAVAILABLE("C0006", "搜尋索引暫時不可用");
 
     private final String code;
     private final String defaultMessage;

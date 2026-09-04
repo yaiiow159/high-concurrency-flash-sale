@@ -8,6 +8,8 @@ import com.flashsale.application.port.in.dto.ProductSearchResult;
 import com.flashsale.application.port.out.ProductRepository;
 import com.flashsale.application.port.out.ProductSearchIndex;
 import com.flashsale.domain.catalog.Product;
+import com.flashsale.domain.shared.BusinessException;
+import com.flashsale.domain.shared.ErrorCode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -17,6 +19,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Elasticsearch 商品索引（ADR-0012）。
@@ -51,6 +54,20 @@ public class ElasticsearchProductSearchIndex implements ProductSearchIndex {
 
     private static final String FACET_BRAND = "brand";
 
+    /**
+     * 重建進行中的目標索引名；沒有重建時為 {@code null}。
+     *
+     * <p><b>存在的理由是一個真實的競態。</b> 重建期間，消費端寫的是 alias
+     * （也就是舊索引），而重建讀的是重建開始那一刻的資料庫快照。
+     * 切換 alias 之後，重建期間發生的所有變更都會被丟掉——
+     * 下架的商品復活、新上架的商品消失，而窗口是整個重建的時長，
+     * 那正好是「有人在大量調整商品」的時候。
+     *
+     * <p>解法是重建期間雙寫。商品變更是一天幾十次的低頻操作，
+     * 多寫一次的成本可以忽略，而且不需要任何鎖。
+     */
+    private final AtomicReference<String> rebuildTarget = new AtomicReference<>();
+
     private final ElasticsearchClient client;
     private final ProductIndexAdmin indexAdmin;
     private final ProductRepository productRepository;
@@ -63,29 +80,121 @@ public class ElasticsearchProductSearchIndex implements ProductSearchIndex {
         this.productRepository = productRepository;
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * <p>失敗時丟<b>可重試</b>的 {@link BusinessException}（C 系列錯誤碼）。
+     * 型別選擇是有後果的：{@code KafkaConsumerConfig} 把 {@code IllegalStateException}
+     * 歸為不可重試，用它的話 ES 一次逾時就會讓訊息<b>第一次就進死信</b>，
+     * 而那件商品的索引永久停在舊狀態——下架的繼續被搜到、上架的永遠搜不到。
+     *
+     * <p>方向與 {@link #search} 相反是刻意的：搜尋失敗降級（搜不準沒有後果），
+     * 寫入失敗必須重試（漏索引會累積且沒有人會發現）。
+     */
     @Override
     public void index(Product product) {
-        try {
-            client.index(request -> request
-                    .index(ALIAS)
-                    // 文件 ID 用商品 ID：寫入因此是覆寫而非新增，天然冪等。
-                    // Outbox 是至少一次語意，重複投遞只是再寫一次同樣的內容
-                    .id(String.valueOf(product.id()))
-                    .document(ProductDocument.from(product)));
-        } catch (IOException | RuntimeException e) {
-            // 索引失敗要往上拋：消費端據此重試，漏索引會讓商品搜不到而沒有人發現。
-            // 這與「搜尋失敗降級」是相反的方向，因為寫入失敗是會累積的
-            throw new IllegalStateException("寫入搜尋索引失敗 productId=" + product.id(), e);
+        withAliasSelfHeal(() -> client.index(request -> request
+                        .index(ALIAS)
+                        // 文件 ID 用商品 ID：寫入是覆寫而非新增，天然冪等。
+                        // Outbox 是至少一次語意，重複投遞只是再寫一次同樣的內容
+                        .id(String.valueOf(product.id()))
+                        .document(ProductDocument.from(product))),
+                "寫入搜尋索引失敗 productId=" + product.id());
+        // 重建進行中時同一份也寫進新索引，否則這筆變更會在切換 alias 時被丟掉
+        String target = rebuildTarget.get();
+        if (target != null) {
+            withAliasSelfHeal(() -> client.index(request -> request
+                            .index(target)
+                            .id(String.valueOf(product.id()))
+                            .document(ProductDocument.from(product))),
+                    "寫入重建中的搜尋索引失敗 productId=" + product.id());
         }
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * <p>要移除的東西本來就不在時視為成功——那才是真正的冪等。
+     * 把「找不到」當成錯誤，重複投遞的下架事件會不斷進死信。
+     */
     @Override
     public void remove(Long productId) {
         try {
-            client.delete(request -> request.index(ALIAS).id(String.valueOf(productId)));
-        } catch (IOException | RuntimeException e) {
-            throw new IllegalStateException("從搜尋索引移除失敗 productId=" + productId, e);
+            withAliasSelfHeal(() -> client.delete(request -> request
+                            .index(ALIAS).id(String.valueOf(productId))),
+                    "從搜尋索引移除失敗 productId=" + productId);
+        } catch (BusinessException e) {
+            if (!isNotFound(e.getCause())) {
+                throw e;
+            }
+            log.debug("商品 {} 本來就不在索引裡，移除視為完成", productId);
         }
+        String target = rebuildTarget.get();
+        if (target != null) {
+            try {
+                withAliasSelfHeal(() -> client.delete(request -> request
+                                .index(target).id(String.valueOf(productId))),
+                        "從重建中的搜尋索引移除失敗 productId=" + productId);
+            } catch (BusinessException e) {
+                if (!isNotFound(e.getCause())) {
+                    throw e;
+                }
+            }
+        }
+    }
+
+    /**
+     * 執行一次寫入；遇到「索引不存在」就補建 alias 再試一次。
+     *
+     * <p>自我修復是必要的，因為 ES 預設會把寫入不存在的名稱<b>自動建成實體索引</b>。
+     * 一旦 {@code products} 變成實體索引而非 alias，重建索引就永遠失敗，
+     * 而那個狀態沒有任何 API 救得回來（實測過，只能人工刪索引）。
+     * 先補建 alias 就不會走到那條路。
+     */
+    private void withAliasSelfHeal(EsCall call, String failureMessage) {
+        try {
+            call.run();
+        } catch (IOException | RuntimeException first) {
+            if (isNotFound(first) && indexAdmin.ensureAliasExists()) {
+                try {
+                    call.run();
+                    return;
+                } catch (IOException | RuntimeException retried) {
+                    throw searchUnavailable(failureMessage, retried);
+                }
+            }
+            throw searchUnavailable(failureMessage, first);
+        }
+    }
+
+    private static BusinessException searchUnavailable(String message, Throwable cause) {
+        BusinessException failure =
+                new BusinessException(ErrorCode.SEARCH_INDEX_UNAVAILABLE, message);
+        failure.initCause(cause);
+        return failure;
+    }
+
+    /**
+     * ES 的「索引或文件不存在」。
+     *
+     * <p>比對訊息字串是無奈之舉：這個情況在不同版本與不同呼叫路徑上
+     * 會包成不同的例外型別，沒有一個穩定的型別可以攔。
+     */
+    private static boolean isNotFound(Throwable e) {
+        for (Throwable cause = e; cause != null && cause.getCause() != cause;
+                cause = cause.getCause()) {
+            String message = cause.getMessage();
+            if (message != null && (message.contains("index_not_found_exception")
+                    || message.contains("404"))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @FunctionalInterface
+    private interface EsCall {
+        void run() throws IOException;
     }
 
     @Override
@@ -97,7 +206,9 @@ public class ElasticsearchProductSearchIndex implements ProductSearchIndex {
                             .from(query.page() * query.size())
                             .size(query.size())
                             .aggregations(FACET_BRAND, agg -> agg
-                                    .terms(terms -> terms.field("brand").size(20))),
+                                    // brand 主欄位是 text（要能部分比對），
+                                    // 分面與精確篩選走它的 keyword 子欄位
+                                    .terms(terms -> terms.field("brand.keyword").size(20))),
                     ProductDocument.class);
             return toResult(response);
         } catch (IOException | RuntimeException e) {
@@ -130,7 +241,7 @@ public class ElasticsearchProductSearchIndex implements ProductSearchIndex {
             }
             if (query.brand() != null && !query.brand().isBlank()) {
                 bool.filter(filter -> filter.term(term -> term
-                        .field("brand").value(query.brand())));
+                        .field("brand.keyword").value(query.brand())));
             }
             return bool;
         }));
@@ -163,8 +274,10 @@ public class ElasticsearchProductSearchIndex implements ProductSearchIndex {
      */
     private ProductSearchResult degradedSearch(SearchQuery query) {
         try {
+            // brand 也要傳下去。先前這裡漏了它，使用者篩了「Apple」卻拿到
+            // 一堆別的品牌——降級的承諾是「搜不準」，不是「篩選條件被忽略」
             List<ProductSearchResult.Hit> hits = productRepository
-                    .searchByKeyword(query.keyword(), query.categoryId(),
+                    .searchByKeyword(query.keyword(), query.categoryId(), query.brand(),
                             query.size(), query.page() * query.size())
                     .stream()
                     .map(product -> new ProductSearchResult.Hit(
@@ -183,6 +296,8 @@ public class ElasticsearchProductSearchIndex implements ProductSearchIndex {
     @Override
     public long reindexAll() {
         String target = indexAdmin.createNextVersion();
+        // 從這一刻起，消費端的寫入會同時進舊索引與這個新索引
+        rebuildTarget.set(target);
         long total = 0;
         int page = 0;
         try {
@@ -222,6 +337,10 @@ public class ElasticsearchProductSearchIndex implements ProductSearchIndex {
             return total;
         } catch (IOException | RuntimeException e) {
             throw new IllegalStateException("重建搜尋索引失敗，alias 未切換，舊索引仍在服務", e);
+        } finally {
+            // 無論成功或失敗都要清掉，否則之後每次寫入都會多打一個
+            // 已經沒有人在用的索引
+            rebuildTarget.set(null);
         }
     }
 }

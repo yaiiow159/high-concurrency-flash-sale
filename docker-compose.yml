@@ -107,6 +107,13 @@ services:
       # 本機開發限制記憶體。ES 預設會吃掉一半的實體記憶體，
       # 在開發機上那會把其他容器擠掉
       ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+      # 禁止自動建立 products* 索引。
+      #
+      # 預設的 auto_create_index 會把「寫入一個不存在的 alias」變成
+      # 「建立一個同名的實體索引」——而那個狀態沒有任何 API 救得回來，
+      # 之後 reindex 永遠失敗、搜尋永久降級，卻不會有任何告警。
+      # 關掉它，那個錯誤就會大聲地失敗而不是安靜地失敗。
+      action.auto_create_index: "-products*,+*"
     healthcheck:
       # 等到 yellow 就算就緒：單節點沒有副本，狀態永遠不會是 green，
       # 等 green 會等到逾時

@@ -9,7 +9,6 @@ import com.flashsale.domain.catalog.event.ProductIndexChangedEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
 
@@ -53,8 +52,17 @@ public class ProductSearchService implements ProductSearchUseCase {
                 categoryId, brand, Math.max(page, 0), pageSize));
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * <p><b>刻意不加 {@code @Transactional}。</b> 這裡有一次遠端 ES 往返
+     * （最壞 1 秒連線 + 3 秒 socket），包在交易裡會把一條資料庫連線
+     * 握著整段時間——那正是先前「通知寫入拖垮外層交易」修過的同一類問題。
+     *
+     * <p>不需要交易也安全：{@code findById} 走的是 fetch join，
+     * 聚合根離開交易後是完整的，不會有 lazy loading 問題。
+     */
     @Override
-    @Transactional(readOnly = true)
     public void applyIndexChange(ProductIndexChangedEvent event) {
         Optional<Product> product = productRepository.findById(event.productId());
         if (product.isEmpty() || !product.get().status().isPurchasable()) {
