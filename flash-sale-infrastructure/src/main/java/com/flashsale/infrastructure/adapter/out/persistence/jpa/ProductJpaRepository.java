@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -39,6 +40,11 @@ public interface ProductJpaRepository extends JpaRepository<ProductEntity, Long>
      * <p>投影成建構子而不是撈 entity：撈 entity 的話 {@code toDomain}
      * 一旦讀了 {@code getSkus()} 就又變回 N+1，而那是一行不起眼的程式碼。
      * 投影讓 SKU 根本不在手上，想犯這個錯都沒有辦法。
+     *
+     * <p><b>keyset 分頁</b>（ADR-0021）：排序鍵就是主鍵，
+     * {@code id < :cursor} 直接把掃描起點推到該去的地方，
+     * 不會像 {@code OFFSET} 那樣先掃過並排序前面所有列。
+     * 實測 offset 40,000 時 MySQL 會翻盤成 filesort 掃 24,564 列。
      */
     @Query("""
             select new com.flashsale.domain.catalog.ProductSummary(
@@ -46,11 +52,35 @@ public interface ProductJpaRepository extends JpaRepository<ProductEntity, Long>
                 com.flashsale.domain.catalog.ProductStatus.ON_SHELF, null)
             from ProductEntity p
             where p.status = 'ON_SHELF'
-              and (:categoryId is null or p.categoryId = :categoryId)
+              and (:cursor is null or p.id < :cursor)
             order by p.id desc
             """)
-    List<ProductSummary> findOnShelfSummaries(@Param("categoryId") Long categoryId,
-                                              Pageable pageable);
+    List<ProductSummary> findOnShelfPage(@Param("cursor") Long cursor, Pageable pageable);
+
+    /**
+     * 同上，但限定在一組類目內。
+     *
+     * <p><b>與上面那個分成兩個方法，而不是用 {@code :categoryIds is null or ...}</b>：
+     * JPQL 對「集合參數是否為 null」的處理在不同 Hibernate 版本之間並不一致，
+     * 而失敗的樣子是查詢語法錯誤或條件被安靜忽略——後者會讓篩選失效卻沒有人發現。
+     * 兩個方法各自只有一種意思。
+     *
+     * <p>類目集合由呼叫端從類目樹展開（ADR-0022）；
+     * 涵蓋整棵樹時呼叫端會改走上面那個不帶條件的版本。
+     */
+    @Query("""
+            select new com.flashsale.domain.catalog.ProductSummary(
+                p.id, p.categoryId, p.name, p.brand,
+                com.flashsale.domain.catalog.ProductStatus.ON_SHELF, null)
+            from ProductEntity p
+            where p.status = 'ON_SHELF'
+              and p.categoryId in :categoryIds
+              and (:cursor is null or p.id < :cursor)
+            order by p.id desc
+            """)
+    List<ProductSummary> findOnShelfPageInCategories(@Param("categoryIds") Collection<Long> categoryIds,
+                                                     @Param("cursor") Long cursor,
+                                                     Pageable pageable);
 
     /**
      * 後台用：所有狀態的商品。

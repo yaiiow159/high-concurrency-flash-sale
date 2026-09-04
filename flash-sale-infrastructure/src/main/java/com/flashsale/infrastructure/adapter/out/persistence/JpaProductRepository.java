@@ -15,10 +15,12 @@ import com.flashsale.infrastructure.adapter.out.persistence.entity.ProductEntity
 import com.flashsale.infrastructure.adapter.out.persistence.entity.SkuEntity;
 import com.flashsale.infrastructure.adapter.out.persistence.jpa.ProductJpaRepository;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -139,18 +141,23 @@ public class JpaProductRepository implements ProductRepository {
     }
 
     /**
-     * 列表查詢：<b>固定兩次</b>查詢，與頁大小無關。
+     * 商店列表查詢：<b>固定兩次</b>查詢，與頁大小、與翻到第幾頁都無關。
      *
-     * <p>先取整頁的商品摘要，再用一次 {@code in (...)} 把最低價全部帶回來。
-     * 先前的做法是走 {@link #findOnShelf} 撈聚合，而映射時碰了 lazy 的
-     * SKU 關聯，於是每筆商品多一次查詢——實測 {@code size=100} 打 104 次
-     * SELECT，且那些 SKU 在下一行就被 {@code asSummary()} 丟掉了。
+     * <p>先取整頁的商品摘要（keyset，ADR-0021），再用一次
+     * {@code in (...)} 把最低價全部帶回來。
+     *
+     * <p>先前的做法是走 {@code findOnShelf} 撈聚合，而映射時碰了 lazy 的
+     * SKU 關聯，於是每筆商品多一次查詢——實測 {@code size=100} 打 102 次
+     * SELECT，且那些 SKU 在下一行就被丟掉了。
      */
     @Override
     @Transactional(readOnly = true)
-    public List<ProductSummary> findOnShelfSummaries(Long categoryId, int limit, int offset) {
-        List<ProductSummary> page = jpaRepository.findOnShelfSummaries(
-                categoryId, PageRequest.of(offset / Math.max(limit, 1), limit));
+    public List<ProductSummary> findOnShelfSummaries(Collection<Long> categoryIds,
+                                                     Long cursor, int limit) {
+        Pageable pageable = PageRequest.ofSize(Math.max(limit, 1));
+        List<ProductSummary> page = categoryIds == null || categoryIds.isEmpty()
+                ? jpaRepository.findOnShelfPage(cursor, pageable)
+                : jpaRepository.findOnShelfPageInCategories(categoryIds, cursor, pageable);
         if (page.isEmpty()) {
             return page;
         }

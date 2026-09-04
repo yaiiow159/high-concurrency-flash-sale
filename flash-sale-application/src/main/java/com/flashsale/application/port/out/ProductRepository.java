@@ -4,6 +4,7 @@ import com.flashsale.domain.catalog.Product;
 import com.flashsale.domain.catalog.ProductSummary;
 import com.flashsale.domain.catalog.Sku;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -39,13 +40,18 @@ public interface ProductRepository {
     List<Product> findOnShelf(Long categoryId, int limit, int offset);
 
     /**
-     * 列表查詢，回傳<b>摘要</b>而不是完整聚合。
+     * 商店列表查詢：回傳<b>摘要</b>，keyset 分頁（ADR-0021）。
      *
-     * <p>實作必須是<b>固定次數</b>的查詢，與頁大小無關——
-     * 最低價要批次取，不可每筆商品各問一次。
-     * 這是 {@link #findOnShelf} 存在 N+1 的原因，也是這個方法存在的理由。
+     * <p>實作必須是<b>固定次數</b>的查詢，與頁大小無關——最低價要批次取，
+     * 不可每筆商品各問一次。
+     *
+     * @param categoryIds 要涵蓋的類目；{@code null} 或空集合代表<b>不篩選</b>。
+     *                    呼叫端負責把「一個類目」展開成「它的整棵子樹」
+     * @param cursor      上一頁最後一筆的商品 ID，取 {@code id < cursor}；
+     *                    {@code null} 代表第一頁
+     * @param limit       最多取幾筆。呼叫端會多要一筆來判斷還有沒有下一頁
      */
-    List<ProductSummary> findOnShelfSummaries(Long categoryId, int limit, int offset);
+    List<ProductSummary> findOnShelfSummaries(Collection<Long> categoryIds, Long cursor, int limit);
 
     /**
      * 後台用：列出<b>所有狀態</b>的商品。

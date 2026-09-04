@@ -85,9 +85,6 @@ public class KafkaConsumerConfig {
 
         DefaultErrorHandler handler = new DefaultErrorHandler(recoverer, exponentialBackOff());
 
-        // 程式錯誤重試一萬次結果都一樣，只會拖住整個分區。
-        // BusinessException 不在這裡——它可能帶著 C 系列的可重試錯誤碼，
-        // 由下面的 backOffFunction 逐筆判斷。
         handler.addNotRetryableExceptions(
                 IllegalArgumentException.class,
                 IllegalStateException.class);
