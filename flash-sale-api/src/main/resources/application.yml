@@ -121,6 +121,17 @@ flash-sale:
     # 多副本部署時必須各自不同，否則會產生重複訂單號。
     # K8s 可用 StatefulSet 的序號注入：node-id: ${HOSTNAME##*-}
     node-id: ${SNOWFLAKE_NODE_ID:0}
+  search:
+    reconciliation-interval-ms: 900000
+    # 啟動後先讓索引 bootstrap 與 MQ 追上，否則第一輪必然報一堆假偏差
+    reconciliation-initial-delay-ms: 180000
+    # 與庫存對帳相反，這裡預設開啟自動修復。
+    #
+    # 差別不在重要性，在修復動作的性質：這裡的修復與那個還沒被消費的事件
+    # 會做的事一模一樣（讀當下狀態、上架就寫、否則移除），提早做不會產生
+    # 任何新狀態；庫存的「退庫」則是一個新的決定，可能與還在佇列裡的請求衝突。
+    auto-repair-index: true
+
   outbox:
     batch-size: 200
     max-retry: 5

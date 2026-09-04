@@ -3,6 +3,8 @@ package com.flashsale.api.adapter.in.web;
 import com.flashsale.api.adapter.in.web.dto.ApiResponse;
 import com.flashsale.application.port.in.CatalogAdminUseCase;
 import com.flashsale.application.port.in.ProductSearchUseCase;
+import com.flashsale.application.port.in.SearchIndexReconciliationUseCase;
+import com.flashsale.application.port.in.dto.SearchIndexReconciliation;
 import com.flashsale.application.port.in.dto.ProductSearchResult;
 import com.flashsale.application.port.in.dto.ProductView;
 import io.swagger.v3.oas.annotations.Operation;
@@ -30,11 +32,14 @@ public class SearchController {
 
     private final ProductSearchUseCase productSearchUseCase;
     private final CatalogAdminUseCase catalogAdminUseCase;
+    private final SearchIndexReconciliationUseCase reconciliationUseCase;
 
     public SearchController(ProductSearchUseCase productSearchUseCase,
-                            CatalogAdminUseCase catalogAdminUseCase) {
+                            CatalogAdminUseCase catalogAdminUseCase,
+                            SearchIndexReconciliationUseCase reconciliationUseCase) {
         this.productSearchUseCase = productSearchUseCase;
         this.catalogAdminUseCase = catalogAdminUseCase;
+        this.reconciliationUseCase = reconciliationUseCase;
     }
 
     @GetMapping("/api/v1/search/products")
@@ -54,6 +59,14 @@ public class SearchController {
             description = "寫入新版本索引後原子切換 alias；失敗時舊索引仍在服務")
     public ApiResponse<Map<String, Long>> reindex() {
         return ApiResponse.ok(Map.of("indexed", productSearchUseCase.reindex()));
+    }
+
+    @GetMapping("/api/v1/admin/search/reconciliation")
+    @Operation(summary = "搜尋索引對帳",
+            description = "比對索引與資料庫；repair=true 時順手修掉差異")
+    public ApiResponse<SearchIndexReconciliation> reconcile(
+            @RequestParam(defaultValue = "false") boolean repair) {
+        return ApiResponse.ok(reconciliationUseCase.reconcile(repair));
     }
 
     @PostMapping("/api/v1/admin/products/{productId}/on-shelf")

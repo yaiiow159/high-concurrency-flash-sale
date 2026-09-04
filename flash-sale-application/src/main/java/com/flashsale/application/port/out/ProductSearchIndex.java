@@ -43,6 +43,14 @@ public interface ProductSearchIndex {
     long reindexAll();
 
     /**
+     * 索引裡目前有哪些商品 ID。
+     *
+     * <p>供對帳比對用。只取 ID 不取內容——對帳問的是「在不在」，
+     * 把整份文件撈回來只會讓一次對帳變成一次記憶體壓力測試。
+     */
+    java.util.Set<Long> allIndexedIds();
+
+    /**
      * 查詢條件。
      *
      * @param keyword    關鍵字；空字串代表不限，用於純分類瀏覽

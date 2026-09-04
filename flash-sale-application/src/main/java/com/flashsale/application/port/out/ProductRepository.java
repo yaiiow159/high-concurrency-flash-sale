@@ -23,6 +23,14 @@ public interface ProductRepository {
     Product updateStatus(Product product);
 
     /**
+     * 所有已上架商品的 ID。
+     *
+     * <p>供搜尋索引對帳比對用。同樣只取 ID：對帳要的是集合差異，
+     * 而把所有商品連同 SKU 一起載入會在商品數上萬時直接吃掉一大塊堆積。
+     */
+    java.util.Set<Long> findOnShelfIds();
+
+    /**
      * 依類目列出已上架商品。
      *
      * @param categoryId {@code null} 表示不限類目
