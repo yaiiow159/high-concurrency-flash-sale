@@ -37,6 +37,9 @@ public enum ErrorCode {
     ACTIVITY_ENDED("B0003", "活動已結束"),
     ACTIVITY_OFFLINE("B0004", "活動未上架"),
     ILLEGAL_ACTIVITY_STATE_TRANSITION("B0038", "活動狀態不允許此操作"),
+    COUPON_NOT_FOUND("B0039", "優惠券不存在"),
+    COUPON_ALREADY_USED("B0040", "優惠券已使用"),
+    COUPON_EXPIRED("B0041", "優惠券已過期"),
     SOLD_OUT("B0005", "商品已售罄"),
     USER_PURCHASE_LIMIT_EXCEEDED("B0006", "已達個人限購數量"),
     ORDER_NOT_FOUND("B0007", "訂單不存在"),
@@ -70,7 +73,7 @@ public enum ErrorCode {
     ORDER_NOT_RETURNABLE("B0035", "此訂單目前無法申請退貨"),
     RETURN_QUANTITY_EXCEEDED("B0036", "退貨數量超過可退數量"),
     REFUND_AMOUNT_EXCEEDED("B0037", "退款金額超過已付金額"),
-    NOTIFICATION_NOT_FOUND("B0038", "通知不存在"),
+    NOTIFICATION_NOT_FOUND("B0042", "通知不存在"),
 
     // ---- C：系統/依賴故障 ----
     STOCK_SERVICE_UNAVAILABLE("C0001", "庫存服務暫時不可用"),

@@ -52,7 +52,7 @@
 | **Cart** | 購物車 | P2 | ❌ 無 |
 | **Payment** | 付款、退款 | P0 模擬 / P3 真實 | ❌ 無 |
 | **Fulfillment** | 出貨、物流追蹤 | P3 | ❌ 無 |
-| **Promotion** | 優惠券、滿減、價格計算 | P4 | ❌ 無 |
+| **Promotion** | 優惠券、滿減、價格計算 | ✅ | 已完成 |
 | **Notification** | 站內信、Email、推播 | P3 | ❌ 無 |
 | **Search** | 商品搜尋（讀模型） | P4 | ❌ 無 |
 | **Review** | 評價、評分 | P4 | ❌ 無 |

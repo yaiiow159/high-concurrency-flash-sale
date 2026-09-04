@@ -62,12 +62,21 @@ public final class Order {
     private String closeReason;
     private final long version;
 
+    /**
+     * 已套用的折扣<b>明細</b>，不是總額。
+     *
+     * <p>存明細是因為客服要回答的是「為什麼折了 320」而不是「折了多少」。
+     * 而優惠會下架、券會過期、規則會改——這份清單是快照，
+     * 與 {@code OrderLine} 的商品名稱與單價同一個道理。
+     */
+    private final List<OrderDiscount> discounts;
+
     private final List<DomainEvent> domainEvents = new ArrayList<>();
 
     private Order(OrderNo orderNo, Long userId, OrderChannel channel, String requestId,
                   List<OrderLine> lines, BigDecimal totalAmount, ShippingInfo shippingInfo,
                   OrderStatus status, Instant createdAt, Instant paidAt,
-                  String closeReason, long version) {
+                  String closeReason, List<OrderDiscount> discounts, long version) {
         this.orderNo = Objects.requireNonNull(orderNo, "orderNo 不可為 null");
         this.userId = Objects.requireNonNull(userId, "userId 不可為 null");
         this.channel = Objects.requireNonNull(channel, "channel 不可為 null");
@@ -79,6 +88,7 @@ public final class Order {
         this.createdAt = Objects.requireNonNull(createdAt, "createdAt 不可為 null");
         this.paidAt = paidAt;
         this.closeReason = closeReason;
+        this.discounts = List.copyOf(discounts == null ? List.<OrderDiscount>of() : discounts);
         this.version = version;
     }
 
@@ -91,10 +101,49 @@ public final class Order {
      */
     public static Order place(OrderNo orderNo, Long userId, String requestId,
                               List<OrderLine> lines, ShippingInfo shippingInfo, Instant now) {
+        return place(orderNo, userId, requestId, lines, shippingInfo, List.of(), sumOf(lines), now);
+    }
+
+    /**
+     * 建立帶優惠的訂單。
+     *
+     * <p><b>折扣存的是明細不是總額</b>（ADR-0013 決策 3）。
+     * 客服要回答的是「為什麼折了 320」，那需要知道是哪幾個優惠、各折多少。
+     * 而優惠會下架、券會過期、規則會改——存 {@code promotionId} 讓畫面自己去查，
+     * 就是 {@code OrderLine} 的快照已經解決過的同一個問題。
+     *
+     * @param payable 折後應付。由 {@code PricingEngine} 算出後傳入，
+     *                聚合根不自己算——計算引擎是純函式，把它塞進聚合根
+     *                會讓「建立訂單」這件事跟著優惠規則一起變複雜
+     */
+    public static Order place(OrderNo orderNo, Long userId, String requestId,
+                              List<OrderLine> lines, ShippingInfo shippingInfo,
+                              List<OrderDiscount> discounts, BigDecimal payable, Instant now) {
         Objects.requireNonNull(shippingInfo, "一般訂單必須有收貨資訊");
+
+        // 三個數字必須自洽：總額 = 各行實付的加總，且 = 小計 − 折扣加總。
+        //
+        // 這是折扣功能唯一會安靜出錯的地方。分攤算錯不會拋例外、不會被上限擋下，
+        // 只會讓退款按一組數字算、收款按另一組——半年後對帳才發現。
+        // 在建立訂單的當下驗一次，是最便宜的攔截點。
+        BigDecimal allocated = lines.stream()
+                .map(OrderLine::allocatedAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (allocated.compareTo(payable) != 0) {
+            throw new BusinessException(ErrorCode.INVALID_PARAMETER,
+                    "各行實付加總 %s 與折後應付 %s 不符".formatted(allocated, payable));
+        }
+        BigDecimal discountTotal = discounts.stream()
+                .map(OrderDiscount::amount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        if (sumOf(lines).subtract(discountTotal).compareTo(payable) != 0) {
+            throw new BusinessException(ErrorCode.INVALID_PARAMETER,
+                    "小計減折扣與折後應付不符");
+        }
+
         Order order = new Order(orderNo, userId, OrderChannel.NORMAL, requestId,
-                lines, sumOf(lines), shippingInfo, OrderStatus.PENDING_PAYMENT,
-                now, null, null, 0L);
+                lines, payable, shippingInfo, OrderStatus.PENDING_PAYMENT,
+                now, null, null, discounts, 0L);
         order.registerEvent(OrderCreatedEvent.of(order, now));
         return order;
     }
@@ -118,7 +167,7 @@ public final class Order {
         // 秒殺沒有收貨資訊：那條通道的下單當下不收集地址（見 shippingInfo 欄位說明）
         Order order = new Order(orderNo, userId, OrderChannel.SECKILL, requestId,
                 List.of(line), line.subtotal(), null, OrderStatus.PENDING_PAYMENT,
-                now, null, null, 0L);
+                now, null, null, List.of(), 0L);
         order.registerEvent(OrderCreatedEvent.of(order, now));
         return order;
     }
@@ -132,8 +181,17 @@ public final class Order {
                                 List<OrderLine> lines, BigDecimal totalAmount,
                                 ShippingInfo shippingInfo, OrderStatus status,
                                 Instant createdAt, Instant paidAt, String closeReason, long version) {
+        return restore(orderNo, userId, channel, requestId, lines, totalAmount, shippingInfo,
+                status, createdAt, paidAt, closeReason, List.of(), version);
+    }
+
+    public static Order restore(OrderNo orderNo, Long userId, OrderChannel channel, String requestId,
+                                List<OrderLine> lines, BigDecimal totalAmount,
+                                ShippingInfo shippingInfo, OrderStatus status,
+                                Instant createdAt, Instant paidAt, String closeReason,
+                                List<OrderDiscount> discounts, long version) {
         return new Order(orderNo, userId, channel, requestId, lines, totalAmount,
-                shippingInfo, status, createdAt, paidAt, closeReason, version);
+                shippingInfo, status, createdAt, paidAt, closeReason, discounts, version);
     }
 
     /** 付款成功。 */
@@ -301,6 +359,11 @@ public final class Order {
 
     public String closeReason() {
         return closeReason;
+    }
+
+    /** 已套用的折扣明細。 */
+    public List<OrderDiscount> discounts() {
+        return discounts;
     }
 
     public long version() {

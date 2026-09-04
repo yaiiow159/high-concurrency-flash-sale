@@ -1,5 +1,6 @@
 package com.flashsale.application.port.in;
 
+import com.flashsale.application.port.in.dto.CheckoutPreview;
 import com.flashsale.application.port.in.dto.OrderView;
 import com.flashsale.domain.shared.BusinessException;
 import com.flashsale.domain.shared.ErrorCode;
@@ -30,15 +31,60 @@ public interface PlaceOrderUseCase {
     OrderView place(PlaceOrderCommand command);
 
     /**
+     * 結帳試算：不建訂單、不扣庫存、不核銷券。
+     *
+     * <p>使用者在按下「送出訂單」之前就該看到這張券折多少。
+     * 讓前端自己算是錯的——兩邊算出不同答案時，使用者只會相信他先看到的那一個。
+     *
+     * <p><b>試算通過不代表下單會成功。</b> 庫存、券的狀態都可能在兩次呼叫之間變化，
+     * 這是任何「先看再做」的介面都躲不掉的，也是為什麼真正的防線都在
+     * {@link #place} 那條路徑上，而不是這裡。
+     */
+    CheckoutPreview preview(PreviewCommand command);
+
+    /**
+     * 試算的輸入。
+     *
+     * <p><b>刻意不重用 {@code PlaceOrderCommand}。</b> 那個型別要求 {@code addressId}
+     * 與 {@code requestId} 不可為空，而那兩個約束是為了「建立訂單」存在的：
+     * 寄不出去的訂單不該被建立、沒有冪等鍵就沒有冪等。
+     * 試算什麼都不建立，硬塞兩個假值進去只會讓那些約束變成裝飾。
+     */
+    record PreviewCommand(Long userId, List<OrderItem> lines, Long couponId) {
+
+        public PreviewCommand {
+            Objects.requireNonNull(userId, "userId 不可為 null");
+            if (lines == null || lines.isEmpty()) {
+                throw new BusinessException(ErrorCode.INVALID_PARAMETER, "試算至少要有一個品項");
+            }
+            if (lines.size() > PlaceOrderCommand.MAX_LINES) {
+                throw new BusinessException(ErrorCode.INVALID_PARAMETER,
+                        "單筆訂單最多 %d 個品項".formatted(PlaceOrderCommand.MAX_LINES));
+            }
+            lines = List.copyOf(lines);
+        }
+    }
+
+    /**
      * @param requestId 端到端冪等鍵。重送同一個 requestId 會拿回同一張訂單，
      *                  而不是一個「重複請求」的錯誤——使用者連點兩次不該被懲罰
      * @param addressId 收貨地址簿的 ID。<b>訂單存的是它的快照而非這個 ID</b>——
      *                  使用者日後搬家改了地址簿，這張訂單要寄到哪裡不能跟著變
      * @param lines     要買什麼、各買幾件。<b>不含價格</b>：價格一律由目錄決定，
      *                  呼叫端若能指定價格，那就不叫價格了
+     * @param couponId  要使用的優惠券；不用券時為 {@code null}。
+     *                  <b>只傳 ID，不傳折抵金額</b>——與價格同一個道理，
+     *                  呼叫端若能指定折多少，那就不叫折扣了。
+     *                  滿減這類不需券的優惠由伺服器自行判定，不必也不該由呼叫端指定
      */
     record PlaceOrderCommand(Long userId, String requestId, Long addressId,
-                             List<OrderItem> lines) {
+                             List<OrderItem> lines, Long couponId) {
+
+        /** 不用券的下單。 */
+        public PlaceOrderCommand(Long userId, String requestId, Long addressId,
+                                 List<OrderItem> lines) {
+            this(userId, requestId, addressId, lines, null);
+        }
 
         /** 單筆訂單的品項數上限。沒有上限的話，一次請求就能讓資料庫做上萬次扣減。 */
         public static final int MAX_LINES = 50;

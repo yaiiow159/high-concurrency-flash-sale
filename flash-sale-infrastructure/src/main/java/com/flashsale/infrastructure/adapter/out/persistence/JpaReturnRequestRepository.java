@@ -51,7 +51,7 @@ public class JpaReturnRequestRepository implements ReturnRequestRepository {
                 request.createdAt());
         for (ReturnLine line : request.lines()) {
             entity.addLine(new ReturnLineEntity(line.skuId(), line.skuSnapshot(),
-                    line.unitPrice(), line.quantity(), line.restockable()));
+                    line.unitPrice(), line.quantity(), line.restockable(), line.refundAmount()));
         }
         return toDomain(jpaRepository.save(entity));
     }
@@ -115,7 +115,8 @@ public class JpaReturnRequestRepository implements ReturnRequestRepository {
     private static ReturnRequest toDomain(ReturnRequestEntity entity) {
         List<ReturnLine> lines = entity.getLines().stream()
                 .map(line -> new ReturnLine(line.getSkuId(), line.getSkuSnapshot(),
-                        line.getUnitPrice(), line.getQuantity(), line.getRestockable()))
+                        line.getUnitPrice(), line.getQuantity(), line.getRestockable(),
+                        line.getRefundAmount()))
                 .toList();
         return ReturnRequest.restore(
                 entity.getId(),

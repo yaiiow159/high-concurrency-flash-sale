@@ -1,5 +1,6 @@
 package com.flashsale.application.service;
 
+import com.flashsale.application.port.in.PlaceOrderUseCase;
 import com.flashsale.application.port.in.PlaceOrderUseCase.OrderItem;
 import com.flashsale.application.port.in.PlaceOrderUseCase.PlaceOrderCommand;
 import com.flashsale.application.port.in.dto.OrderView;
@@ -9,6 +10,7 @@ import com.flashsale.application.port.out.InventoryService;
 import com.flashsale.application.port.out.OrderNoGenerator;
 import com.flashsale.application.port.out.OrderRepository;
 import com.flashsale.application.port.out.ProductRepository;
+import com.flashsale.application.port.out.PromotionRepository;
 import com.flashsale.domain.catalog.Product;
 import com.flashsale.domain.catalog.ProductStatus;
 import com.flashsale.domain.catalog.Sku;
@@ -19,6 +21,11 @@ import com.flashsale.domain.order.OrderChannel;
 import com.flashsale.domain.order.OrderLine;
 import com.flashsale.domain.order.OrderNo;
 import com.flashsale.domain.order.ShippingInfo;
+import com.flashsale.domain.promotion.Coupon;
+import com.flashsale.domain.promotion.CouponStatus;
+import com.flashsale.domain.promotion.DiscountType;
+import com.flashsale.domain.promotion.Promotion;
+import com.flashsale.domain.promotion.PromotionRule;
 import com.flashsale.domain.shared.BusinessException;
 import com.flashsale.domain.shared.ErrorCode;
 import com.flashsale.domain.stock.StockDeductionOutcome;
@@ -82,6 +89,8 @@ class OrderPlacementServiceTest {
     private OrderNoGenerator orderNoGenerator;
     @Mock
     private EventOutbox eventOutbox;
+    @Mock
+    private PromotionRepository promotionRepository;
 
     @Nested
     @DisplayName("價格由目錄決定")
@@ -315,11 +324,156 @@ class OrderPlacementServiceTest {
         }
     }
 
+    @Nested
+    @DisplayName("優惠")
+    class Promotions {
+
+        @Test
+        @DisplayName("折扣進訂單快照，而且是明細不是總額")
+        void discountsAreSnapshottedAsLineItems() {
+            givenCatalog();
+            givenDeductSucceeds();
+            givenOrderSaves();
+            givenPromotions(orderDiscount(1L, "滿兩萬折兩千", "20000", "2000"));
+
+            service().place(command(new OrderItem(SKU_A, 1)));
+
+            Order order = capturedOrder();
+            assertThat(order.discounts()).singleElement()
+                    .satisfies(discount -> {
+                        assertThat(discount.name()).isEqualTo("滿兩萬折兩千");
+                        assertThat(discount.amount()).isEqualByComparingTo("2000.00");
+                        // sourceId 保留，供追溯；但名稱是快照，優惠改名不影響歷史訂單
+                        assertThat(discount.sourceId()).isEqualTo(1L);
+                    });
+            assertThat(order.totalAmount()).isEqualByComparingTo("27900.00");
+        }
+
+        @Test
+        @DisplayName("折後金額要分攤回每一行——退款按那個數字退")
+        void allocationIsWrittenBackToLines() {
+            givenCatalog();
+            givenDeductSucceeds();
+            givenOrderSaves();
+            givenPromotions(orderDiscount(1L, "滿三萬折兩千", "30000", "2000"));
+
+            service().place(command(new OrderItem(SKU_A, 1), new OrderItem(SKU_B, 1)));
+
+            Order order = capturedOrder();
+            BigDecimal allocated = order.lines().stream()
+                    .map(OrderLine::allocatedAmount)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            // 加總必須等於折後應付，否則退款會按一組數字算、收款按另一組
+            assertThat(allocated).isEqualByComparingTo(order.totalAmount());
+            assertThat(allocated).isEqualByComparingTo("63800.00");
+        }
+
+        @Test
+        @DisplayName("未達門檻時不折，也不核銷券——券必須還在使用者手上")
+        void couponIsNotConsumedWhenItDoesNotApply() {
+            givenCatalog();
+            givenDeductSucceeds();
+            givenOrderSaves();
+            givenPromotions();
+            givenCoupon(COUPON, couponRule(9L, "滿十萬折五千", "100000", "5000"));
+
+            service().place(commandWithCoupon(new OrderItem(SKU_A, 1)));
+
+            assertThat(capturedOrder().discounts()).isEmpty();
+            verify(promotionRepository, never()).redeem(any(), any(), any());
+        }
+
+        @Test
+        @DisplayName("券折到錢就核銷，而且核銷失敗要讓整筆下單失敗")
+        void redeemFailureFailsTheOrder() {
+            givenCatalog();
+            givenDeductSucceeds();
+            givenOrderSaves();
+            givenPromotions();
+            givenCoupon(COUPON, couponRule(9L, "折五千", "0", "5000"));
+            // 條件式 UPDATE 影響 0 列 = 這張券已經被另一個並行請求用掉了
+            when(promotionRepository.redeem(any(), any(), any())).thenReturn(false);
+
+            assertThatThrownBy(() -> service().place(commandWithCoupon(new OrderItem(SKU_A, 1))))
+                    .isInstanceOf(BusinessException.class)
+                    .satisfies(thrown -> assertThat(((BusinessException) thrown).errorCode())
+                            .isEqualTo(ErrorCode.COUPON_ALREADY_USED));
+        }
+
+        @Test
+        @DisplayName("別人的券當作不存在——回「不是你的」等於確認這個券號有效")
+        void othersCouponLooksMissing() {
+            givenCatalog();
+            givenDeductSucceeds();
+            givenOrderSaves();
+            givenPromotions();
+            when(promotionRepository.findCoupon(COUPON)).thenReturn(Optional.of(
+                    Coupon.restore(COUPON, USER + 1, 9L, "CODE-9",
+                            CouponStatus.ISSUED, NOW.plusSeconds(86400), null)));
+
+            assertThatThrownBy(() -> service().place(commandWithCoupon(new OrderItem(SKU_A, 1))))
+                    .isInstanceOf(BusinessException.class)
+                    .satisfies(thrown -> assertThat(((BusinessException) thrown).errorCode())
+                            .isEqualTo(ErrorCode.COUPON_NOT_FOUND));
+        }
+
+        @Test
+        @DisplayName("試算不建訂單、不扣庫存、不核銷券")
+        void previewChangesNothing() {
+            givenCatalog();
+            givenPromotions(orderDiscount(1L, "滿兩萬折兩千", "20000", "2000"));
+
+            var preview = service().preview(new PlaceOrderUseCase.PreviewCommand(
+                    USER, List.of(new OrderItem(SKU_A, 1)), null));
+
+            assertThat(preview.subtotal()).isEqualByComparingTo("29900.00");
+            assertThat(preview.totalDiscount()).isEqualByComparingTo("2000.00");
+            assertThat(preview.payable()).isEqualByComparingTo("27900.00");
+            verify(inventoryService, never()).deduct(any());
+            verify(orderRepository, never()).saveIfAbsent(any());
+            verify(promotionRepository, never()).redeem(any(), any(), any());
+        }
+    }
+
     // ---- fixtures ----
+
+    private static final long COUPON = 55L;
+
+    private void givenPromotions(Promotion... promotions) {
+        when(promotionRepository.findActivePromotions(any())).thenReturn(List.of(promotions));
+    }
+
+    private void givenCoupon(long couponId, Promotion rule) {
+        when(promotionRepository.findCoupon(couponId)).thenReturn(Optional.of(
+                Coupon.restore(couponId, USER, rule.id(), "CODE-" + couponId,
+                        CouponStatus.ISSUED, NOW.plusSeconds(86400), null)));
+        when(promotionRepository.findPromotionById(rule.id())).thenReturn(Optional.of(rule));
+        when(promotionRepository.redeem(any(), any(), any())).thenReturn(true);
+    }
+
+    private static Promotion couponRule(long id, String name, String threshold, String value) {
+        return rule(id, name, DiscountType.COUPON, threshold, value);
+    }
+
+    private static Promotion orderDiscount(long id, String name, String threshold, String value) {
+        return rule(id, name, DiscountType.ORDER_DISCOUNT, threshold, value);
+    }
+
+    private static Promotion rule(long id, String name, DiscountType type,
+                                  String threshold, String value) {
+        return Promotion.of(id, name, type, PromotionRule.FIXED_AMOUNT,
+                new BigDecimal(threshold), new BigDecimal(value), null,
+                NOW.minusSeconds(3600), NOW.plusSeconds(3600), true);
+    }
+
+    private static PlaceOrderCommand commandWithCoupon(OrderItem... items) {
+        return new PlaceOrderCommand(USER, "req-1", ADDRESS, List.of(items), COUPON);
+    }
+
 
     private OrderPlacementService service() {
         return new OrderPlacementService(productRepository, addressRepository, inventoryService,
-                orderRepository, orderNoGenerator, eventOutbox, CLOCK);
+                orderRepository, orderNoGenerator, eventOutbox, promotionRepository, CLOCK);
     }
 
     private static PlaceOrderCommand command(OrderItem... items) {

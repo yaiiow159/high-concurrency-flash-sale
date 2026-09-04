@@ -3,7 +3,7 @@ import { useAddresses } from '~/composables/useAddresses'
 import { useApi } from '~/composables/useApi'
 import { useAuthStore } from '~/stores/auth'
 import { useCartStore } from '~/stores/cart'
-import type { OrderView } from '~/types/api'
+import type { CheckoutPreview, CouponView, OrderView } from '~/types/api'
 
 /**
  * 結帳頁。
@@ -20,8 +20,25 @@ const { request } = useApi()
 const { addresses, defaultAddress, load: loadAddresses } = useAddresses()
 
 const selectedAddressId = ref<number | null>(null)
+const selectedCouponId = ref<number | null>(null)
 const submitting = ref(false)
 const error = ref<string | null>(null)
+
+const coupons = ref<CouponView[]>([])
+const couponsLoading = ref(false)
+
+/**
+ * 伺服器算出來的金額明細。
+ *
+ * 前端**不自己算折扣**：門檻、上限、疊加順序都在後端，
+ * 兩邊各算一次遲早會得到不同答案，而使用者只會相信他先看到的那一個。
+ *
+ * `null` 代表還沒試算完，此時沿用購物車的未折金額顯示——
+ * 顯示 0 會讓畫面在載入時閃一下「免費」。
+ */
+const preview = ref<CheckoutPreview | null>(null)
+const payable = computed(() => preview.value?.payable ?? cart.remote?.totalAmount ?? null)
+const discounts = computed(() => preview.value?.discounts ?? [])
 
 /**
  * 這一次結帳的冪等鍵。
@@ -40,6 +57,40 @@ const canSubmit = computed(
     && !submitting.value,
 )
 
+/**
+ * 重新試算。
+ *
+ * 失敗時**清掉明細而不是顯示錯誤**：試算只是預覽，
+ * 它掛掉不該擋住使用者結帳——真正的金額本來就是下單當下才決定的。
+ * 這是 fail-open，因為這道防線失守的代價只是「少看到折扣」。
+ */
+async function refreshPreview() {
+  if (!auth.isAuthenticated || items.value.length === 0) {
+    preview.value = null
+    return
+  }
+  try {
+    preview.value = await request<CheckoutPreview>('/api/v1/orders/checkout/preview', {
+      method: 'POST',
+      authenticated: true,
+      body: { couponId: selectedCouponId.value },
+    })
+  } catch {
+    preview.value = null
+  }
+}
+
+async function loadCoupons() {
+  couponsLoading.value = true
+  try {
+    coupons.value = await request<CouponView[]>('/api/v1/coupons', { authenticated: true })
+  } catch {
+    coupons.value = []
+  } finally {
+    couponsLoading.value = false
+  }
+}
+
 async function submit() {
   if (!canSubmit.value || selectedAddressId.value === null) {
     return
@@ -52,7 +103,11 @@ async function submit() {
     const order = await request<OrderView>('/api/v1/orders/checkout', {
       method: 'POST',
       authenticated: true,
-      body: { requestId, addressId: selectedAddressId.value },
+      body: {
+        requestId,
+        addressId: selectedAddressId.value,
+        couponId: selectedCouponId.value,
+      },
     })
     requestId = null
     cart.reset()
@@ -64,12 +119,34 @@ async function submit() {
   }
 }
 
-onMounted(async () => {
+/** 結帳需要的三份資料：購物車、地址簿、可用的券。 */
+async function loadCheckoutData() {
   if (!auth.isAuthenticated) {
     return
   }
-  await Promise.all([cart.load(), loadAddresses()])
+  await Promise.all([cart.load(), loadAddresses(), loadCoupons()])
+  await refreshPreview()
+}
+
+// onMounted 只在客戶端跑，這是刻意的：這幾份都是個資，
+// 在伺服器端預先取會讓已登入與未登入渲染出不同的 HTML，接手時就是 hydration mismatch
+onMounted(loadCheckoutData)
+
+// 未登入時這一頁會**就地**顯示登入面板，登入成功後不換頁，
+// onMounted 因此不會再跑一次。少了這個 watch，使用者登入完會看到
+// 「還沒有收貨地址」與「沒有可用的優惠券」——兩者都不是真的
+watch(() => auth.isAuthenticated, (authenticated) => {
+  if (authenticated) {
+    void loadCheckoutData()
+  }
 })
+
+// 換券或購物車內容變動都要重算。監看品項的簽章而不是整個陣列，
+// 是為了避免購物車重新載入（內容相同但物件不同）時多打一次試算
+watch(
+  [selectedCouponId, () => items.value.map((item) => `${item.skuId}x${item.quantity}`).join(',')],
+  () => { void refreshPreview() },
+)
 watchEffect(() => {
   if (selectedAddressId.value === null && defaultAddress.value) {
     selectedAddressId.value = defaultAddress.value.addressId
@@ -117,6 +194,10 @@ useHead({ title: '結帳' })
           </ul>
         </section>
 
+        <CouponPicker
+          v-model="selectedCouponId" :coupons="coupons" :loading="couponsLoading"
+        />
+
         <section aria-labelledby="address-heading">
           <h2 id="address-heading" class="eyebrow mb-3">寄送至</h2>
           <div v-if="addresses.length > 0" class="flex flex-col gap-2">
@@ -150,7 +231,10 @@ useHead({ title: '結帳' })
 
       <AppCard class="hidden p-5 lg:sticky lg:top-24 lg:block">
         <h2 class="eyebrow mb-4">應付金額</h2>
-        <MoneyText :amount="cart.remote?.totalAmount" size="xl" />
+        <PriceBreakdown
+          :subtotal="preview?.subtotal ?? cart.remote?.totalAmount"
+          :discounts="discounts" :payable="payable" size="xl"
+        />
 
         <AppButton class="mt-6" size="lg" block :disabled="!canSubmit" @click="submit">
           {{ submitting ? '處理中⋯' : '確認下單' }}
@@ -174,7 +258,10 @@ useHead({ title: '結帳' })
 
     <StickyActionBar v-if="auth.isAuthenticated && items.length > 0">
       <template #info>
-        <MoneyText :amount="cart.remote?.totalAmount" size="lg" />
+        <MoneyText :amount="payable" size="lg" />
+        <p v-if="discounts.length > 0" class="mt-0.5 truncate text-xs text-accent">
+          已折 {{ preview?.totalDiscount?.toLocaleString() }}
+        </p>
         <p v-if="error" class="mt-0.5 truncate text-xs text-danger">{{ error }}</p>
       </template>
       <template #action>

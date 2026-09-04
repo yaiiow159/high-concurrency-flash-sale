@@ -41,14 +41,24 @@ public record PlaceOrderRequest(
          * 使用者日後搬家改了地址簿，這張訂單要寄到哪裡不能跟著變。
          */
         @NotNull(message = "請選擇收貨地址")
-        Long addressId
+        Long addressId,
+
+        /**
+         * 要使用的優惠券；不用券時省略。
+         *
+         * <p><b>只傳 ID，不傳折抵金額</b>——與價格同一個道理，
+         * 呼叫端若能指定折多少，那就不叫折扣了。
+         * 滿減這類不需券的優惠由伺服器自行判定，不必也不該由呼叫端指定。
+         */
+        Long couponId
 ) {
 
     public PlaceOrderUseCase.PlaceOrderCommand toCommand(Long userId) {
         return new PlaceOrderUseCase.PlaceOrderCommand(userId, requestId, addressId,
                 items.stream()
                         .map(item -> new PlaceOrderUseCase.OrderItem(item.skuId(), item.quantity()))
-                        .toList());
+                        .toList(),
+                couponId);
     }
 
     /** 買哪個規格、幾件。 */

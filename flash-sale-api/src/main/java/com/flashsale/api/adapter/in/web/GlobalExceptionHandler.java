@@ -93,7 +93,12 @@ public class GlobalExceptionHandler {
             Map.entry(ErrorCode.ACTIVITY_STOCK_ALREADY_RELEASED, HttpStatus.CONFLICT),
             Map.entry(ErrorCode.ACTIVITY_NOT_COOLED_DOWN, HttpStatus.CONFLICT),
             Map.entry(ErrorCode.CATEGORY_NOT_FOUND, HttpStatus.NOT_FOUND),
-            Map.entry(ErrorCode.PRODUCT_NOT_PURCHASABLE, HttpStatus.CONFLICT)
+            Map.entry(ErrorCode.PRODUCT_NOT_PURCHASABLE, HttpStatus.CONFLICT),
+            // 券的三種拒絕理由要分得開：404 代表這張券不是你的（或不存在），
+            // 409 代表券是你的但現在不能用。前端據此決定要不要把券從清單上移除
+            Map.entry(ErrorCode.COUPON_NOT_FOUND, HttpStatus.NOT_FOUND),
+            Map.entry(ErrorCode.COUPON_ALREADY_USED, HttpStatus.CONFLICT),
+            Map.entry(ErrorCode.COUPON_EXPIRED, HttpStatus.CONFLICT)
     );
 
     @ExceptionHandler(BusinessException.class)

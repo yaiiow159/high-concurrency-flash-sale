@@ -4,6 +4,7 @@ import com.flashsale.application.port.in.CartUseCase;
 import com.flashsale.application.port.in.CheckoutUseCase;
 import com.flashsale.application.port.in.PlaceOrderUseCase;
 import com.flashsale.application.port.in.dto.CartView;
+import com.flashsale.application.port.in.dto.CheckoutPreview;
 import com.flashsale.application.port.in.dto.OrderView;
 import com.flashsale.application.port.out.OrderRepository;
 import com.flashsale.domain.shared.BusinessException;
@@ -13,6 +14,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 
@@ -45,9 +47,36 @@ public class CheckoutService implements CheckoutUseCase {
         this.orderRepository = orderRepository;
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * <p>{@code readOnly}：試算不該有能力改變任何東西。
+     * 這不只是最佳化——它讓「試算會不會不小心核銷掉券」
+     * 從一個需要讀程式碼確認的問題，變成資料庫會擋下的事。
+     *
+     * <p>空購物車回<b>全零的試算</b>而不是拋例外：使用者清空購物車時
+     * 頁面會重新試算一次，那不是錯誤，不該讓畫面跳出一個紅框。
+     * 真正該擋下空購物車的是 {@link #checkout}。
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public CheckoutPreview preview(Long userId, Long couponId) {
+        CartView cart = cartUseCase.view(userId);
+        List<PlaceOrderUseCase.OrderItem> items = cart.items().stream()
+                .filter(CartView.Item::purchasable)
+                .map(item -> new PlaceOrderUseCase.OrderItem(item.skuId(), item.quantity()))
+                .toList();
+        if (items.isEmpty()) {
+            return new CheckoutPreview(BigDecimal.ZERO, List.of(), BigDecimal.ZERO,
+                    BigDecimal.ZERO, List.of());
+        }
+        return placeOrderUseCase.preview(
+                new PlaceOrderUseCase.PreviewCommand(userId, items, couponId));
+    }
+
     @Override
     @Transactional
-    public OrderView checkout(Long userId, String requestId, Long addressId) {
+    public OrderView checkout(Long userId, String requestId, Long addressId, Long couponId) {
         // 冪等檢查必須排在「購物車是空的」之前。
         //
         // 順序反了的話，網路逾時後重送會撞上「購物車是空的」——
@@ -83,7 +112,8 @@ public class CheckoutService implements CheckoutUseCase {
                 userId, requestId, addressId,
                 cart.items().stream()
                         .map(item -> new PlaceOrderUseCase.OrderItem(item.skuId(), item.quantity()))
-                        .toList()));
+                        .toList(),
+                couponId));
 
         cartUseCase.clear(userId);
         log.info("購物車結帳完成 userId={}, orderNo={}, 品項數={}",

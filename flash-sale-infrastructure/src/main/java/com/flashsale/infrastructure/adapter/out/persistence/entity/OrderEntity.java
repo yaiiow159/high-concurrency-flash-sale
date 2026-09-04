@@ -9,6 +9,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.OneToMany;
+import jakarta.persistence.OrderBy;
 import jakarta.persistence.OrderColumn;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
@@ -175,6 +176,24 @@ public class OrderEntity {
     }
 
     /** 加入訂單行並維護雙向關聯——只設一邊會讓 JPA 寫不出外鍵。 */
+    /**
+     * 折扣明細。用 {@code @OrderBy("id")} 而不是 {@code @OrderColumn}：
+     * 折扣沒有「使用者排的順序」這種語意，只需要每次查詢排列相同。
+     */
+    @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true,
+            fetch = FetchType.LAZY)
+    @OrderBy("id")
+    private List<OrderDiscountEntity> discounts = new ArrayList<>();
+
+    public void addDiscount(OrderDiscountEntity discount) {
+        discounts.add(discount);
+        discount.attachTo(this);
+    }
+
+    public List<OrderDiscountEntity> getDiscounts() {
+        return discounts;
+    }
+
     public void addLine(OrderLineEntity line) {
         lines.add(line);
         line.attachTo(this);

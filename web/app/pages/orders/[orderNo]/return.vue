@@ -62,10 +62,23 @@ const selectedLines = computed(() =>
   (returnable.value?.lines ?? []).filter((line) => (quantities[line.skuId] ?? 0) > 0),
 )
 
+/**
+ * 預估退款。
+ *
+ * 用 `paidAmount`（整單折扣分攤後的實付）而不是 `unitPrice × 數量`——
+ * 有折扣的訂單，定價是使用者**沒有付過**的錢，照定價估會讓畫面上的數字
+ * 比實際收到的退款高。
+ *
+ * 無條件捨去到分，與後端的分攤規則同方向（ADR-0013 決策 5）。
+ * 這仍然是**預估**：後端按累計分攤算，分次退貨時餘數落在最後一次，
+ * 前端不知道先前退過幾件，也不該為了知道而多打一支 API。
+ */
 const refundEstimate = computed(() =>
-  selectedLines.value.reduce(
-    (sum, line) => sum + line.unitPrice * (quantities[line.skuId] ?? 0), 0,
-  ),
+  selectedLines.value.reduce((sum, line) => {
+    const quantity = quantities[line.skuId] ?? 0
+    const paid = line.paidAmount ?? line.unitPrice * line.orderedQuantity
+    return sum + Math.floor((paid * quantity) / line.orderedQuantity * 100) / 100
+  }, 0),
 )
 
 const canSubmit = computed(() =>

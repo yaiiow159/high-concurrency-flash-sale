@@ -44,6 +44,16 @@ public class ReturnLineEntity {
     @Column(name = "quantity", nullable = false, updatable = false)
     private int quantity;
 
+    /**
+     * 這一次實際退多少。
+     *
+     * <p>不由 {@code unitPrice × quantity} 推導：有整單折扣時，
+     * 那個乘積是使用者<b>沒有付過</b>的錢。
+     */
+    @Column(name = "refund_amount", nullable = false, precision = 12, scale = 2,
+            updatable = false)
+    private BigDecimal refundAmount;
+
     /** NULL 代表尚未驗收。 */
     @Column(name = "restockable")
     private Boolean restockable;
@@ -53,7 +63,8 @@ public class ReturnLineEntity {
     }
 
     public ReturnLineEntity(Long skuId, String skuSnapshot, BigDecimal unitPrice, int quantity,
-                            Boolean restockable) {
+                            Boolean restockable, BigDecimal refundAmount) {
+        this.refundAmount = refundAmount;
         this.skuId = skuId;
         this.skuSnapshot = skuSnapshot;
         this.unitPrice = unitPrice;
@@ -87,5 +98,9 @@ public class ReturnLineEntity {
 
     public Boolean getRestockable() {
         return restockable;
+    }
+
+    public BigDecimal getRefundAmount() {
+        return refundAmount;
     }
 }

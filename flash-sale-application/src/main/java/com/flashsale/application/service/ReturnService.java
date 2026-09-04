@@ -27,6 +27,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.HashMap;
@@ -112,7 +113,8 @@ public class ReturnService implements ReturnUseCase {
         List<ReturnableView.Line> lines = order.lines().stream()
                 .map(line -> new ReturnableView.Line(line.skuId(), line.skuSnapshot(),
                         line.unitPrice(), line.quantity(),
-                        Math.max(remaining.getOrDefault(line.skuId(), 0), 0)))
+                        Math.max(remaining.getOrDefault(line.skuId(), 0), 0),
+                        line.allocatedAmount()))
                 .toList();
 
         // 每一項都退完了就等於整張不能再退。回 true 卻沒有任何可選項目，
@@ -324,9 +326,19 @@ public class ReturnService implements ReturnUseCase {
         // 否則兩行各自對照原始餘額都會通過
         remaining.put(item.skuId(), available - item.quantity());
 
-        // 單價取自訂單行的快照，不是重新查商品——商家調價後歷史訂單不能跟著變
+        // 單價取自訂單行的快照，不是重新查商品——商家調價後歷史訂單不能跟著變。
+        //
+        // 退款金額則另外算：整單折扣是折在訂單上、退貨卻是退一行，
+        // 用「單價 × 數量」退的是使用者沒付過的錢。全額退貨會被付款金額上限擋下，
+        // 但部分退貨不會——那筆多退的錢仍在上限之內。
+        //
+        // returnedBefore 用「原數量 − 尚可退」推導而不是另外記，
+        // 因為 remaining 這張表本來就是為了額度檢查算出來的，兩者不該有兩個真實來源
+        int returnedBefore = orderLine.quantity() - available;
+        BigDecimal refund = orderLine.refundFor(returnedBefore, item.quantity());
+
         return ReturnLine.of(orderLine.skuId(), orderLine.skuSnapshot(),
-                orderLine.unitPrice(), item.quantity());
+                orderLine.unitPrice(), item.quantity(), refund);
     }
 
     /** 取訂單並鎖住那一列；只有真的要寫退貨單時才用，查詢一律走不加鎖的版本。 */

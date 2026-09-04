@@ -24,7 +24,8 @@ public record ReturnLine(
         String skuSnapshot,
         BigDecimal unitPrice,
         int quantity,
-        Boolean restockable
+        Boolean restockable,
+        BigDecimal refundAmount
 ) {
 
     public ReturnLine {
@@ -38,20 +39,39 @@ public record ReturnLine(
         if (quantity <= 0) {
             throw new BusinessException(ErrorCode.INVALID_PARAMETER, "退貨數量必須大於 0");
         }
+        if (refundAmount == null || refundAmount.signum() < 0) {
+            throw new BusinessException(ErrorCode.INVALID_PARAMETER, "退款金額不可為負數");
+        }
+        if (refundAmount.compareTo(unitPrice.multiply(BigDecimal.valueOf(quantity))) > 0) {
+            // 退得比定價多，一定是分攤算錯了。這裡是最後一個還能便宜擋下的地方——
+            // 再往下就是真的把錢送出去
+            throw new BusinessException(ErrorCode.INVALID_PARAMETER, "退款金額不可高於原始小計");
+        }
     }
 
-    /** 尚未驗收的退貨行。 */
+    /** 無折扣訂單的退貨行：退款就是單價 × 數量。 */
     public static ReturnLine of(Long skuId, String skuSnapshot, BigDecimal unitPrice, int quantity) {
-        return new ReturnLine(skuId, skuSnapshot, unitPrice, quantity, null);
+        return of(skuId, skuSnapshot, unitPrice, quantity,
+                unitPrice.multiply(BigDecimal.valueOf(quantity)));
     }
 
-    /** 退款金額。與 {@code OrderLine.subtotal()} 同樣由單價推導，不獨立儲存。 */
-    public BigDecimal refundAmount() {
-        return unitPrice.multiply(BigDecimal.valueOf(quantity));
+    /**
+     * 指定退款金額的退貨行。
+     *
+     * <p><b>退款金額不再由單價推導</b>——整單折扣是折在訂單上、退貨卻是退一行，
+     * 「單價 × 數量」退的是使用者<b>沒有付過</b>的錢。
+     * 金額由 {@code OrderLine.refundFor} 依當時的分攤算出後傳入。
+     *
+     * <p>單價仍然保留：它回答「這件商品的定價是多少」，
+     * 而退款金額回答「這一次退了多少」。少了前者，退貨單上就看不出折了多少。
+     */
+    public static ReturnLine of(Long skuId, String skuSnapshot, BigDecimal unitPrice,
+                                int quantity, BigDecimal refundAmount) {
+        return new ReturnLine(skuId, skuSnapshot, unitPrice, quantity, null, refundAmount);
     }
 
     public ReturnLine inspected(boolean canRestock) {
-        return new ReturnLine(skuId, skuSnapshot, unitPrice, quantity, canRestock);
+        return new ReturnLine(skuId, skuSnapshot, unitPrice, quantity, canRestock, refundAmount);
     }
 
     /** 驗收後判定可再售，庫存要回補到一般庫存池。 */
