@@ -43,4 +43,22 @@ public record OrderDiscount(
             throw new BusinessException(ErrorCode.INVALID_PARAMETER, "折抵金額必須為正數");
         }
     }
+
+    /** 運費折抵的 {@code sourceType}。與 {@code DiscountType.SHIPPING} 的名稱一致。 */
+    private static final String SHIPPING = "SHIPPING";
+
+    /**
+     * 這筆折抵是折運費還是折商品。
+     *
+     * <p>兩者在<b>金額恆等式裡的位置不同</b>（ADR-0019 決策 1）：
+     * 商品折抵滿足「小計 − 折扣 == 折後應付」，
+     * 而運費折抵折的是另一筆錢，放進那條等式會讓它失效。
+     *
+     * <p>用字串比對而不是加一個欄位：{@code sourceType} 存的本來就是
+     * {@code DiscountType} 的名稱，多一個欄位等於把同一件事記兩次，
+     * 而兩份記錄遲早會不一致。
+     */
+    public boolean appliesToShipping() {
+        return SHIPPING.equals(sourceType);
+    }
 }

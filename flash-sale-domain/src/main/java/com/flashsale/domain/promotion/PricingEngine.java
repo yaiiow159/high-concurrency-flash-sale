@@ -70,6 +70,12 @@ public final class PricingEngine {
         // 依 DiscountType 的宣告順序逐級套用。每一級都對「上一級之後的金額」計算，
         // 這正是順序會改變結果的原因
         for (DiscountType type : DiscountType.values()) {
+            // 運費折抵**不在這裡**。這個迴圈算的是商品金額，
+            // 而運費是訂單層級的另一筆錢（ADR-0019 決策 1）。
+            // 讓 SHIPPING 進來的話，一張「滿 2000 免運」會直接把商品折成免費
+            if (type == DiscountType.SHIPPING) {
+                continue;
+            }
             for (Promotion promotion : promotions) {
                 if (promotion.type() != type || !promotion.isApplicableAt(now)) {
                     continue;
@@ -87,6 +93,46 @@ public final class PricingEngine {
         }
 
         return new PricingResult(subtotal, applied, running, allocate(items, subtotal, running));
+    }
+
+    /**
+     * 運費折抵。
+     *
+     * <p><b>對「商品折後金額」判斷門檻，對「運費」計算折抵。</b>
+     * 這正是 {@link DiscountType#SHIPPING} 排在最後一位的理由——
+     * 免運門檻看的是折後金額，而不是原價。
+     *
+     * <p>它<b>不在 {@link #calculate} 裡</b>，因為那個方法的輸出有一條恆等式
+     * （各行分攤加總 == 折後應付），而運費不分攤到行。
+     * 硬塞進去只會讓那條恆等式失效，而它正是退款按行退的基礎。
+     *
+     * <p>折抵夾在運費本身：免運券折不出比運費更多的錢。
+     *
+     * @param shippingFee  原始運費
+     * @param goodsPayable 商品折後應付，用於判斷門檻
+     * @return 折抵金額；沒有適用的優惠時是 0
+     */
+    public static AppliedDiscount shippingDiscount(BigDecimal shippingFee,
+                                                   BigDecimal goodsPayable,
+                                                   List<Promotion> promotions,
+                                                   Instant now) {
+        if (shippingFee == null || shippingFee.signum() <= 0) {
+            return null;
+        }
+        for (Promotion promotion : promotions) {
+            if (promotion.type() != DiscountType.SHIPPING || !promotion.isApplicableAt(now)) {
+                continue;
+            }
+            BigDecimal discount = promotion.discountFor(goodsPayable);
+            if (discount.signum() <= 0) {
+                continue;
+            }
+            // 夾在運費本身——免運券折不出比運費更多的錢
+            discount = discount.min(shippingFee);
+            return new AppliedDiscount(DiscountType.SHIPPING, promotion.id(),
+                    promotion.name(), discount);
+        }
+        return null;
     }
 
     /**

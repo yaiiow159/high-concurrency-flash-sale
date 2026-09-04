@@ -28,8 +28,21 @@ public final class Sku {
     private final String barcode;
     private final ProductStatus status;
 
+    /**
+     * 單件重量（克），用於運費計費。
+     *
+     * <p><b>預設 1000 克而不是 0。</b> 0 會讓運費計算報錯（那是刻意的：
+     * 重量 0 不可當成免運），而那會讓一個沒填重量的商品直接結不了帳。
+     * 給一個保守的中間值，讓它結得了帳但落在最低級距裡。
+     */
+    private final int weightGrams;
+
+    /** 沒有指定重量時的預設值。落在最低運費級距內。 */
+    public static final int DEFAULT_WEIGHT_GRAMS = 1000;
+
     private Sku(Long id, Long productId, SkuSpec spec, BigDecimal price,
-                String barcode, ProductStatus status) {
+                String barcode, ProductStatus status, int weightGrams) {
+        this.weightGrams = weightGrams <= 0 ? DEFAULT_WEIGHT_GRAMS : weightGrams;
         this.id = id;
         // productId 刻意允許為 null——見 create() 的說明。
         // 重建路徑由 restore() 自己要求它不可為 null
@@ -53,14 +66,24 @@ public final class Sku {
      * 它只在<b>重建</b>之後才有值——因此 {@link #restore} 仍然要求它非空。
      */
     public static Sku create(Long productId, SkuSpec spec, BigDecimal price, String barcode) {
-        return new Sku(null, productId, spec, price, barcode, ProductStatus.DRAFT);
+        return create(productId, spec, price, barcode, DEFAULT_WEIGHT_GRAMS);
+    }
+
+    public static Sku create(Long productId, SkuSpec spec, BigDecimal price, String barcode,
+                             int weightGrams) {
+        return new Sku(null, productId, spec, price, barcode, ProductStatus.DRAFT, weightGrams);
     }
 
     public static Sku restore(Long id, Long productId, SkuSpec spec, BigDecimal price,
                               String barcode, ProductStatus status) {
+        return restore(id, productId, spec, price, barcode, status, DEFAULT_WEIGHT_GRAMS);
+    }
+
+    public static Sku restore(Long id, Long productId, SkuSpec spec, BigDecimal price,
+                              String barcode, ProductStatus status, int weightGrams) {
         return new Sku(Objects.requireNonNull(id, "重建時 id 不可為 null"),
                 Objects.requireNonNull(productId, "重建時 productId 不可為 null"),
-                spec, price, barcode, status);
+                spec, price, barcode, status, weightGrams);
     }
 
     /**
@@ -106,6 +129,10 @@ public final class Sku {
 
     public ProductStatus status() {
         return status;
+    }
+
+    public int weightGrams() {
+        return weightGrams;
     }
 
     @Override

@@ -1,5 +1,6 @@
 package com.flashsale.api.adapter.in.web.dto;
 
+import com.flashsale.domain.shipping.ShippingMethod;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -20,6 +21,9 @@ public record CheckoutRequest(
         Long addressId,
 
         /** 要使用的優惠券；不用券時省略。只傳 ID，折抵金額由伺服器算。 */
-        Long couponId
+        Long couponId,
+
+        /** 配送方式；省略為宅配。 */
+        ShippingMethod shippingMethod
 ) {
 }

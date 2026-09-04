@@ -2,6 +2,7 @@ package com.flashsale.application.port.in;
 
 import com.flashsale.application.port.in.dto.CheckoutPreview;
 import com.flashsale.application.port.in.dto.OrderView;
+import com.flashsale.domain.shipping.ShippingMethod;
 import com.flashsale.domain.shared.BusinessException;
 import com.flashsale.domain.shared.ErrorCode;
 
@@ -50,7 +51,13 @@ public interface PlaceOrderUseCase {
      * 寄不出去的訂單不該被建立、沒有冪等鍵就沒有冪等。
      * 試算什麼都不建立，硬塞兩個假值進去只會讓那些約束變成裝飾。
      */
-    record PreviewCommand(Long userId, List<OrderItem> lines, Long couponId) {
+    record PreviewCommand(Long userId, List<OrderItem> lines, Long couponId,
+                          String postalCode, ShippingMethod shippingMethod) {
+
+        /** 還沒選地址的試算：運費算不出來，回 0 並由畫面說明「選了地址才知道」。 */
+        public PreviewCommand(Long userId, List<OrderItem> lines, Long couponId) {
+            this(userId, lines, couponId, null, ShippingMethod.HOME_DELIVERY);
+        }
 
         public PreviewCommand {
             Objects.requireNonNull(userId, "userId 不可為 null");
@@ -62,6 +69,11 @@ public interface PlaceOrderUseCase {
                         "單筆訂單最多 %d 個品項".formatted(PlaceOrderCommand.MAX_LINES));
             }
             lines = List.copyOf(lines);
+            // 沒指定就宅配。省略這一行的話，直接呼叫正規建構子的路徑
+            // （例如 API 的 DTO 轉換）會把 null 一路傳到費率查詢，
+            // 而那裡的錯誤訊息是一個 NullPointerException
+            shippingMethod = shippingMethod == null
+                    ? ShippingMethod.HOME_DELIVERY : shippingMethod;
         }
     }
 
@@ -78,12 +90,18 @@ public interface PlaceOrderUseCase {
      *                  滿減這類不需券的優惠由伺服器自行判定，不必也不該由呼叫端指定
      */
     record PlaceOrderCommand(Long userId, String requestId, Long addressId,
-                             List<OrderItem> lines, Long couponId) {
+                             List<OrderItem> lines, Long couponId,
+                             ShippingMethod shippingMethod) {
 
-        /** 不用券的下單。 */
+        /** 不用券、宅配的下單。 */
         public PlaceOrderCommand(Long userId, String requestId, Long addressId,
                                  List<OrderItem> lines) {
-            this(userId, requestId, addressId, lines, null);
+            this(userId, requestId, addressId, lines, null, ShippingMethod.HOME_DELIVERY);
+        }
+
+        public PlaceOrderCommand(Long userId, String requestId, Long addressId,
+                                 List<OrderItem> lines, Long couponId) {
+            this(userId, requestId, addressId, lines, couponId, ShippingMethod.HOME_DELIVERY);
         }
 
         /** 單筆訂單的品項數上限。沒有上限的話，一次請求就能讓資料庫做上萬次扣減。 */
@@ -112,6 +130,10 @@ public interface PlaceOrderUseCase {
                         "同一個規格請合併為一行，不要重複出現");
             }
             lines = List.copyOf(lines);
+            // 沒指定就宅配。這個預設值讓既有的呼叫端不必全部改，
+            // 而配送方式是「有預設值才合理」的欄位——多數人不會特別選
+            shippingMethod = shippingMethod == null
+                    ? ShippingMethod.HOME_DELIVERY : shippingMethod;
         }
     }
 

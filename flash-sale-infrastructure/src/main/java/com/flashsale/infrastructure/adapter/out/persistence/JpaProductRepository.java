@@ -53,7 +53,8 @@ public class JpaProductRepository implements ProductRepository {
         ProductEntity entity = new ProductEntity(product.categoryId(), product.name(),
                 product.brand(), product.description(), product.status().name(), product.createdAt());
         product.skus().forEach(sku -> entity.addSku(new SkuEntity(
-                writeSpec(sku.spec()), sku.price(), sku.barcode(), sku.status().name())));
+                writeSpec(sku.spec()), sku.price(), sku.barcode(), sku.status().name(),
+                sku.weightGrams())));
         return entity;
     }
 
@@ -178,7 +179,8 @@ public class JpaProductRepository implements ProductRepository {
                 SkuSpec.of(readSpec(entity.getSpecJson())),
                 entity.getPrice(),
                 entity.getBarcode(),
-                ProductStatus.valueOf(entity.getStatus()));
+                ProductStatus.valueOf(entity.getStatus()),
+                entity.getWeightGrams());
     }
 
     private String writeSpec(SkuSpec spec) {

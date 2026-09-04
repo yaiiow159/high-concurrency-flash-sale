@@ -87,8 +87,13 @@ export interface OrderView {
   /** 各行小計的加總，**折扣前** */
   subtotal: number | null
   discounts: OrderDiscount[]
-  /** **折後應付**。付款與退款上限都以這個數字為準，不是 subtotal */
+  /** **商品**折後應付。**不含運費**——實付是 payableAmount */
   totalAmount: number | null
+  /** 已扣掉免運折抵的實收運費。秒殺訂單為 0（那條通道不收地址）*/
+  shippingFee: number | null
+  /** 這張訂單總共付了多少 = totalAmount + shippingFee。付款與退款上限以它為準 */
+  payableAmount: number | null
+  shippingMethod: string | null
   shipping: OrderShippingView | null
   status: string
   closeReason: string | null
@@ -197,7 +202,21 @@ export interface CheckoutPreview {
   subtotal: number
   discounts: OrderDiscount[]
   totalDiscount: number
+  /** **商品**折後應付，不含運費 */
   payable: number
+  /** 已扣掉免運折抵的實收運費 */
+  shippingFee: number
+  /**
+   * 有沒有足夠資訊算運費（選了地址沒有）。
+   *
+   * false 時 shippingFee 是 0，但那**不是免運**而是「還算不出來」——
+   * 畫面要說得出差別，否則使用者會以為免運然後在下一步被多收錢。
+   */
+  shippingKnown: boolean
+  /** 推導出來的區域名稱，用來解釋「為什麼這一單運費比較貴」 */
+  shippingZone: string | null
+  /** 總計 = payable + shippingFee。這才是要付的錢 */
+  total: number
   lines: Array<{
     skuId: number
     skuSnapshot: string

@@ -18,7 +18,21 @@ public record CheckoutPreview(
         BigDecimal subtotal,
         List<OrderView.Discount> discounts,
         BigDecimal totalDiscount,
+        /** <b>商品</b>折後應付，不含運費 */
         BigDecimal payable,
+        /**
+         * 已扣掉免運折抵的實收運費。
+         *
+         * <p>{@code shippingKnown} 為 false 時這是 0，
+         * 但那不是「免運」而是「還算不出來」——畫面要說得出差別。
+         */
+        BigDecimal shippingFee,
+        /** 有沒有足夠資訊算運費（選了地址沒有）。 */
+        boolean shippingKnown,
+        /** 推導出來的區域名稱；用來解釋「為什麼這一單運費比較貴」。 */
+        String shippingZone,
+        /** 總計 = payable + shippingFee。付款金額就是這個數字。 */
+        BigDecimal total,
         List<Line> lines
 ) {
 

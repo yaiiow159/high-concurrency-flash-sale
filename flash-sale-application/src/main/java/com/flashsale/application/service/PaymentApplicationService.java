@@ -132,10 +132,16 @@ public class PaymentApplicationService implements PaymentUseCase {
     }
 
     private Payment createPayment(Order order) {
-        // 金額取自訂單，不接受呼叫端傳入——否則前端就能自己決定要付多少
+        // 金額取自訂單，不接受呼叫端傳入——否則前端就能自己決定要付多少。
+        //
+        // **用 payableAmount() 而不是 totalAmount()**：後者不含運費（ADR-0019 決策 2）。
+        // 用錯的話運費就收不到，而且**沒有任何東西會發現**——
+        // 付款成功、訂單完成、貨也寄了，只有月底對帳時才發現每一單都少收幾十元。
+        //
+        // 退款上限跟著這個金額走，因此這一行同時決定了「運費退不退得出來」。
         return paymentRepository.save(Payment.initiate(
                 paymentNoGenerator.next(), order.orderNo(), order.userId(),
-                order.totalAmount(), clock.instant()));
+                order.payableAmount(), clock.instant()));
     }
 
     @Override

@@ -19,6 +19,9 @@ function render(props: {
   subtotal?: number | null
   discounts?: OrderDiscount[]
   payable?: number | null
+  shippingFee?: number | null
+  shippingKnown?: boolean
+  shippingZone?: string | null
 }) {
   return mount(PriceBreakdown, {
     props: { subtotal: 1000, discounts: [], payable: 1000, ...props },
@@ -76,5 +79,62 @@ describe('PriceBreakdown', () => {
     const wrapper = render({ subtotal: null, discounts: [], payable: null })
 
     expect(wrapper.text()).not.toContain('0')
+  })
+
+  describe('運費', () => {
+    it('運費未知時顯示「選擇地址後計算」，不是 NT$ 0', () => {
+      // NT$ 0 會讓使用者以為免運，然後在下一步被多收錢
+      const wrapper = render({
+        subtotal: 1000, discounts: [], payable: 1000,
+        shippingFee: 0, shippingKnown: false,
+      })
+
+      expect(wrapper.text()).toContain('選擇地址後計算')
+      expect(wrapper.text()).not.toContain('免運')
+    })
+
+    it('運費為 0 且算得出來時顯示「免運」——那是使用者拿到的好處', () => {
+      const wrapper = render({
+        subtotal: 3000, discounts: [], payable: 3000,
+        shippingFee: 0, shippingKnown: true,
+      })
+
+      expect(wrapper.text()).toContain('免運')
+    })
+
+    it('總計要含運費——只顯示商品金額會讓帳單對不起來', () => {
+      const wrapper = render({
+        subtotal: 1000, discounts: [], payable: 1000,
+        shippingFee: 80, shippingKnown: true,
+      })
+
+      expect(wrapper.text()).toContain('1,080')
+    })
+
+    it('運費未知時總計不加運費，避免顯示一個之後會變的數字', () => {
+      const wrapper = render({
+        subtotal: 1000, discounts: [], payable: 1000,
+        shippingFee: 0, shippingKnown: false,
+      })
+
+      expect(wrapper.text()).toContain('商品小計')
+      expect(wrapper.text()).not.toContain('應付')
+    })
+
+    it('離島要說得出是哪一區——沒有解釋的高運費只會變成客服電話', () => {
+      const wrapper = render({
+        subtotal: 1000, discounts: [], payable: 1000,
+        shippingFee: 200, shippingKnown: true, shippingZone: '離島',
+      })
+
+      expect(wrapper.text()).toContain('離島')
+      expect(wrapper.text()).toContain('200')
+    })
+
+    it('沒有運費概念時（秒殺訂單）完全不顯示那一列', () => {
+      const wrapper = render({ subtotal: 1000, discounts: [], payable: 1000 })
+
+      expect(wrapper.text()).not.toContain('運費')
+    })
   })
 })

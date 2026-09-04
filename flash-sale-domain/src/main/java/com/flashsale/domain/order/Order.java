@@ -6,6 +6,7 @@ import com.flashsale.domain.order.event.OrderCreatedEvent;
 import com.flashsale.domain.order.event.OrderCompletedEvent;
 import com.flashsale.domain.order.event.OrderPaidEvent;
 import com.flashsale.domain.order.event.OrderShippedEvent;
+import com.flashsale.domain.shipping.ShippingMethod;
 import com.flashsale.domain.shared.BusinessException;
 import com.flashsale.domain.shared.DomainEvent;
 import com.flashsale.domain.shared.ErrorCode;
@@ -43,6 +44,19 @@ public final class Order {
     private final String requestId;
     private final List<OrderLine> lines;
     private final BigDecimal totalAmount;
+
+    /**
+     * 運費。<b>不計入 {@link #totalAmount}</b>（ADR-0019 決策 1）。
+     *
+     * <p>那條恆等式（{@code totalAmount == Σ allocatedAmount}）是退款按行退的基礎，
+     * 而運費不分攤到行——三件商品一起寄，退掉其中一件，
+     * 配送已經發生了，沒有「三分之一趟」這種東西。
+     *
+     * <p>已經扣掉免運折抵，是<b>實際要收的</b>那個數字。
+     */
+    private final BigDecimal shippingFee;
+
+    private final ShippingMethod shippingMethod;
     /**
      * 收貨資訊快照，可能為 null。
      *
@@ -76,7 +90,11 @@ public final class Order {
     private Order(OrderNo orderNo, Long userId, OrderChannel channel, String requestId,
                   List<OrderLine> lines, BigDecimal totalAmount, ShippingInfo shippingInfo,
                   OrderStatus status, Instant createdAt, Instant paidAt,
-                  String closeReason, List<OrderDiscount> discounts, long version) {
+                  String closeReason, List<OrderDiscount> discounts, long version,
+                  BigDecimal shippingFee, ShippingMethod shippingMethod) {
+        this.shippingFee = shippingFee == null ? BigDecimal.ZERO : shippingFee;
+        this.shippingMethod = shippingMethod == null
+                ? ShippingMethod.HOME_DELIVERY : shippingMethod;
         this.orderNo = Objects.requireNonNull(orderNo, "orderNo 不可為 null");
         this.userId = Objects.requireNonNull(userId, "userId 不可為 null");
         this.channel = Objects.requireNonNull(channel, "channel 不可為 null");
@@ -119,6 +137,22 @@ public final class Order {
     public static Order place(OrderNo orderNo, Long userId, String requestId,
                               List<OrderLine> lines, ShippingInfo shippingInfo,
                               List<OrderDiscount> discounts, BigDecimal payable, Instant now) {
+        return place(orderNo, userId, requestId, lines, shippingInfo, discounts, payable,
+                BigDecimal.ZERO, ShippingMethod.HOME_DELIVERY, now);
+    }
+
+    /**
+     * 建立帶運費的訂單。
+     *
+     * @param shippingFee 已扣掉免運折抵的<b>實收</b>運費。
+     *                    它<b>不進</b> {@code payable}——那條恆等式
+     *                    （各行實付加總 == 折後應付）是退款按行退的基礎，
+     *                    而運費不分攤到行（ADR-0019 決策 1）
+     */
+    public static Order place(OrderNo orderNo, Long userId, String requestId,
+                              List<OrderLine> lines, ShippingInfo shippingInfo,
+                              List<OrderDiscount> discounts, BigDecimal payable,
+                              BigDecimal shippingFee, ShippingMethod shippingMethod, Instant now) {
         Objects.requireNonNull(shippingInfo, "一般訂單必須有收貨資訊");
 
         // 三個數字必須自洽：總額 = 各行實付的加總，且 = 小計 − 折扣加總。
@@ -133,7 +167,10 @@ public final class Order {
             throw new BusinessException(ErrorCode.INVALID_PARAMETER,
                     "各行實付加總 %s 與折後應付 %s 不符".formatted(allocated, payable));
         }
+        // **只算商品折抵。** 運費折抵折的是另一筆錢（ADR-0019 決策 1），
+        // 放進這條等式會讓它失效——而這條等式正是退款按行退的基礎
         BigDecimal discountTotal = discounts.stream()
+                .filter(discount -> !discount.appliesToShipping())
                 .map(OrderDiscount::amount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         if (sumOf(lines).subtract(discountTotal).compareTo(payable) != 0) {
@@ -143,7 +180,7 @@ public final class Order {
 
         Order order = new Order(orderNo, userId, OrderChannel.NORMAL, requestId,
                 lines, payable, shippingInfo, OrderStatus.PENDING_PAYMENT,
-                now, null, null, discounts, 0L);
+                now, null, null, discounts, 0L, shippingFee, shippingMethod);
         order.registerEvent(OrderCreatedEvent.of(order, now));
         return order;
     }
@@ -167,7 +204,9 @@ public final class Order {
         // 秒殺沒有收貨資訊：那條通道的下單當下不收集地址（見 shippingInfo 欄位說明）
         Order order = new Order(orderNo, userId, OrderChannel.SECKILL, requestId,
                 List.of(line), line.subtotal(), null, OrderStatus.PENDING_PAYMENT,
-                now, null, null, List.of(), 0L);
+                // 秒殺通道沒有運費：它連地址都不收，自然算不出運費。
+                // 真要收的話是另一條路徑（下單後補地址），那是另一個決定
+                now, null, null, List.of(), 0L, BigDecimal.ZERO, ShippingMethod.HOME_DELIVERY);
         order.registerEvent(OrderCreatedEvent.of(order, now));
         return order;
     }
@@ -190,8 +229,20 @@ public final class Order {
                                 ShippingInfo shippingInfo, OrderStatus status,
                                 Instant createdAt, Instant paidAt, String closeReason,
                                 List<OrderDiscount> discounts, long version) {
+        return restore(orderNo, userId, channel, requestId, lines, totalAmount, shippingInfo,
+                status, createdAt, paidAt, closeReason, discounts, version,
+                BigDecimal.ZERO, ShippingMethod.HOME_DELIVERY);
+    }
+
+    public static Order restore(OrderNo orderNo, Long userId, OrderChannel channel, String requestId,
+                                List<OrderLine> lines, BigDecimal totalAmount,
+                                ShippingInfo shippingInfo, OrderStatus status,
+                                Instant createdAt, Instant paidAt, String closeReason,
+                                List<OrderDiscount> discounts, long version,
+                                BigDecimal shippingFee, ShippingMethod shippingMethod) {
         return new Order(orderNo, userId, channel, requestId, lines, totalAmount,
-                shippingInfo, status, createdAt, paidAt, closeReason, discounts, version);
+                shippingInfo, status, createdAt, paidAt, closeReason, discounts, version,
+                shippingFee, shippingMethod);
     }
 
     /** 付款成功。 */
@@ -343,6 +394,27 @@ public final class Order {
 
     public BigDecimal totalAmount() {
         return totalAmount;
+    }
+
+    /** 運費。已扣掉免運折抵，是實際要收的那個數字。 */
+    public BigDecimal shippingFee() {
+        return shippingFee;
+    }
+
+    public ShippingMethod shippingMethod() {
+        return shippingMethod;
+    }
+
+    /**
+     * 這張訂單總共要付多少：商品折後 + 運費。
+     *
+     * <p><b>付款與退款上限用這個，不是 {@link #totalAmount}。</b>
+     * 用 totalAmount 的話運費就收不到，而且<b>沒有任何東西會發現</b>——
+     * 付款成功、訂單完成、貨也寄了，只有月底對帳時發現每一單都少收幾十元
+     * （ADR-0019 決策 2）。
+     */
+    public BigDecimal payableAmount() {
+        return totalAmount.add(shippingFee);
     }
 
     public OrderStatus status() {

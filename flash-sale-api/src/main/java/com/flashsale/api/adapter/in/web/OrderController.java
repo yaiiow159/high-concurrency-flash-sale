@@ -96,7 +96,7 @@ public class OrderController {
             @CurrentUser Long userId) {
 
         OrderView order = checkoutUseCase.checkout(userId, request.requestId(),
-                request.addressId(), request.couponId());
+                request.addressId(), request.couponId(), request.shippingMethod());
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(order));
     }
 
@@ -131,7 +131,8 @@ public class OrderController {
             @CurrentUser Long userId) {
 
         Long couponId = request == null ? null : request.couponId();
-        return ApiResponse.ok(checkoutUseCase.preview(userId, couponId));
+        Long addressId = request == null ? null : request.addressId();
+        return ApiResponse.ok(checkoutUseCase.preview(userId, couponId, addressId));
     }
 
     @GetMapping

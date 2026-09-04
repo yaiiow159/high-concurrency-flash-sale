@@ -2,6 +2,7 @@ package com.flashsale.application.port.in;
 
 import com.flashsale.application.port.in.dto.CheckoutPreview;
 import com.flashsale.application.port.in.dto.OrderView;
+import com.flashsale.domain.shipping.ShippingMethod;
 
 /**
  * 從購物車結帳。
@@ -23,7 +24,7 @@ public interface CheckoutUseCase {
      */
     /** 不用券的結帳。 */
     default OrderView checkout(Long userId, String requestId, Long addressId) {
-        return checkout(userId, requestId, addressId, null);
+        return checkout(userId, requestId, addressId, null, ShippingMethod.HOME_DELIVERY);
     }
 
     /**
@@ -31,7 +32,8 @@ public interface CheckoutUseCase {
      *                 券的核銷與訂單建立在同一個交易裡——分開做的話，
      *                 建單失敗時券會白白消失（ADR-0013 決策 7）
      */
-    OrderView checkout(Long userId, String requestId, Long addressId, Long couponId);
+    OrderView checkout(Long userId, String requestId, Long addressId, Long couponId,
+                       ShippingMethod shippingMethod);
 
     /**
      * 購物車結帳試算：不建訂單、不扣庫存、不核銷券。
@@ -39,5 +41,9 @@ public interface CheckoutUseCase {
      * <p>品項與 {@link #checkout} 取自同一個來源（伺服器端購物車），
      * 這樣「試算看到的」與「真正下單的」才不會是兩件事。
      */
-    CheckoutPreview preview(Long userId, Long couponId);
+    /**
+     * @param addressId 用來算運費的收貨地址；{@code null} 代表使用者還沒選，
+     *                  此時運費算不出來（回 0 且 {@code shippingKnown} 為 false）
+     */
+    CheckoutPreview preview(Long userId, Long couponId, Long addressId);
 }
