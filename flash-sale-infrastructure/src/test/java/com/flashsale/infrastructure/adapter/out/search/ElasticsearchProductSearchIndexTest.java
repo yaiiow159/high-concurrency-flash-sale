@@ -15,6 +15,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -33,6 +34,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -155,6 +157,32 @@ class ElasticsearchProductSearchIndexTest {
                     .isInstanceOf(IllegalStateException.class);
 
             verify(indexAdmin, never()).switchAliasTo(anyString());
+        }
+
+        @Test
+        @DisplayName("先切 alias 再清舊索引——順序反了會讓搜尋完全消失")
+        void prunesOnlyAfterAliasSwitch() {
+            recordOffsets(1);
+
+            index.reindexAll();
+
+            // 先清再切的話，中間若切換失敗就變成「新索引還沒生效、舊索引已經沒了」，
+            // 而那是唯一一種會讓搜尋完全消失的組合
+            InOrder order = inOrder(indexAdmin);
+            order.verify(indexAdmin).switchAliasTo("products_v1");
+            order.verify(indexAdmin).pruneOldVersions(anyInt());
+        }
+
+        @Test
+        @DisplayName("重建失敗時不清舊索引——舊的還在服務")
+        void doesNotPruneWhenRebuildFails() {
+            when(productRepository.findOnShelf(any(), anyInt(), anyInt()))
+                    .thenThrow(new IllegalStateException("資料庫掛了"));
+
+            assertThatThrownBy(() -> index.reindexAll())
+                    .isInstanceOf(IllegalStateException.class);
+
+            verify(indexAdmin, never()).pruneOldVersions(anyInt());
         }
     }
 

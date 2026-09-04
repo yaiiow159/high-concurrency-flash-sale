@@ -79,4 +79,26 @@ public interface ReviewRepository {
      * 呼叫端對缺席的鍵用 {@code ProductRating.empty} 補上。
      */
     Map<Long, ProductRating> findRatings(List<Long> productIds);
+
+    /**
+     * 對帳：聚合與 {@code review} 表的真實統計不符的商品。
+     *
+     * <p>包含兩種偏差：聚合數字對不上，以及<b>有評價卻連聚合列都沒有</b>。
+     * 後者在商品頁上會顯示「尚無評價」——評價明明存在卻完全看不到。
+     */
+    List<RatingDrift> findRatingDrifts();
+
+    /**
+     * 把某個商品的聚合重算成 {@code review} 表的真實統計。
+     *
+     * <p>這是全篇唯一一處「設成」而非「加上去」的寫入，
+     * 而它之所以安全，正是因為它不做增量：來源是 review 表的當下統計，
+     * 不依賴聚合的舊值。
+     */
+    void recomputeRating(Long productId);
+
+    /** @param storedCount 聚合上的快照；{@code actualCount} 是從 review 表數出來的真實值 */
+    record RatingDrift(Long productId, long actualCount, long actualSum,
+                       long storedCount, long storedSum) {
+    }
 }

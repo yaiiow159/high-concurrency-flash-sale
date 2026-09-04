@@ -3,6 +3,8 @@ package com.flashsale.api.adapter.in.web;
 import com.flashsale.api.adapter.in.web.dto.ApiResponse;
 import com.flashsale.api.adapter.in.web.dto.WriteReviewRequest;
 import com.flashsale.api.adapter.in.web.security.CurrentUser;
+import com.flashsale.application.port.in.RatingReconciliationUseCase;
+import com.flashsale.application.port.in.dto.RatingReconciliation;
 import com.flashsale.application.port.in.ReviewUseCase;
 import com.flashsale.application.port.in.dto.ProductRatingView;
 import com.flashsale.application.port.in.dto.ReviewView;
@@ -53,9 +55,12 @@ public class ReviewController {
     private static final int MAX_BATCH_SIZE = 100;
 
     private final ReviewUseCase reviewUseCase;
+    private final RatingReconciliationUseCase ratingReconciliationUseCase;
 
-    public ReviewController(ReviewUseCase reviewUseCase) {
+    public ReviewController(ReviewUseCase reviewUseCase,
+                            RatingReconciliationUseCase ratingReconciliationUseCase) {
         this.reviewUseCase = reviewUseCase;
+        this.ratingReconciliationUseCase = ratingReconciliationUseCase;
     }
 
     /** 商品的評分摘要。公開——沒登入的訪客也要看得到，那正是評價存在的意義。 */
@@ -142,6 +147,25 @@ public class ReviewController {
 
         return ApiResponse.ok(reviewUseCase.edit(new ReviewUseCase.EditReviewCommand(
                 userId, reviewId, request.stars(), request.content())));
+    }
+
+    /**
+     * 評分聚合對帳。
+     *
+     * <p><b>唯一一個可以自動修復的對帳</b>：{@code review} 表是原始事實，
+     * 聚合只是它的統計，重算不需要任何猜測。庫存與積分的偏差則分不出成因，
+     * 因此那兩支只讀不修。
+     *
+     * <p>但 {@code repair} 預設是 false。看過差異再決定要不要修，
+     * 是唯一安全的順序——而且偏差的<b>存在</b>本身就是訊號：
+     * 有東西繞過了正規路徑。只修數字不查原因，下週會再看到一次。
+     */
+    @GetMapping("/admin/reviews/reconciliation")
+    @Operation(summary = "評分聚合對帳",
+            description = "比對聚合與評價表；repair=true 時重算不一致的商品")
+    public ApiResponse<RatingReconciliation> reconcile(
+            @RequestParam(defaultValue = "false") boolean repair) {
+        return ApiResponse.ok(ratingReconciliationUseCase.reconcile(repair));
     }
 
     @GetMapping("/reviews/mine")
