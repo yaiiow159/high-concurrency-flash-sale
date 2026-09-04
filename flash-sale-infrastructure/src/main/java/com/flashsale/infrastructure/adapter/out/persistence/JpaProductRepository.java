@@ -5,6 +5,8 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flashsale.application.port.out.ProductRepository;
 import com.flashsale.domain.catalog.Product;
+import com.flashsale.domain.catalog.ProductCursor;
+import com.flashsale.domain.catalog.ProductSort;
 import com.flashsale.domain.catalog.ProductStatus;
 import com.flashsale.domain.catalog.ProductSummary;
 import com.flashsale.domain.catalog.Sku;
@@ -14,6 +16,8 @@ import com.flashsale.domain.shared.ErrorCode;
 import com.flashsale.infrastructure.adapter.out.persistence.entity.ProductEntity;
 import com.flashsale.infrastructure.adapter.out.persistence.entity.SkuEntity;
 import com.flashsale.infrastructure.adapter.out.persistence.jpa.ProductJpaRepository;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
@@ -38,6 +42,10 @@ public class JpaProductRepository implements ProductRepository {
             };
 
     private final ProductJpaRepository jpaRepository;
+
+    /** 列表查詢是動態拼裝的原生 SQL（見 ProductListingQuery），走不了具名查詢。 */
+    @PersistenceContext
+    private EntityManager entityManager;
     private final ObjectMapper objectMapper;
 
     public JpaProductRepository(ProductJpaRepository jpaRepository, ObjectMapper objectMapper) {
@@ -143,24 +151,48 @@ public class JpaProductRepository implements ProductRepository {
     /**
      * 商店列表查詢：<b>固定兩次</b>查詢，與頁大小、與翻到第幾頁都無關。
      *
-     * <p>先取整頁的商品摘要（keyset，ADR-0021），再用一次
-     * {@code in (...)} 把最低價全部帶回來。
+     * <p>第一次取整頁（keyset，ADR-0021），第二次用一次 {@code in (...)}
+     * 把最低價全部帶回來。
      *
-     * <p>先前的做法是走 {@code findOnShelf} 撈聚合，而映射時碰了 lazy 的
-     * SKU 關聯，於是每筆商品多一次查詢——實測 {@code size=100} 打 102 次
-     * SELECT，且那些 SKU 在下一行就被丟掉了。
+     * <p>最低價<b>顯示</b>用批次查詢，<b>排序</b>用 product 上反正規化的
+     * {@code lowest_price} 欄位——排序要在資料庫裡對 5 萬列做，
+     * 而相關子查詢會重建剛消掉的那個懸崖。
      */
     @Override
     @Transactional(readOnly = true)
     public List<ProductSummary> findOnShelfSummaries(Collection<Long> categoryIds,
-                                                     Long cursor, int limit) {
-        Pageable pageable = PageRequest.ofSize(Math.max(limit, 1));
-        List<ProductSummary> page = categoryIds == null || categoryIds.isEmpty()
-                ? jpaRepository.findOnShelfPage(cursor, pageable)
-                : jpaRepository.findOnShelfPageInCategories(categoryIds, cursor, pageable);
-        if (page.isEmpty()) {
-            return page;
+                                                     ProductSort sort, ProductCursor cursor,
+                                                     int limit) {
+        String sql = ProductListingQuery.build(sort, categoryIds, cursor);
+        var query = entityManager.createNativeQuery(sql).setParameter("limit", Math.max(limit, 1));
+        if (categoryIds != null && !categoryIds.isEmpty()) {
+            query.setParameter("categoryIds", categoryIds);
         }
+        if (cursor != null) {
+            query.setParameter("cursorId", cursor.id());
+            if (ProductListingQuery.sortExpression(sort) != null) {
+                query.setParameter("cursorSort", cursor.sortValue());
+            }
+        }
+
+        @SuppressWarnings("unchecked")
+        List<Object[]> rows = query.getResultList();
+        if (rows.isEmpty()) {
+            return List.of();
+        }
+
+        List<ProductSummary> page = rows.stream()
+                .map(row -> new ProductSummary(
+                        ((Number) row[0]).longValue(),
+                        ((Number) row[1]).longValue(),
+                        (String) row[2],
+                        (String) row[3],
+                        ProductStatus.ON_SHELF,
+                        null,
+                        // 游標直接用資料庫回來的排序值組，不在 Java 端重算——
+                        // 重算就有兩份定義，而它們遲早會不一致
+                        cursorOf(row[4], ((Number) row[0]).longValue())))
+                .toList();
 
         Map<Long, BigDecimal> lowestPrices = jpaRepository
                 .findLowestPrices(page.stream().map(ProductSummary::id).toList()).stream()
@@ -169,10 +201,23 @@ public class JpaProductRepository implements ProductRepository {
         return page.stream()
                 // 沒有任何可購買 SKU 的商品最低價為 null，前端顯示成「—」。
                 // 補一個 0 會讓它排到價格排序的最前面，那是錯的
-                .map(summary -> new ProductSummary(summary.id(), summary.categoryId(),
-                        summary.name(), summary.brand(), summary.status(),
-                        lowestPrices.get(summary.id())))
+                .map(summary -> summary.withLowestPrice(lowestPrices.get(summary.id())))
                 .toList();
+    }
+
+    /**
+     * 用資料庫回來的排序值組游標。
+     *
+     * <p>排序值為 {@code null} 代表這次是依 id 排序，游標只需要 id。
+     */
+    private static String cursorOf(Object sortValue, Long id) {
+        if (sortValue == null) {
+            return ProductCursor.ofId(id).encode();
+        }
+        BigDecimal value = sortValue instanceof BigDecimal decimal
+                ? decimal
+                : BigDecimal.valueOf(((Number) sortValue).doubleValue());
+        return ProductCursor.of(value, id).encode();
     }
 
     @Override

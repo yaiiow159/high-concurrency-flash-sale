@@ -111,10 +111,24 @@ export interface OrderView {
  * `nextCursor` 由伺服器給，前端**原樣送回**即可——不要自己從
  * items 取最後一筆的 id，那等於把伺服器的排序鍵寫死在前端。
  */
+/**
+ * SKU 庫存。
+ *
+ * `available` 只在低於門檻時才有值——庫存量是商業情報，
+ * 但「剩 3 件」對使用者是真實的購買訊號。
+ */
+export interface SkuStockView {
+  skuId: number
+  inStock: boolean
+  lowStock: boolean
+  /** 充足時**整個欄位不會出現**（後端省略 null），因此是選填而不是 `number | null` */
+  available?: number
+}
+
 export interface ProductPage {
   items: ProductView[]
-  /** null 代表沒有下一頁 */
-  nextCursor: number | null
+  /** null 代表沒有下一頁。字串——依價格或銷量排序時是 `排序值:id` 的複合值 */
+  nextCursor: string | null
   hasMore: boolean
 }
 

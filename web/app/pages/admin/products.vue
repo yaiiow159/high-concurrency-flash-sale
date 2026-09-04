@@ -40,18 +40,44 @@ const categoryOptions = computed(() =>
     ...parent.children.map((child) => ({ id: child.categoryId, label: `　${child.name}` })),
   ]))
 
+/**
+ * 分頁。
+ *
+ * **後台用頁碼，商店用游標**——這不是重要性的差異，是存取方式的差異：
+ * 維運要能直接跳到第 N 頁核對，而 keyset 做不到跳頁（ADR-0021 決策 4）。
+ *
+ * 沒有總筆數可以顯示「共 N 頁」——那需要一次 COUNT(*)，
+ * 在 5 萬列上比查詢本身還貴。改用「這一頁滿了就可能還有下一頁」判斷。
+ */
+const PAGE_SIZE = 20
+const page = ref(0)
+const hasNextPage = ref(false)
+
 async function load() {
   loading.value = true
   error.value = null
   try {
-    rows.value = await products(tab.value)
+    // 多要一筆來判斷還有沒有下一頁，回傳時砍掉
+    const batch = await products(tab.value, page.value, PAGE_SIZE + 1)
+    hasNextPage.value = batch.length > PAGE_SIZE
+    rows.value = hasNextPage.value ? batch.slice(0, PAGE_SIZE) : batch
   } catch (cause) {
     error.value = (cause as { message?: string }).message ?? '無法載入商品清單'
     rows.value = []
+    hasNextPage.value = false
   } finally {
     loading.value = false
   }
 }
+
+function goToPage(next: number) {
+  page.value = Math.max(0, next)
+  void load()
+}
+
+// 換分頁標籤要回到第一頁——留在第 7 頁看另一個狀態的商品，
+// 很可能是一片空白，而使用者會以為那個狀態沒有商品
+watch(tab, () => { page.value = 0 })
 
 async function toggleShelf(product: ProductView) {
   const goingOnline = product.status !== 'ON_SHELF'
@@ -168,5 +194,30 @@ useHead({ title: '商品管理' })
         </AppCard>
       </li>
     </ul>
+
+    <!--
+      頁碼而不是「載入更多」：維運要能直接跳到第 N 頁核對。
+      沒有總筆數可顯示——那需要一次 COUNT(*)，在 5 萬列上比查詢本身還貴
+    -->
+    <div
+      v-if="rows.length > 0 && (page > 0 || hasNextPage)"
+      class="mt-6 flex items-center justify-center gap-3"
+    >
+      <AppButton
+        variant="secondary" size="sm"
+        :disabled="page === 0 || loading"
+        @click="goToPage(page - 1)"
+      >
+        上一頁
+      </AppButton>
+      <span class="figure text-sm text-ink-muted">第 {{ page + 1 }} 頁</span>
+      <AppButton
+        variant="secondary" size="sm"
+        :disabled="!hasNextPage || loading"
+        @click="goToPage(page + 1)"
+      >
+        下一頁
+      </AppButton>
+    </div>
   </div>
 </template>

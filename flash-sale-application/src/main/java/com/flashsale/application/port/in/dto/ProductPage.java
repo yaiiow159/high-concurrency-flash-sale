@@ -10,6 +10,8 @@ import java.util.List;
  * 洩漏成對外契約——之後想改排序規則就再也改不動了。
  *
  * @param nextCursor 下一頁的起點；{@code null} 代表沒有下一頁。
+ *                   <b>字串而不是數字</b>——依價格或銷量排序時它是
+ *                   {@code 排序值:id} 的複合值，而前端不該需要知道這件事。
  *                   前端只負責原樣送回，不需要理解它的內容
  * @param hasMore    還有沒有下一頁。用 {@code LIMIT size + 1} 多取一筆判斷，
  *                   而不是再打一次 {@code COUNT(*)}——在 5 萬列上那個 count
@@ -17,11 +19,11 @@ import java.util.List;
  */
 public record ProductPage(
         List<ProductView> items,
-        Long nextCursor,
+        String nextCursor,
         boolean hasMore
 ) {
 
-    public static ProductPage of(List<ProductView> items, Long nextCursor) {
+    public static ProductPage of(List<ProductView> items, String nextCursor) {
         return new ProductPage(items, nextCursor, nextCursor != null);
     }
 

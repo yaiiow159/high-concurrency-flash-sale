@@ -4,6 +4,7 @@ import com.flashsale.application.port.in.command.OpenReturnCommand;
 import com.flashsale.application.port.in.dto.ReturnRequestView;
 import com.flashsale.application.port.in.dto.ReturnableView;
 import com.flashsale.application.port.in.MembershipUseCase;
+import com.flashsale.application.port.in.ProductSalesUseCase;
 import com.flashsale.application.port.out.EventOutbox;
 import com.flashsale.application.port.out.OrderRepository;
 import com.flashsale.application.port.out.PaymentRepository;
@@ -85,6 +86,7 @@ class ReturnServiceTest {
     private EventOutbox eventOutbox;
     @Mock
     private MembershipUseCase membershipUseCase;
+    @Mock private ProductSalesUseCase productSalesUseCase;
 
     private ReturnService service;
 
@@ -92,7 +94,8 @@ class ReturnServiceTest {
     void setUp() {
         service = new ReturnService(returnRepository, returnNoGenerator, orderRepository,
                 paymentRepository, eventOutbox, membershipUseCase,
-                Clock.fixed(NOW, ZoneOffset.UTC));
+                Clock.fixed(NOW, ZoneOffset.UTC),
+                productSalesUseCase);
         when(returnNoGenerator.next()).thenReturn(ReturnNo.of(RETURN_NO));
         when(returnRepository.save(any())).thenAnswer(call -> call.getArgument(0));
         when(returnRepository.update(any())).thenAnswer(call -> call.getArgument(0));

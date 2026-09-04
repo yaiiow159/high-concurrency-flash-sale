@@ -21,5 +21,12 @@ public interface OrderQueryUseCase {
      * <p>頁數上限由 Use Case 夾住：這是登入後就能無限次呼叫的端點，
      * 沒有上限的話任何人都能用 {@code size=1000000} 讓資料庫掃全表。
      */
-    List<OrderView> listForUser(Long userId, int page, int size);
+    /**
+     * 我的訂單。
+     *
+     * @param status 只看某個狀態；{@code null} 或空字串代表全部。
+     *               訂單一多就只能一直往下捲，而使用者要找的通常是
+     *               「待付款」或「待收貨」那幾筆
+     */
+    List<OrderView> listForUser(Long userId, String status, int page, int size);
 }

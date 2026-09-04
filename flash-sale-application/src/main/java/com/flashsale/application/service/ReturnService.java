@@ -1,6 +1,7 @@
 package com.flashsale.application.service;
 
 import com.flashsale.application.port.in.MembershipUseCase;
+import com.flashsale.application.port.in.ProductSalesUseCase;
 import com.flashsale.application.port.in.ReturnUseCase;
 import com.flashsale.application.port.in.command.OpenReturnCommand;
 import com.flashsale.application.port.in.dto.ReturnRequestView;
@@ -33,6 +34,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
+import java.util.stream.Collectors;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -86,6 +88,7 @@ public class ReturnService implements ReturnUseCase {
     private final PaymentRepository paymentRepository;
     private final EventOutbox eventOutbox;
     private final MembershipUseCase membershipUseCase;
+    private final ProductSalesUseCase productSalesUseCase;
     private final Clock clock;
 
     public ReturnService(ReturnRequestRepository returnRepository,
@@ -94,8 +97,10 @@ public class ReturnService implements ReturnUseCase {
                          PaymentRepository paymentRepository,
                          EventOutbox eventOutbox,
                          MembershipUseCase membershipUseCase,
-                         Clock clock) {
+                         Clock clock,
+                         ProductSalesUseCase productSalesUseCase) {
         this.membershipUseCase = membershipUseCase;
+        this.productSalesUseCase = productSalesUseCase;
         this.returnRepository = returnRepository;
         this.returnNoGenerator = returnNoGenerator;
         this.orderRepository = orderRepository;
@@ -282,6 +287,14 @@ public class ReturnService implements ReturnUseCase {
         // （awardForOrder 收到的是 order.totalAmount()），扣回要用同一個基準
         membershipUseCase.clawbackForReturn(order.userId(), order.orderNo().value(),
                 returnNo, request.refundAmount(), order.totalAmount());
+
+        // 銷量扣回，同樣在這個交易裡。不扣的話「買了再退」就能把商品
+        // 刷上暢銷榜，而那是可以無限重複的——與積分扣回同一個立場。
+        //
+        // 扣的是**這一次退的量**，不是整張訂單：部分退貨很常見，
+        // 整張扣會讓銷量比實際少。冪等鍵因此是退貨單號
+        productSalesUseCase.recordReturn(returnNo, request.lines().stream()
+                .collect(Collectors.toMap(ReturnLine::skuId, ReturnLine::quantity, Integer::sum)));
 
         eventOutbox.append(events);
         log.info("已送出退款 returnNo={}, 商品={}, 運費={}, 付款狀態={}",

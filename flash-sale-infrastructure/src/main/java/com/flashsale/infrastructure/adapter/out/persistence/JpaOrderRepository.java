@@ -100,9 +100,10 @@ public class JpaOrderRepository implements OrderRepository {
 
     @Override
     @Transactional(readOnly = true)
-    public List<Order> findByUserId(Long userId, int limit, int offset) {
+    public List<Order> findByUserId(Long userId, String status, int limit, int offset) {
         return jpaRepository
-                .findByUserIdOrderByCreatedAtDesc(userId,
+                .findByUserIdAndStatus(userId,
+                        status == null || status.isBlank() ? null : status,
                         PageRequest.of(offset / Math.max(limit, 1), limit))
                 .stream()
                 .map(OrderMapper::toDomain)

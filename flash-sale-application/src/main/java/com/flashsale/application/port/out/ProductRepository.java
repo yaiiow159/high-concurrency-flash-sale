@@ -1,6 +1,8 @@
 package com.flashsale.application.port.out;
 
 import com.flashsale.domain.catalog.Product;
+import com.flashsale.domain.catalog.ProductCursor;
+import com.flashsale.domain.catalog.ProductSort;
 import com.flashsale.domain.catalog.ProductSummary;
 import com.flashsale.domain.catalog.Sku;
 
@@ -47,11 +49,14 @@ public interface ProductRepository {
      *
      * @param categoryIds 要涵蓋的類目；{@code null} 或空集合代表<b>不篩選</b>。
      *                    呼叫端負責把「一個類目」展開成「它的整棵子樹」
-     * @param cursor      上一頁最後一筆的商品 ID，取 {@code id < cursor}；
-     *                    {@code null} 代表第一頁
+     * @param sort        排序方式。它同時決定 keyset 游標的形狀——
+     *                    非唯一的排序鍵要配 {@code (排序值, id)} 的複合游標，
+     *                    否則同值的商品會被整批跳過或整批重複
+     * @param cursor      上一頁最後一筆的游標；{@code null} 代表第一頁
      * @param limit       最多取幾筆。呼叫端會多要一筆來判斷還有沒有下一頁
      */
-    List<ProductSummary> findOnShelfSummaries(Collection<Long> categoryIds, Long cursor, int limit);
+    List<ProductSummary> findOnShelfSummaries(Collection<Long> categoryIds,
+                                              ProductSort sort, ProductCursor cursor, int limit);
 
     /**
      * 後台用：列出<b>所有狀態</b>的商品。

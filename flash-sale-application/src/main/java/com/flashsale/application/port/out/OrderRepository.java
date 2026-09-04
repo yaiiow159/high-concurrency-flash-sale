@@ -82,5 +82,12 @@ public interface OrderRepository {
      * 這個索引在 V5 建立訂單表時就一起建了，順序也正好符合
      * 「先用 user_id 過濾、再依時間排序」的查詢形狀，不需要額外的索引。
      */
-    List<Order> findByUserId(Long userId, int limit, int offset);
+    /**
+     * 我的訂單。
+     *
+     * @param status 只看某個狀態；{@code null} 代表全部。
+     *               <b>在資料庫篩，不是撈回來再過濾</b>——後者會讓
+     *               「待付款」這種少數狀態需要翻很多頁才湊得滿一頁
+     */
+    List<Order> findByUserId(Long userId, String status, int limit, int offset);
 }
