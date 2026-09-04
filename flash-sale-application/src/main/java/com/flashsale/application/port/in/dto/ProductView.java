@@ -1,6 +1,7 @@
 package com.flashsale.application.port.in.dto;
 
 import com.flashsale.domain.catalog.Product;
+import com.flashsale.domain.catalog.ProductSummary;
 import com.flashsale.domain.catalog.Sku;
 
 import java.math.BigDecimal;
@@ -50,8 +51,16 @@ public record ProductView(
                 product.skus().stream().map(SkuView::from).toList());
     }
 
-    /** 列表用的精簡版，不帶描述與完整 SKU 清單。 */
-    public ProductView asSummary() {
-        return new ProductView(productId, categoryId, name, brand, null, status, lowestPrice, List.of());
+    /**
+     * 列表用的精簡版：不帶描述與 SKU 清單。
+     *
+     * <p>直接由 {@link ProductSummary} 組出來，<b>不經過 {@link Product} 聚合</b>。
+     * 先前是「組出完整聚合再把 SKU 丟掉」，而組聚合就會觸發 lazy 載入——
+     * 代價是每頁多 N 次查詢，換來的東西當場被丟棄。
+     */
+    public static ProductView fromSummary(ProductSummary summary) {
+        return new ProductView(summary.id(), summary.categoryId(), summary.name(),
+                summary.brand(), null, summary.status().name(),
+                summary.lowestPrice(), List.of());
     }
 }

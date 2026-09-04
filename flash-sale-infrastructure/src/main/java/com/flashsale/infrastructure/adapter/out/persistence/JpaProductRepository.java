@@ -5,11 +5,12 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flashsale.application.port.out.ProductRepository;
 import com.flashsale.domain.catalog.Product;
-import com.flashsale.domain.shared.BusinessException;
-import com.flashsale.domain.shared.ErrorCode;
 import com.flashsale.domain.catalog.ProductStatus;
+import com.flashsale.domain.catalog.ProductSummary;
 import com.flashsale.domain.catalog.Sku;
 import com.flashsale.domain.catalog.SkuSpec;
+import com.flashsale.domain.shared.BusinessException;
+import com.flashsale.domain.shared.ErrorCode;
 import com.flashsale.infrastructure.adapter.out.persistence.entity.ProductEntity;
 import com.flashsale.infrastructure.adapter.out.persistence.entity.SkuEntity;
 import com.flashsale.infrastructure.adapter.out.persistence.jpa.ProductJpaRepository;
@@ -17,11 +18,13 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /** 商品持久化埠的 JPA 實作。 */
 @Repository
@@ -132,6 +135,36 @@ public class JpaProductRepository implements ProductRepository {
                 .findOnShelf(categoryId, PageRequest.of(offset / Math.max(limit, 1), limit))
                 .stream()
                 .map(this::toDomain)
+                .toList();
+    }
+
+    /**
+     * 列表查詢：<b>固定兩次</b>查詢，與頁大小無關。
+     *
+     * <p>先取整頁的商品摘要，再用一次 {@code in (...)} 把最低價全部帶回來。
+     * 先前的做法是走 {@link #findOnShelf} 撈聚合，而映射時碰了 lazy 的
+     * SKU 關聯，於是每筆商品多一次查詢——實測 {@code size=100} 打 104 次
+     * SELECT，且那些 SKU 在下一行就被 {@code asSummary()} 丟掉了。
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public List<ProductSummary> findOnShelfSummaries(Long categoryId, int limit, int offset) {
+        List<ProductSummary> page = jpaRepository.findOnShelfSummaries(
+                categoryId, PageRequest.of(offset / Math.max(limit, 1), limit));
+        if (page.isEmpty()) {
+            return page;
+        }
+
+        Map<Long, BigDecimal> lowestPrices = jpaRepository
+                .findLowestPrices(page.stream().map(ProductSummary::id).toList()).stream()
+                .collect(Collectors.toMap(row -> (Long) row[0], row -> (BigDecimal) row[1]));
+
+        return page.stream()
+                // 沒有任何可購買 SKU 的商品最低價為 null，前端顯示成「—」。
+                // 補一個 0 會讓它排到價格排序的最前面，那是錯的
+                .map(summary -> new ProductSummary(summary.id(), summary.categoryId(),
+                        summary.name(), summary.brand(), summary.status(),
+                        lowestPrices.get(summary.id())))
                 .toList();
     }
 

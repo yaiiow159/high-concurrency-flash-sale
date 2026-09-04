@@ -1,6 +1,7 @@
 package com.flashsale.application.port.out;
 
 import com.flashsale.domain.catalog.Product;
+import com.flashsale.domain.catalog.ProductSummary;
 import com.flashsale.domain.catalog.Sku;
 
 import java.util.List;
@@ -36,6 +37,15 @@ public interface ProductRepository {
      * @param categoryId {@code null} 表示不限類目
      */
     List<Product> findOnShelf(Long categoryId, int limit, int offset);
+
+    /**
+     * 列表查詢，回傳<b>摘要</b>而不是完整聚合。
+     *
+     * <p>實作必須是<b>固定次數</b>的查詢，與頁大小無關——
+     * 最低價要批次取，不可每筆商品各問一次。
+     * 這是 {@link #findOnShelf} 存在 N+1 的原因，也是這個方法存在的理由。
+     */
+    List<ProductSummary> findOnShelfSummaries(Long categoryId, int limit, int offset);
 
     /**
      * 後台用：列出<b>所有狀態</b>的商品。

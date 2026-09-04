@@ -22,3 +22,7 @@ __pycache__/
 
 # 本機開發伺服器設定，因人而異
 .claude/launch.json
+
+# 壓測工具的相依套件
+benchmark/node_modules/
+benchmark/tokens.json
