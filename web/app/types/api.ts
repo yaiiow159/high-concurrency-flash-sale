@@ -319,3 +319,29 @@ export interface NotificationView {
   unread: boolean
   createdAt: string
 }
+
+// ---------------------------------------------------------------------------
+
+/**
+ * 搜尋結果（ADR-0012）。
+ *
+ * <b>沒有庫存欄位</b>，那是刻意的：索引的同步延遲是數秒，
+ * 而庫存每秒都在變，放進來只會顯示一個必定過時的數字。
+ * 價格是索引當下的快照，點進商品頁後會重新從 Catalog 讀。
+ */
+export interface ProductSearchHit {
+  productId: number
+  name: string
+  brand: string | null
+  categoryId: number | null
+  lowestPrice: number
+}
+
+export interface ProductSearchResult {
+  hits: ProductSearchHit[]
+  total: number
+  /** 品牌 → 筆數。降級時為空物件——那條路徑不做分面，湊一份出來只會是錯的 */
+  facets: Record<string, number>
+  /** true 代表搜尋引擎故障、這份結果來自資料庫的模糊比對，沒有相關性排序 */
+  degraded: boolean
+}

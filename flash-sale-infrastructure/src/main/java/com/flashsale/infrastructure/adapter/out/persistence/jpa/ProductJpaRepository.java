@@ -32,6 +32,25 @@ public interface ProductJpaRepository extends JpaRepository<ProductEntity, Long>
             """)
     List<ProductEntity> findOnShelf(@Param("categoryId") Long categoryId, Pageable pageable);
 
+    /**
+     * 關鍵字模糊比對——搜尋引擎故障時的降級路徑。
+     *
+     * <p>{@code LIKE '%keyword%'} 前面帶萬用字元，索引用不上、必然全表掃描。
+     * 這是刻意接受的：它只在 ES 掛掉時才會走到，而那時候「慢但有結果」
+     * 遠好過「快但沒有」。為這條路徑加索引等於讓正常路徑一直付出寫入成本。
+     */
+    @Query("""
+            select p from ProductEntity p
+            where p.status = 'ON_SHELF'
+              and (:categoryId is null or p.categoryId = :categoryId)
+              and (:keyword = '' or lower(p.name) like lower(concat('%', :keyword, '%'))
+                   or lower(p.brand) like lower(concat('%', :keyword, '%')))
+            order by p.id desc
+            """)
+    List<ProductEntity> searchByKeyword(@Param("keyword") String keyword,
+                                        @Param("categoryId") Long categoryId,
+                                        Pageable pageable);
+
     @Query("select s from SkuEntity s where s.id in :ids")
     List<SkuEntity> findSkusByIds(@Param("ids") List<Long> ids);
 

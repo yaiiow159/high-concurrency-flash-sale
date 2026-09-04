@@ -23,6 +23,17 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-redis</artifactId>
         </dependency>
+
+        <!--
+            Elasticsearch。只用它自動組出來的 ElasticsearchClient，
+            不用 Spring Data 的 Repository 抽象——查詢是手寫的，
+            因為分面統計與相關性加權那些東西，用 Repository 的方法名推導
+            表達不出來，最後還是要退回原生查詢。
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-elasticsearch</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-jpa</artifactId>

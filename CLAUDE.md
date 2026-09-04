@@ -208,7 +208,8 @@ mvn -q compile                                        # 快速編譯檢查
 mvn test -pl flash-sale-domain,flash-sale-application # 快速回饋（無需 Docker）
 mvn test -pl flash-sale-infrastructure                # Redis 整合測試（需 Docker）
 mvn test -pl flash-sale-api -Dtest=ArchitectureTest -Dsurefire.failIfNoSpecifiedTests=false
-docker compose up -d                                  # 啟動依賴
+docker compose up -d                                  # 啟動依賴（含 Elasticsearch）
+curl -X POST localhost:8080/api/v1/admin/search/reindex -H "Authorization: Bearer $TOKEN"  # 重建搜尋索引
 curl -X POST localhost:8080/api/v1/auth/register -H "Content-Type: application/json" -d '{"email":"a@b.com","password":"password123","displayName":"A"}'
 curl -X POST localhost:8080/api/v1/auth/login    -H "Content-Type: application/json" -d '{"email":"a@b.com","password":"password123"}'
 mvn spring-boot:run -pl flash-sale-api                # 啟動應用

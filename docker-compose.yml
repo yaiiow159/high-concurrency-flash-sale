@@ -93,6 +93,30 @@ services:
       timeout: 5s
       retries: 20
 
+  elasticsearch:
+    # 單節點模式，關掉安全性——本機開發用。
+    # 正式環境必須開啟認證與 TLS：ES 預設監聽在所有介面上，
+    # 一個沒有認證的 ES 等於把整份商品資料公開在網路上。
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.0
+    container_name: flash-sale-elasticsearch
+    ports:
+      - "9200:9200"
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      # 本機開發限制記憶體。ES 預設會吃掉一半的實體記憶體，
+      # 在開發機上那會把其他容器擠掉
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+    healthcheck:
+      # 等到 yellow 就算就緒：單節點沒有副本，狀態永遠不會是 green，
+      # 等 green 會等到逾時
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=1s || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    volumes:
+      - es-data:/usr/share/elasticsearch/data
+
   prometheus:
     image: prom/prometheus:v2.53.0
     container_name: flash-sale-prometheus
@@ -123,3 +147,4 @@ services:
 volumes:
   mysql-data:
   grafana-data:
+  es-data:

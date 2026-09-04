@@ -104,7 +104,10 @@ public class SecurityConfig {
                         // 帶 Authorization 的請求無法共用快取。
                         .requestMatchers(HttpMethod.GET,
                                 "/api/v1/activities", "/api/v1/activities/**",
-                                "/api/v1/catalog/**")
+                                "/api/v1/catalog/**",
+                                // 搜尋不帶身分也不改狀態，而且是使用者進站的第一個動作。
+                                // 要求登入才能搜尋等於把人擋在門外
+                                "/api/v1/search/products")
                         .permitAll()
                         // 其餘一律需要認證。用 anyRequest() 收尾而非逐條列舉，
                         // 新增端點時預設是「受保護」而非「開放」——安全的預設值。

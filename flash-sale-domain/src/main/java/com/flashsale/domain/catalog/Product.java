@@ -1,9 +1,12 @@
 package com.flashsale.domain.catalog;
 
+import com.flashsale.domain.catalog.event.ProductIndexChangedEvent;
 import com.flashsale.domain.shared.BusinessException;
+import com.flashsale.domain.shared.DomainEvent;
 import com.flashsale.domain.shared.ErrorCode;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -30,6 +33,8 @@ public final class Product {
     private ProductStatus status;
     private final List<Sku> skus;
 
+    private final List<DomainEvent> domainEvents = new ArrayList<>();
+
     private Product(Long id, Long categoryId, String name, String brand, String description,
                     ProductStatus status, List<Sku> skus, Instant createdAt) {
         this.id = id;
@@ -55,9 +60,21 @@ public final class Product {
                 categoryId, name, brand, description, status, skus, createdAt);
     }
 
+    private void registerEvent(DomainEvent event) {
+        domainEvents.add(event);
+    }
+
+    /** 取出並清空待發布的領域事件；應由應用層在交易內呼叫一次。 */
+    public List<DomainEvent> pullDomainEvents() {
+        List<DomainEvent> pulled = List.copyOf(domainEvents);
+        domainEvents.clear();
+        return pulled;
+    }
+
     /** 上架。 */
-    public void putOnShelf() {
+    public void putOnShelf(Instant now) {
         this.status = ProductStatus.ON_SHELF;
+        registerEvent(ProductIndexChangedEvent.of(this, now));
     }
 
     /**
@@ -65,8 +82,9 @@ public final class Product {
      *
      * <p>下架不刪除資料——歷史訂單仍需要追溯「這是哪個商品」。
      */
-    public void takeOffShelf() {
+    public void takeOffShelf(Instant now) {
         this.status = ProductStatus.OFF_SHELF;
+        registerEvent(ProductIndexChangedEvent.of(this, now));
     }
 
     /**

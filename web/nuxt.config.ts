@@ -47,6 +47,12 @@ export default defineNuxtConfig({
     /** 通知同理：它帶著訂單號與金額，而且是寫給特定一個人看的。 */
     '/notifications': { isr: false },
 
+    /**
+     * 搜尋結果不快取：結果隨關鍵字而異，快取等於為每一種組合各存一份，
+     * 命中率趨近於零，卻要付出全部的儲存與失效成本。
+     */
+    '/search': { isr: false },
+
     /** 退貨單同理：它帶著訂單號、商品與金額，是個人資料。 */
     '/returns': { isr: false },
     '/returns/**': { isr: false },
