@@ -43,6 +43,23 @@ public class ActivityQueryService implements ActivityQueryUseCase {
     }
 
     @Override
+    /**
+     * {@inheritDoc}
+     *
+     * <p><b>每一檔都會問一次 Redis 餘量，這是刻意的。</b>
+     * 專案禁止「在迴圈中呼叫 Redis」那條規則講的是秒殺熱路徑
+     * （每秒數萬次、單一熱點）；後台清單一天被呼叫幾十次，
+     * 而維運真正想知道的正是「現在還剩多少」——
+     * 為了省下 20 次 Redis 往返而顯示一個過時的數字，換錯了東西。
+     */
+    public List<ActivityView> listAllForAdmin(int page, int size) {
+        Instant now = clock.instant();
+        return activityRepository.findAllForAdmin(size, page * size).stream()
+                .map(activity -> toView(activity, now))
+                .toList();
+    }
+
+    @Override
     public List<ActivityView> listOnlineActivities() {
         Instant now = clock.instant();
         return activityRepository.findOnlineActivities().stream()

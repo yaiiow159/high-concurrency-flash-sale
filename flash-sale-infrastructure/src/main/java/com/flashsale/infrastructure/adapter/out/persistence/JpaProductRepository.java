@@ -113,6 +113,19 @@ public class JpaProductRepository implements ProductRepository {
 
     @Override
     @Transactional(readOnly = true)
+    public List<Product> findAllByStatus(String status, int limit, int offset) {
+        // 空字串正規化成 null。前端的「全部」選項送出的是空字串，
+        // 直接拿去比對會得到零筆——症狀是「後台一片空白」而不是任何錯誤
+        String normalized = status == null || status.isBlank() ? null : status;
+        return jpaRepository
+                .findAllByStatus(normalized, PageRequest.of(offset / Math.max(limit, 1), limit))
+                .stream()
+                .map(this::toDomain)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<Product> findOnShelf(Long categoryId, int limit, int offset) {
         return jpaRepository
                 .findOnShelf(categoryId, PageRequest.of(offset / Math.max(limit, 1), limit))

@@ -11,6 +11,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestHeaderException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.servlet.NoHandlerFoundException;
@@ -160,6 +161,27 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest()
                 .body(ApiResponse.error(ErrorCode.INVALID_PARAMETER,
                         "請求內容格式不正確，請確認欄位型別與必填欄位"));
+    }
+
+    /**
+     * 查詢參數或路徑變數轉不出來：列舉值不在允許範圍、數字欄位收到文字。
+     *
+     * <p>與 {@link #handleUnreadableBody} 同一類，只是位置不同——
+     * 一個在請求體、一個在查詢字串。少了這一個，
+     * {@code ?status=PENDING}（而合法值是 {@code READY}）會回
+     * {@code 500 系統異常，retryable: true}，於是客戶端開始重試一個
+     * 永遠不會成功的請求。這個情況實際發生過。
+     *
+     * <p>訊息帶上參數名稱但<b>不帶允許的值</b>：後者由 OpenAPI 文件負責，
+     * 從錯誤訊息把列舉內容倒出來是在洩漏內部結構。
+     */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ApiResponse<Void>> handleTypeMismatch(
+            MethodArgumentTypeMismatchException e) {
+        log.debug("參數型別不符: {}", e.getMessage());
+        return ResponseEntity.badRequest()
+                .body(ApiResponse.error(ErrorCode.INVALID_PARAMETER,
+                        "參數「%s」的值不正確".formatted(e.getName())));
     }
 
     @ExceptionHandler(MissingRequestHeaderException.class)

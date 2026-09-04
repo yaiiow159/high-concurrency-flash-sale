@@ -145,6 +145,19 @@ function isActive(to: string): boolean {
           >
             收貨地址
           </NuxtLink>
+          <!--
+            後台入口只對有權限的人顯示。**這不是安全機制**——
+            改 JS 就能讓它出現，但那沒有意義，因為 /api/v1/admin/** 仍然要 scope。
+            它只是不要讓一般使用者看到一個按下去只會失敗的連結
+          -->
+          <NuxtLink
+            v-if="auth.isAdmin"
+            to="/admin"
+            class="rounded-sm px-2 py-1.5 font-medium text-accent transition-colors
+                   hover:text-accent-hover sm:px-2.5"
+          >
+            後台
+          </NuxtLink>
           <button
             type="button"
             class="rounded-sm px-2 py-1.5 text-ink-muted transition-colors hover:text-ink sm:px-2.5"

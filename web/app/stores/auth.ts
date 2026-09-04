@@ -22,6 +22,47 @@ export const useAuthStore = defineStore('auth', () => {
 
   const isAuthenticated = computed(() => accessToken.value !== null)
 
+  /**
+   * 這個人有沒有 admin 權限。
+   *
+   * **只用來決定畫面上顯示什麼，永遠不是安全判斷。**
+   * 令牌是使用者手上的字串，他要改成什麼都行——但改完之後
+   * 打到後端仍然會被 `hasAuthority(SCOPE_ADMIN)` 擋下，
+   * 因為那一邊是驗過簽章的（ADR-0015 決策 2）。
+   *
+   * 讀 payload 而不是另外要一支 `/me`：scope 本來就在令牌裡，
+   * 多打一次 API 只是為了拿一個已經在手上的值。
+   */
+  const isAdmin = computed(() => readScopes(accessToken.value).includes('seckill:admin'))
+
+  /**
+   * 解出 JWT 的 scope claim。
+   *
+   * <p>只做 base64url 解碼，**不驗簽也不該驗簽**——驗簽需要公鑰，
+   * 而前端就算驗過也證明不了什麼（要偽造的人可以連驗簽的程式碼一起改）。
+   * 這裡要的只是「這個令牌自稱有什麼權限」，用來決定選單長什麼樣。
+   *
+   * <p>任何解析失敗都回空陣列：壞掉的令牌等於沒有權限，
+   * 而不是讓整個 store 拋例外把頁面炸掉。
+   */
+  function readScopes(token: string | null): string[] {
+    if (!token) {
+      return []
+    }
+    try {
+      const payload = token.split('.')[1]
+      if (!payload) {
+        return []
+      }
+      // JWT 用的是 base64url：- 與 _ 要換回 + 與 /，atob 才吃得下
+      const json = atob(payload.replace(/-/g, '+').replace(/_/g, '/'))
+      const claims = JSON.parse(json) as { scope?: unknown }
+      return typeof claims.scope === 'string' ? claims.scope.split(' ') : []
+    } catch {
+      return []
+    }
+  }
+
   /** 同時只允許一次續期；見 useApi 對併發收斂的說明。 */
   let refreshInFlight: Promise<string | null> | null = null
 
@@ -91,6 +132,7 @@ export const useAuthStore = defineStore('auth', () => {
     accessToken: readonly(accessToken),
     userEmail: readonly(userEmail),
     isAuthenticated,
+    isAdmin,
     setSession,
     clear,
     refresh,
