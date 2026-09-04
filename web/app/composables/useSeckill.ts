@@ -137,6 +137,10 @@ export function useSeckill(activityId: number) {
           outcome.value = { kind: 'success', orderNo, order }
           return
         }
+        // 每次輪詢都把排隊資訊更新上去（ADR-0023）。
+        // 只顯示「處理中」的話，使用者分不出是三秒還是四十分鐘，
+        // 而分不出來的時候他會以為系統壞了
+        outcome.value = { kind: 'processing', orderNo, queue: order.queue }
       } catch (error) {
         // 訂單建立失敗（例如進了 DLQ）時後端會回 ORDER_NOT_FOUND 並帶原因
         if (error instanceof ApiError && error.code === 'B0007') {

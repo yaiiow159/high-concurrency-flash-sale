@@ -4,6 +4,7 @@ import com.flashsale.application.port.in.command.SeckillCommand;
 import com.flashsale.application.port.in.dto.SeckillTicket;
 import com.flashsale.application.port.out.ActivityRepository;
 import com.flashsale.application.port.out.OrderNoGenerator;
+import com.flashsale.application.port.out.OrderQueueDepth;
 import com.flashsale.application.port.out.SeckillMessagePublisher;
 import com.flashsale.application.port.out.SeckillRequestTracker;
 import com.flashsale.application.port.out.SoldOutMarker;
@@ -64,6 +65,7 @@ class SeckillApplicationServiceTest {
     @Mock private SeckillMessagePublisher messagePublisher;
     @Mock private SeckillRequestTracker requestTracker;
     @Mock private SoldOutMarker soldOutMarker;
+    @Mock private OrderQueueDepth queueDepth;
     @Mock private OrderNoGenerator orderNoGenerator;
     @Mock private SeckillMetrics metrics;
 
@@ -73,7 +75,7 @@ class SeckillApplicationServiceTest {
     void setUp() {
         service = new SeckillApplicationService(
                 activityRepository, stockRepository, messagePublisher, requestTracker,
-                soldOutMarker, orderNoGenerator, metrics,
+                soldOutMarker, queueDepth, orderNoGenerator, metrics,
                 Clock.fixed(NOW, ZoneOffset.UTC));
     }
 

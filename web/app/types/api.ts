@@ -101,6 +101,8 @@ export interface OrderView {
   paidAt: string | null
   /** true 代表庫存已扣、訂單仍在非同步建立中，前端應繼續輪詢 */
   processing: boolean
+  /** 仍在佇列中時的排隊資訊（ADR-0023）；訂單已建立時為 null */
+  queue: OrderQueue | null
 }
 
 /**
@@ -123,11 +125,22 @@ export interface PaymentIntentView {
   status: string
 }
 
+/**
+ * 排隊資訊。
+ *
+ * `estimatedWaitSeconds` 為 -1 代表**算不出來**，不是「不用等」——
+ * 顯示成「約 0 秒」然後讓人等四十分鐘，比誠實說不知道更糟。
+ */
+export interface OrderQueue {
+  ahead: number
+  estimatedWaitSeconds: number
+}
+
 /** 搶購的最終結果，供 UI 決定要顯示什麼。 */
 export type SeckillOutcome =
   | { kind: 'idle' }
   | { kind: 'submitting' }
-  | { kind: 'processing'; orderNo: string }
+  | { kind: 'processing'; orderNo: string; queue?: OrderQueue | null }
   | { kind: 'success'; orderNo: string; order: OrderView }
   | { kind: 'timeout'; orderNo: string }
   | { kind: 'rejected'; code: string; message: string }
