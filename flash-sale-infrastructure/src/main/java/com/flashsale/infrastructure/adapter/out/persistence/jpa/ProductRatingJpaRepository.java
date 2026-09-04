@@ -1,0 +1,78 @@
+package com.flashsale.infrastructure.adapter.out.persistence.jpa;
+
+import com.flashsale.infrastructure.adapter.out.persistence.entity.ProductRatingEntity;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+
+import java.util.List;
+
+/**
+ * 評分聚合的增量更新。
+ *
+ * <h2>每一句都是「加上去」，沒有一句是「設成」</h2>
+ *
+ * <p>把它寫成「SELECT 出來、在 Java 裡加、UPDATE 回去」是 read-modify-write：
+ * 兩個人同時評價同一件商品，兩邊都讀到 count=10，各自寫回 11，
+ * 於是有一則評價從聚合上消失了——而評價表裡還在，
+ * 表現出來就是「128 則評價，但平均分算起來只有 127 則」。
+ *
+ * <p>五個分佈桶各寫一句而不是用動態 SQL 拼欄位名：拼欄位名要嘛引入
+ * 字串串接（SQL 注入的入口），要嘛引入一個 switch，
+ * 而 switch 漏一個 case 的症狀是「四星評價不會出現在長條圖上」——
+ * 那種錯誤要等到有人數長條圖才會被發現。五句醜，但它們醜得很明顯。
+ */
+public interface ProductRatingJpaRepository extends JpaRepository<ProductRatingEntity, Long> {
+
+    @Modifying
+    @Query("""
+            update ProductRatingEntity r
+               set r.ratingSum = r.ratingSum + :stars,
+                   r.ratingCount = r.ratingCount + 1
+             where r.productId = :productId
+            """)
+    int incrementTotals(@Param("productId") Long productId, @Param("stars") int stars);
+
+    /**
+     * 換評分時只動總和，<b>不動筆數</b>。
+     *
+     * <p>這是整個聚合最容易寫錯的一句。寫成「先移除再新增」的話，
+     * 中間有一瞬間 {@code ratingCount} 少一，而那一瞬間剛好有人讀到
+     * 就會看到錯的平均分。一句 UPDATE 沒有那個中間態。
+     *
+     * <p>{@code delta} 可以是負數（5 分改 1 分），因此
+     * {@code ck_product_rating_sum} 的 {@code >= 0} 檢查有實質意義：
+     * 算錯方向會在資料庫層就爆，而不是安靜地把平均分變成負的。
+     */
+    @Modifying
+    @Query("""
+            update ProductRatingEntity r
+               set r.ratingSum = r.ratingSum + :delta
+             where r.productId = :productId
+            """)
+    int adjustSum(@Param("productId") Long productId, @Param("delta") int delta);
+
+    @Modifying
+    @Query("update ProductRatingEntity r set r.count1 = r.count1 + :delta where r.productId = :productId")
+    int adjustCount1(@Param("productId") Long productId, @Param("delta") int delta);
+
+    @Modifying
+    @Query("update ProductRatingEntity r set r.count2 = r.count2 + :delta where r.productId = :productId")
+    int adjustCount2(@Param("productId") Long productId, @Param("delta") int delta);
+
+    @Modifying
+    @Query("update ProductRatingEntity r set r.count3 = r.count3 + :delta where r.productId = :productId")
+    int adjustCount3(@Param("productId") Long productId, @Param("delta") int delta);
+
+    @Modifying
+    @Query("update ProductRatingEntity r set r.count4 = r.count4 + :delta where r.productId = :productId")
+    int adjustCount4(@Param("productId") Long productId, @Param("delta") int delta);
+
+    @Modifying
+    @Query("update ProductRatingEntity r set r.count5 = r.count5 + :delta where r.productId = :productId")
+    int adjustCount5(@Param("productId") Long productId, @Param("delta") int delta);
+
+    @Query("select r from ProductRatingEntity r where r.productId in :productIds")
+    List<ProductRatingEntity> findAllByProductIds(@Param("productIds") List<Long> productIds);
+}

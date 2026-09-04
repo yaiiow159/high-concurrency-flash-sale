@@ -7,6 +7,7 @@ import io.github.resilience4j.ratelimiter.RequestNotPermitted;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestHeaderException;
@@ -98,7 +99,13 @@ public class GlobalExceptionHandler {
             // 409 代表券是你的但現在不能用。前端據此決定要不要把券從清單上移除
             Map.entry(ErrorCode.COUPON_NOT_FOUND, HttpStatus.NOT_FOUND),
             Map.entry(ErrorCode.COUPON_ALREADY_USED, HttpStatus.CONFLICT),
-            Map.entry(ErrorCode.COUPON_EXPIRED, HttpStatus.CONFLICT)
+            Map.entry(ErrorCode.COUPON_EXPIRED, HttpStatus.CONFLICT),
+            // 查不到評價回 404，與地址、退貨單一致：回 403 等於確認這個 ID 存在
+            Map.entry(ErrorCode.REVIEW_NOT_FOUND, HttpStatus.NOT_FOUND),
+            // 其餘三種都是「狀態不允許」而不是「請求寫錯」
+            Map.entry(ErrorCode.ORDER_NOT_REVIEWABLE, HttpStatus.CONFLICT),
+            Map.entry(ErrorCode.ALREADY_REVIEWED, HttpStatus.CONFLICT),
+            Map.entry(ErrorCode.REVIEW_EDIT_WINDOW_CLOSED, HttpStatus.CONFLICT)
     );
 
     @ExceptionHandler(BusinessException.class)
@@ -131,6 +138,28 @@ public class GlobalExceptionHandler {
                 .collect(Collectors.joining("; "));
         return ResponseEntity.badRequest()
                 .body(ApiResponse.error(ErrorCode.INVALID_PARAMETER, message));
+    }
+
+    /**
+     * 請求體讀不動：JSON 語法錯、型別對不上、列舉值不在允許範圍內。
+     *
+     * <p><b>這是 400 不是 500。</b> 少了這個處理器，一個打錯的列舉值
+     * （例如把承運商寫成不存在的 {@code BLACK_CAT}）會落到最後那個
+     * {@code Exception} 的兜底，回 {@code C0004 系統異常，請稍後再試}——
+     * 而那句話有兩個問題：它把呼叫端的錯說成伺服器的錯，
+     * 而且 {@code retryable: true} 會讓客戶端一直重試一個永遠不會成功的請求。
+     *
+     * <p>訊息刻意<b>不回傳原始例外內容</b>。Jackson 的訊息會帶上類別全名與
+     * 欄位路徑，那是內部結構的洩漏。允許的列舉值本身不是機密，
+     * 但要讓呼叫端知道，該由 OpenAPI 文件負責，不是由錯誤訊息負責。
+     */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiResponse<Void>> handleUnreadableBody(
+            HttpMessageNotReadableException e) {
+        log.debug("請求體無法解析: {}", e.getMessage());
+        return ResponseEntity.badRequest()
+                .body(ApiResponse.error(ErrorCode.INVALID_PARAMETER,
+                        "請求內容格式不正確，請確認欄位型別與必填欄位"));
     }
 
     @ExceptionHandler(MissingRequestHeaderException.class)

@@ -47,7 +47,7 @@
 | 履約物流 | 無 | 🟡 中 |
 | ~~促銷優惠~~ ✅ | 已完成（[ADR-0013](../adr/0013-promotion-pricing-engine.md)）| — |
 | 搜尋 | 無 | 🟡 中 |
-| 評價 | 無 | 🟢 低 |
+| ~~評價~~ ✅ | 已完成（[ADR-0014](../adr/0014-review-and-rating-aggregate.md)）| — |
 | 營運後台 | 只有一個預熱端點 | 🟡 中 |
 | 前端 | 無 | 🟠 高 |
 
@@ -323,7 +323,7 @@ Notification 做下來最有價值的一課是**實機第一次啟動才發現�
 | ~~**搜尋（ES + CQRS 讀模型）**~~ ✅ | `[展示]` ⭐ | 已完成：Outbox 驅動索引、alias 零停機重建、ES 故障時降級回資料庫（[ADR-0012](../adr/0012-search-read-model.md)）|
 | 營運後台 | `[必要]` | 商品上架、活動配置、訂單處理 |
 | ~~**Promotion 脈絡**~~ ✅ | `[展示]` ⭐ | 已完成：純函式計價引擎、折扣快照進訂單、券以條件式 UPDATE 核銷（[ADR-0013](../adr/0013-promotion-pricing-engine.md)）|
-| Review 脈絡 | `[必要]` | 評價 |
+| ~~**Review 脈絡**~~ ✅ | `[必要]` | 已完成：只有買過的人能評、評分聚合可增量維護（[ADR-0014](../adr/0014-review-and-rating-aggregate.md)）|
 
 **搜尋是這個階段的重點**。用 Outbox 事件同步到 Elasticsearch，
 是「事件驅動 + CQRS 讀模型」的教科書級應用，而且**你已經有 Outbox 了**——
@@ -365,6 +365,7 @@ Notification 做下來最有價值的一課是**實機第一次啟動才發現�
 | ADR-0010 | 界限脈絡切分與模組演進策略 | P1 前 |
 | [ADR-0012](../adr/0012-search-read-model.md) ✅ | 搜尋讀模型與最終一致窗口 | P4 |
 | [ADR-0013](../adr/0013-promotion-pricing-engine.md) ✅ | 優惠計算引擎與折扣的快照邊界 | P4 |
+| [ADR-0014](../adr/0014-review-and-rating-aggregate.md) ✅ | 評價的可信度與評分聚合 | P4 |
 
 **ADR 先於程式碼。** P1 的三份（0006–0008）**已完成** —— 它們互相牽連，
 因此一起寫：通道決定庫存機制，庫存機制決定訂單建立路徑。

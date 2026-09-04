@@ -107,7 +107,14 @@ public class SecurityConfig {
                                 "/api/v1/catalog/**",
                                 // 搜尋不帶身分也不改狀態，而且是使用者進站的第一個動作。
                                 // 要求登入才能搜尋等於把人擋在門外
-                                "/api/v1/search/products")
+                                "/api/v1/search/products",
+                                // 評價的讀取必須公開——評價存在的意義就是幫
+                                // 「還沒買、也還沒登入」的人做決定。
+                                // 逐一列出而不是 /reviews/**：那會連 /reviews/mine
+                                // 也一起開放，而那是「我寫過哪些評價」，屬於個人資料
+                                "/api/v1/catalog/products/ratings",
+                                "/api/v1/catalog/products/*/rating",
+                                "/api/v1/catalog/products/*/reviews")
                         .permitAll()
                         // 其餘一律需要認證。用 anyRequest() 收尾而非逐條列舉，
                         // 新增端點時預設是「受保護」而非「開放」——安全的預設值。
