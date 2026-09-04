@@ -2,11 +2,14 @@ package com.flashsale.api.adapter.in.web;
 
 import com.flashsale.api.adapter.in.web.dto.ApiResponse;
 import com.flashsale.api.adapter.in.web.dto.CheckoutRequest;
+import com.flashsale.api.adapter.in.web.dto.CheckoutPreviewRequest;
 import com.flashsale.api.adapter.in.web.dto.PlaceOrderRequest;
+import com.flashsale.api.adapter.in.web.dto.PreviewOrderRequest;
 import com.flashsale.api.adapter.in.web.security.CurrentUser;
 import com.flashsale.application.port.in.CheckoutUseCase;
 import com.flashsale.application.port.in.OrderQueryUseCase;
 import com.flashsale.application.port.in.PlaceOrderUseCase;
+import com.flashsale.application.port.in.dto.CheckoutPreview;
 import com.flashsale.application.port.in.dto.OrderView;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -92,8 +95,43 @@ public class OrderController {
             @Valid @RequestBody CheckoutRequest request,
             @CurrentUser Long userId) {
 
-        OrderView order = checkoutUseCase.checkout(userId, request.requestId(), request.addressId());
+        OrderView order = checkoutUseCase.checkout(userId, request.requestId(),
+                request.addressId(), request.couponId());
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(order));
+    }
+
+    /**
+     * 結帳試算。
+     *
+     * <p><b>回 200 而不是 201：什麼都沒有被建立。</b>
+     * 這條路徑不扣庫存、不核銷券，純粹回答「這樣買要付多少」。
+     *
+     * <p>存在的理由是使用者按下送出之前就該看到折扣。讓前端自己算是錯的——
+     * 兩邊算出不同答案時，使用者只會相信他先看到的那一個。
+     */
+    @PostMapping("/preview")
+    @Operation(summary = "結帳試算", description = "不建訂單、不扣庫存、不核銷券")
+    public ApiResponse<CheckoutPreview> preview(
+            @Valid @RequestBody PreviewOrderRequest request,
+            @CurrentUser Long userId) {
+
+        return ApiResponse.ok(placeOrderUseCase.preview(request.toCommand(userId)));
+    }
+
+    /**
+     * 購物車結帳試算。
+     *
+     * <p>品項來自伺服器端的購物車，與 {@code /checkout} 同一個來源——
+     * 試算若讓前端送品項，就會出現「試算的內容與真正下單的內容不同」。
+     */
+    @PostMapping("/checkout/preview")
+    @Operation(summary = "購物車結帳試算", description = "品項取自購物車；不建訂單、不核銷券")
+    public ApiResponse<CheckoutPreview> checkoutPreview(
+            @RequestBody(required = false) CheckoutPreviewRequest request,
+            @CurrentUser Long userId) {
+
+        Long couponId = request == null ? null : request.couponId();
+        return ApiResponse.ok(checkoutUseCase.preview(userId, couponId));
     }
 
     @GetMapping

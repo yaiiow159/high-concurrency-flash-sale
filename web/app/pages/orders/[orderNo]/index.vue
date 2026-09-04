@@ -149,7 +149,10 @@ useHead({ title: `訂單 ${orderNo}` })
 
         <AppCard class="p-5 lg:sticky lg:top-24">
           <h2 class="eyebrow mb-4">訂單金額</h2>
-          <MoneyText :amount="order.totalAmount" size="xl" />
+          <PriceBreakdown
+            :subtotal="order.subtotal" :discounts="order.discounts ?? []"
+            :payable="order.totalAmount" size="xl"
+          />
 
           <AppButton
             v-if="order.status === 'PENDING_PAYMENT'"

@@ -44,7 +44,28 @@ export interface OrderLine {
   skuSnapshot: string
   unitPrice: number
   quantity: number
+  /** 定價小計（單價 × 數量），折扣前 */
   subtotal: number
+  /**
+   * 整單折扣分攤後，這一行**實際付了多少**。
+   *
+   * 退貨頁要顯示的是這個數字而不是 subtotal——
+   * 使用者退一件商品拿回的錢，是他當初為那一件付的錢。
+   */
+  paidAmount: number
+}
+
+/**
+ * 訂單上的一筆折扣快照。
+ *
+ * 存明細而不是一個總額：使用者問的是「為什麼折了 2000」，
+ * 而那需要知道是哪幾個優惠、各折了多少（ADR-0013 決策 3）。
+ */
+export interface OrderDiscount {
+  sourceType: string
+  sourceId: number | null
+  name: string
+  amount: number
 }
 
 /** 訂單裡的收貨資訊快照。秒殺訂單為 null——那條通道下單當下不收集地址。 */
@@ -63,6 +84,10 @@ export interface OrderView {
   userId: number | null
   channel: string | null
   lines: OrderLine[]
+  /** 各行小計的加總，**折扣前** */
+  subtotal: number | null
+  discounts: OrderDiscount[]
+  /** **折後應付**。付款與退款上限都以這個數字為準，不是 subtotal */
   totalAmount: number | null
   shipping: OrderShippingView | null
   status: string
@@ -140,6 +165,47 @@ export interface PlaceOrderRequest {
   requestId: string
   /** 訂單存的是這筆地址的**快照**，不是這個 ID */
   addressId: number
+  /** 要使用的優惠券。只送 ID——折多少由伺服器算，前端說了不算 */
+  couponId?: number | null
+}
+
+// ---------------------------------------------------------------------------
+// 優惠
+// ---------------------------------------------------------------------------
+
+/** 使用者手上一張還能用的券。折抵規則來自它引用的 promotion。 */
+export interface CouponView {
+  id: number
+  code: string
+  name: string
+  /** FIXED_AMOUNT 或 PERCENTAGE */
+  rule: string
+  threshold: number
+  /** 固定折抵金額，或折扣率（0.2 = 折 20%） */
+  value: number
+  maxDiscount: number | null
+  expiresAt: string
+}
+
+/**
+ * 結帳試算。
+ *
+ * 由**伺服器**算，前端只負責顯示。前端自己算折扣是錯的——
+ * 兩邊算出不同答案時，使用者只會相信他先看到的那一個。
+ */
+export interface CheckoutPreview {
+  subtotal: number
+  discounts: OrderDiscount[]
+  totalDiscount: number
+  payable: number
+  lines: Array<{
+    skuId: number
+    skuSnapshot: string
+    unitPrice: number
+    quantity: number
+    subtotal: number
+    paidAmount: number
+  }>
 }
 
 // ---------------------------------------------------------------------------
@@ -274,6 +340,12 @@ export interface ReturnableLineView {
   orderedQuantity: number
   /** 為 0 代表這一項已全部申請過，畫面應標成不可選 */
   returnableQuantity: number
+  /**
+   * 整單折扣分攤後，這一行**實際付了多少**。
+   *
+   * 預估退款要用它算——有折扣的訂單，unitPrice 是使用者沒有付過的錢。
+   */
+  paidAmount: number
 }
 
 export interface ReturnableView {

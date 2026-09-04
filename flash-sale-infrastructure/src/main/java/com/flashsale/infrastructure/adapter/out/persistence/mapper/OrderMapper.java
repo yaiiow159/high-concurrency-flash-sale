@@ -2,11 +2,13 @@ package com.flashsale.infrastructure.adapter.out.persistence.mapper;
 
 import com.flashsale.domain.order.Order;
 import com.flashsale.domain.order.OrderChannel;
+import com.flashsale.domain.order.OrderDiscount;
 import com.flashsale.domain.order.OrderLine;
 import com.flashsale.domain.order.OrderNo;
 import com.flashsale.domain.order.OrderStatus;
 import com.flashsale.domain.order.ShippingInfo;
 import com.flashsale.infrastructure.adapter.out.persistence.entity.OrderEntity;
+import com.flashsale.infrastructure.adapter.out.persistence.entity.OrderDiscountEntity;
 import com.flashsale.infrastructure.adapter.out.persistence.entity.OrderLineEntity;
 
 /** Entity ↔ 訂單聚合根轉換。 */
@@ -34,9 +36,13 @@ public final class OrderMapper {
                     shipping.district(), shipping.streetAddress());
         }
 
+        order.discounts().forEach(discount -> entity.addDiscount(new OrderDiscountEntity(
+                discount.sourceType(), discount.sourceId(),
+                discount.name(), discount.amount())));
+
         order.lines().forEach(line -> entity.addLine(new OrderLineEntity(
                 line.skuId(), line.skuSnapshot(), line.unitPrice(),
-                line.quantity(), line.sourceActivityId())));
+                line.quantity(), line.sourceActivityId(), line.allocatedAmount())));
         return entity;
     }
 
@@ -48,7 +54,8 @@ public final class OrderMapper {
                 entity.getRequestId(),
                 entity.getLines().stream()
                         .map(line -> new OrderLine(line.getSkuId(), line.getSkuSnapshot(),
-                                line.getUnitPrice(), line.getQuantity(), line.getSourceActivityId()))
+                                line.getUnitPrice(), line.getQuantity(), line.getSourceActivityId(),
+                                line.getAllocatedAmount()))
                         .toList(),
                 entity.getTotalAmount(),
                 toShippingInfo(entity),
@@ -56,6 +63,10 @@ public final class OrderMapper {
                 entity.getCreatedAt(),
                 entity.getPaidAt(),
                 entity.getCloseReason(),
+                entity.getDiscounts().stream()
+                        .map(discount -> new OrderDiscount(discount.getSourceType(),
+                                discount.getSourceId(), discount.getName(), discount.getAmount()))
+                        .toList(),
                 entity.getVersion());
     }
 

@@ -164,6 +164,13 @@ mock 單元測試看到 `revokeFamily` 有被呼叫就會判定通過。**
 `Address`（Identity）與 `ShippingInfo`（Ordering）**刻意互不認得**，
 轉換在應用層；讓兩個脈絡互相 import 會把它們黏死。
 
+**有折扣的訂單，退款必須按「分攤後的實付」退，不是按定價**。
+整單折扣折在訂單上、退貨卻是退一行，用 `unitPrice × quantity` 退的是
+使用者沒有付過的錢。`Payment` 的退款上限攔不住這件事——
+全額退貨會超過上限被擋下，**部分退貨不會**，那筆多退的錢仍在上限之內。
+金額來自 `OrderLine.allocatedAmount`，分次退貨用累計分攤
+（`OrderLine.refundFor`），全部退完的加總必然一分不差等於已付金額。
+
 另外：`channel` 欄位只用於追溯與報表，**不可用於控制流程**。
 一旦領域層出現 `if (channel == SECKILL)`，雙通道的差異就滲透進共用部分。
 ArchUnit 抓不到，只能靠 review。
@@ -197,7 +204,9 @@ ArchUnit 抓不到，只能靠 review。
 - 領域層用 record 與不可變類別；基礎設施層可用 JPA Entity 的可變欄位
 - 值物件優先於裸 `String`／`Long`（見 `OrderNo`）——讓編譯器擋下參數傳錯
 - 業務例外一律用 `BusinessException` + `ErrorCode`，**不要新增自訂例外類別**
-- 新增錯誤碼時同步確認 `GlobalExceptionHandler.STATUS_MAPPING` 是否需要對應
+- 新增錯誤碼時同步確認 `GlobalExceptionHandler.STATUS_MAPPING` 是否需要對應。
+  **碼不可重複**——前端靠它決定顯示什麼、要不要重試，兩個錯誤共用一個碼
+  等於讓呼叫端在錯的分支上做對的事。`ErrorCodeTest` 會擋下重複
 
 ---
 
@@ -233,5 +242,7 @@ cd web && npx nuxt typecheck                          # 前端型別檢查
 | 「應該用 Seata 做分散式交易」 | [ADR-0004](docs/adr/0004-outbox-saga-over-seata.md) |
 | 「應該拆成微服務」 | [ADR-0001](docs/adr/0001-modular-monolith-hexagonal.md) |
 | 「認證改用 Session 比較簡單」 | [ADR-0005](docs/adr/0005-jwt-resource-server-over-custom-filter.md) |
+| 「折扣存一個總額就好」 | [ADR-0013](docs/adr/0013-promotion-pricing-engine.md) |
+| 「一張券用分散式鎖擋重複使用」 | [ADR-0013](docs/adr/0013-promotion-pricing-engine.md) 決策 6 |
 
 若確實有新的理由推翻既有決策，**請新增一份 ADR 說明前提變化**，而不是直接改程式碼。

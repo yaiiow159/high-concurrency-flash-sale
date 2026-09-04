@@ -17,6 +17,9 @@ public record CheckoutRequest(
         String requestId,
 
         @NotNull(message = "請選擇收貨地址")
-        Long addressId
+        Long addressId,
+
+        /** 要使用的優惠券；不用券時省略。只傳 ID，折抵金額由伺服器算。 */
+        Long couponId
 ) {
 }

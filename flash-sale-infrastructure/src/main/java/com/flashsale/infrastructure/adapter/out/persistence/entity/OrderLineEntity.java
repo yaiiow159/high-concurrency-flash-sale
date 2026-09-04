@@ -50,6 +50,11 @@ public class OrderLineEntity {
     @Column(name = "unit_price", nullable = false, precision = 12, scale = 2)
     private BigDecimal unitPrice;
 
+    /** 整單折扣分攤後的實付金額。退款按這個數字退，不是 unit_price × quantity。 */
+    @Column(name = "allocated_amount", nullable = false, precision = 12, scale = 2,
+            updatable = false)
+    private BigDecimal allocatedAmount;
+
     @Column(name = "quantity", nullable = false)
     private int quantity;
 
@@ -62,12 +67,17 @@ public class OrderLineEntity {
     }
 
     public OrderLineEntity(Long skuId, String skuSnapshot, BigDecimal unitPrice,
-                           int quantity, Long sourceActivityId) {
+                           int quantity, Long sourceActivityId, BigDecimal allocatedAmount) {
         this.skuId = skuId;
         this.skuSnapshot = skuSnapshot;
         this.unitPrice = unitPrice;
         this.quantity = quantity;
         this.sourceActivityId = sourceActivityId;
+        this.allocatedAmount = allocatedAmount;
+    }
+
+    public BigDecimal getAllocatedAmount() {
+        return allocatedAmount;
     }
 
     void attachTo(OrderEntity order) {
