@@ -28,8 +28,13 @@ public record OrderView(
          * 而那需要知道是哪幾個優惠、各折了多少（ADR-0013 決策 3）。
          */
         List<Discount> discounts,
-        /** <b>折後應付</b>。付款與退款上限都以這個數字為準，不是 {@code subtotal}。 */
+        /** <b>商品</b>折後應付。<b>不含運費</b>——付款金額是 {@code payableAmount}。 */
         BigDecimal totalAmount,
+        /** 已扣掉免運折抵的實收運費。秒殺訂單為 0（那條通道不收地址）。 */
+        BigDecimal shippingFee,
+        /** 這張訂單總共付了多少 = totalAmount + shippingFee。付款與退款上限以它為準。 */
+        BigDecimal payableAmount,
+        String shippingMethod,
         Shipping shipping,
         String status,
         String closeReason,
@@ -89,6 +94,9 @@ public record OrderView(
                                 discount.name(), discount.amount()))
                         .toList(),
                 order.totalAmount(),
+                order.shippingFee(),
+                order.payableAmount(),
+                order.shippingMethod().name(),
                 Shipping.from(order.shippingInfo()),
                 order.status().name(),
                 order.closeReason(),
@@ -99,7 +107,8 @@ public record OrderView(
 
     /** 庫存已扣減、訂單仍在非同步建立中。 */
     public static OrderView processing(String orderNo) {
-        return new OrderView(orderNo, null, null, List.of(), null, List.of(), null, null,
+        return new OrderView(orderNo, null, null, List.of(), null, List.of(), null,
+                null, null, null, null,
                 "PROCESSING", null, null, null, true);
     }
 }

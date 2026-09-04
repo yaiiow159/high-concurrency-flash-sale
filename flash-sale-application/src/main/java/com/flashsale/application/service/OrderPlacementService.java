@@ -28,6 +28,10 @@ import com.flashsale.domain.promotion.DiscountType;
 import com.flashsale.domain.promotion.PricedItem;
 import com.flashsale.domain.promotion.PricingEngine;
 import com.flashsale.domain.promotion.Promotion;
+import com.flashsale.application.port.out.ShippingRateRepository;
+import com.flashsale.domain.shipping.ShippingFeeCalculator;
+import com.flashsale.domain.shipping.ShippingMethod;
+import com.flashsale.domain.shipping.ShippingZone;
 import com.flashsale.domain.stock.StockDeductionResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -70,6 +74,7 @@ public class OrderPlacementService implements PlaceOrderUseCase, CouponQueryUseC
     private final OrderNoGenerator orderNoGenerator;
     private final EventOutbox eventOutbox;
     private final PromotionRepository promotionRepository;
+    private final ShippingRateRepository shippingRateRepository;
     private final Clock clock;
 
     public OrderPlacementService(ProductRepository productRepository,
@@ -79,8 +84,10 @@ public class OrderPlacementService implements PlaceOrderUseCase, CouponQueryUseC
                                  OrderNoGenerator orderNoGenerator,
                                  EventOutbox eventOutbox,
                                  PromotionRepository promotionRepository,
+                                 ShippingRateRepository shippingRateRepository,
                                  Clock clock) {
         this.promotionRepository = promotionRepository;
+        this.shippingRateRepository = shippingRateRepository;
         this.productRepository = productRepository;
         this.addressRepository = addressRepository;
         this.inventoryService = inventoryService;
@@ -111,11 +118,13 @@ public class OrderPlacementService implements PlaceOrderUseCase, CouponQueryUseC
         // 定價在扣完庫存之後：庫存不足是最常見的失敗，先把它擋掉就不必為
         // 註定失敗的請求算優惠。而且券的核銷排在最後，扣庫存失敗時
         // 交易一起回滾，券自然不會被消耗掉
-        Priced priced = price(command.couponId(), command.userId(), lines, now);
+        Priced priced = price(command.couponId(), command.userId(), lines,
+                shippingInfo.postalCode(), command.shippingMethod(), now);
         redeemCouponIfUsed(command.couponId(), priced, orderNo, now);
 
         Order order = Order.place(orderNo, command.userId(), command.requestId(),
-                priced.lines(), shippingInfo, priced.discounts(), priced.payable(), now);
+                priced.lines(), shippingInfo, priced.discounts(), priced.payable(),
+                priced.shippingFee(), command.shippingMethod(), now);
         Order saved = orderRepository.saveIfAbsent(order)
                 // 走到這裡代表兩個並行請求帶著同一個 requestId，
                 // 而資料庫的唯一索引擋下了第二個。這是冪等的最後一道，不是錯誤。
@@ -143,7 +152,8 @@ public class OrderPlacementService implements PlaceOrderUseCase, CouponQueryUseC
     @Transactional(readOnly = true)
     public CheckoutPreview preview(PreviewCommand command) {
         List<OrderLine> lines = resolveLines(command.lines());
-        Priced priced = price(command.couponId(), command.userId(), lines, clock.instant());
+        Priced priced = price(command.couponId(), command.userId(), lines,
+                command.postalCode(), command.shippingMethod(), clock.instant());
 
         BigDecimal subtotal = lines.stream()
                 .map(OrderLine::subtotal)
@@ -161,7 +171,13 @@ public class OrderPlacementService implements PlaceOrderUseCase, CouponQueryUseC
                 .toList();
 
         return new CheckoutPreview(subtotal, discounts,
-                subtotal.subtract(priced.payable()), priced.payable(), previewLines);
+                subtotal.subtract(priced.payable()), priced.payable(),
+                priced.shippingFee(),
+                // 有算出區域才代表運費是真的。沒選地址時 fee 是 0，
+                // 但那不是免運——畫面要說得出差別
+                priced.zone() != null,
+                priced.zone() == null ? null : priced.zone().displayName(),
+                priced.total(), previewLines);
     }
 
     @Override
@@ -201,7 +217,8 @@ public class OrderPlacementService implements PlaceOrderUseCase, CouponQueryUseC
      * 拆出去的話兩種順序都會壞：先核銷後建單則建單失敗時券白白消失，
      * 先建單後核銷則訂單享了折扣但券還在。
      */
-    private Priced price(Long couponId, Long userId, List<OrderLine> lines, Instant now) {
+    private Priced price(Long couponId, Long userId, List<OrderLine> lines,
+                         String postalCode, ShippingMethod method, Instant now) {
         List<Promotion> candidates = new ArrayList<>(
                 promotionRepository.findActivePromotions(now));
 
@@ -213,24 +230,85 @@ public class OrderPlacementService implements PlaceOrderUseCase, CouponQueryUseC
                 .toList();
         PricingEngine.PricingResult result = PricingEngine.calculate(items, candidates, now);
 
-        if (result.discounts().isEmpty()) {
-            // 沒有任何優惠適用時，連券都不核銷——使用者選了券卻沒折到，
-            // 券必須還在他手上。這也涵蓋了含秒殺行的訂單
-            return new Priced(lines, List.of(), result.payable());
+        // 分攤結果寫回每一行。退款按這個數字退，不是單價 × 數量。
+        // 沒有折扣時分攤就等於各行小計，因此這一段對兩種情況都適用
+        List<OrderLine> pricedLines = lines;
+        if (!result.discounts().isEmpty()) {
+            pricedLines = new ArrayList<>(lines.size());
+            for (int i = 0; i < lines.size(); i++) {
+                pricedLines.add(lines.get(i).withAllocatedAmount(result.lineAllocations().get(i)));
+            }
         }
 
-        // 分攤結果寫回每一行。退款按這個數字退，不是單價 × 數量
-        List<OrderLine> pricedLines = new ArrayList<>(lines.size());
-        for (int i = 0; i < lines.size(); i++) {
-            pricedLines.add(lines.get(i).withAllocatedAmount(result.lineAllocations().get(i)));
-        }
-
-        List<OrderDiscount> discounts = result.discounts().stream()
+        List<OrderDiscount> discounts = new ArrayList<>(result.discounts().stream()
                 .map(applied -> new OrderDiscount(applied.type().name(), applied.sourceId(),
                         applied.name(), applied.amount()))
-                .toList();
+                .toList());
 
-        return new Priced(pricedLines, discounts, result.payable());
+        // 運費算在商品定價**之後**：免運門檻看的是折後金額（ADR-0013 決策 2）。
+        // 這也是 DiscountType.SHIPPING 排在最後一位的理由
+        Shipping shipping = resolveShipping(lines, postalCode, method, result.payable(),
+                candidates, now);
+        if (shipping.discount() != null) {
+            discounts.add(new OrderDiscount(shipping.discount().type().name(),
+                    shipping.discount().sourceId(), shipping.discount().name(),
+                    shipping.discount().amount()));
+        }
+
+        return new Priced(pricedLines, List.copyOf(discounts), result.payable(),
+                shipping.netFee(), shipping.zone());
+    }
+
+    /**
+     * 算運費，並套用免運優惠。
+     *
+     * <p>沒有收貨地址時運費為 0——秒殺通道與試算尚未選地址的情況都會走到這裡。
+     * 那不是「免運」而是「還算不出來」，畫面要說得出差別。
+     */
+    private Shipping resolveShipping(List<OrderLine> lines, String postalCode,
+                                     ShippingMethod method, BigDecimal goodsPayable,
+                                     List<Promotion> promotions, Instant now) {
+        if (postalCode == null || postalCode.isBlank()) {
+            return new Shipping(BigDecimal.ZERO, null, null);
+        }
+
+        int totalWeight = totalWeightOf(lines);
+        ShippingFeeCalculator.Result computed = ShippingFeeCalculator.calculate(
+                totalWeight, postalCode, method, shippingRateRepository.findAll());
+
+        AppliedDiscount discount = PricingEngine.shippingDiscount(
+                computed.fee(), goodsPayable, promotions, now);
+        BigDecimal netFee = discount == null
+                ? computed.fee()
+                : computed.fee().subtract(discount.amount());
+
+        return new Shipping(netFee, discount, computed.zone());
+    }
+
+    /**
+     * 訂單總重。
+     *
+     * <p>重量來自<b>商品目錄的當下值</b>而不是訂單行快照——
+     * 訂單行存的是價格與名稱的快照（那些是成交條件），
+     * 而重量是物流事實，它不該被凍結。商家把包裝改小了，
+     * 下一單就該用新的重量算。
+     */
+    private int totalWeightOf(List<OrderLine> lines) {
+        Map<Long, Integer> weightBySku = productRepository
+                .findBySkuIds(lines.stream().map(OrderLine::skuId).toList()).stream()
+                .flatMap(product -> product.skus().stream())
+                .collect(Collectors.toMap(Sku::id, Sku::weightGrams, (first, second) -> first));
+
+        int total = 0;
+        for (OrderLine line : lines) {
+            int unitWeight = weightBySku.getOrDefault(line.skuId(), Sku.DEFAULT_WEIGHT_GRAMS);
+            total += unitWeight * line.quantity();
+        }
+        return total;
+    }
+
+    /** @param discount 免運折抵；{@code null} 代表沒有適用的優惠 */
+    private record Shipping(BigDecimal netFee, AppliedDiscount discount, ShippingZone zone) {
     }
 
     /**
@@ -279,9 +357,21 @@ public class OrderPlacementService implements PlaceOrderUseCase, CouponQueryUseC
         candidates.add(rule);
     }
 
-    /** 定價結果：帶分攤金額的行、折扣明細、折後應付。 */
+    /**
+     * 定價結果。
+     *
+     * @param payable     <b>商品</b>折後應付。運費不在裡面——那條恆等式
+     *                    （各行分攤加總 == payable）是退款按行退的基礎
+     * @param shippingFee 已扣掉免運折抵的實收運費
+     */
     private record Priced(List<OrderLine> lines, List<OrderDiscount> discounts,
-                          BigDecimal payable) {
+                          BigDecimal payable, BigDecimal shippingFee,
+                          ShippingZone zone) {
+
+        /** 這張訂單總共要付多少。付款金額用它，不是 payable。 */
+        BigDecimal total() {
+            return payable.add(shippingFee);
+        }
     }
 
     /**

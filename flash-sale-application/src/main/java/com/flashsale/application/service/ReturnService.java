@@ -233,9 +233,26 @@ public class ReturnService implements ReturnUseCase {
                 .orElseThrow(() -> new BusinessException(ErrorCode.PAYMENT_NOT_FOUND,
                         "訂單 %s 沒有付款紀錄，無從退款".formatted(request.orderNo())));
 
+        Order order = requireOrder(request.orderNo().value());
+
+        // 運費退不退由退貨原因決定（ADR-0019 決策 7）。
+        //
+        // 「全額退貨」的判準是**這次退完之後訂單沒有任何可退的東西了**，
+        // 而不是「這張退貨單涵蓋所有品項」——分兩次退完應該與一次退完結果相同。
+        // 而那需要訂單層級的視野，聚合根自己看不到同一張訂單的其他退貨單。
+        boolean fullyReturned = returnableQuantities(order).values().stream()
+                .allMatch(remaining -> remaining <= 0);
+        BigDecimal shippingRefund = request.shouldRefundShipping(fullyReturned)
+                ? order.shippingFee()
+                : BigDecimal.ZERO;
+        BigDecimal totalRefund = request.refundAmount().add(shippingRefund);
+
         // 第三層防重複：累計退款不可超過已收金額。前兩層都在退貨的脈絡裡，
-        // 而 PaymentRefundScheduler 走的是另一條路，看不到退貨單
-        payment.applyRefund(request.refundAmount(), now);
+        // 而 PaymentRefundScheduler 走的是另一條路，看不到退貨單。
+        //
+        // 上限是 payableAmount（含運費），因此運費退得出來——
+        // 若付款當初只收了 totalAmount，這裡就會撞上限而失敗
+        payment.applyRefund(totalRefund, now);
         paymentRepository.save(payment);
 
         request.markRefunded(now);
@@ -247,10 +264,6 @@ public class ReturnService implements ReturnUseCase {
         // 全額退完才動訂單狀態。用付款聚合根的判斷而不是自己再算一次——
         // 它剛剛才根據累計金額決定了 REFUNDED 還是 PARTIALLY_REFUNDED，
         // 這裡重算等於製造第二個真實來源
-        // 訂單只查一次。先前這裡查了兩次（全額退款分支一次、積分扣回一次），
-        // 而它們要的是同一筆資料
-        Order order = requireOrder(request.orderNo().value());
-
         if (payment.status() == PaymentStatus.REFUNDED) {
             order.markFullyRefunded("退貨單 " + returnNo, now);
             orderRepository.update(order);
@@ -265,12 +278,14 @@ public class ReturnService implements ReturnUseCase {
         //
         // 用訂單的實付總額算比例，而不是行小計加總：有折扣的訂單
         // 兩者不同，而積分當初是按實付發的（ADR-0016 決策 5）。
+        // 積分扣回用**商品金額**，不含運費：積分當初是按商品實付發的
+        // （awardForOrder 收到的是 order.totalAmount()），扣回要用同一個基準
         membershipUseCase.clawbackForReturn(order.userId(), order.orderNo().value(),
                 returnNo, request.refundAmount(), order.totalAmount());
 
         eventOutbox.append(events);
-        log.info("已送出退款 returnNo={}, 金額={}, 付款狀態={}",
-                returnNo, request.refundAmount(), payment.status());
+        log.info("已送出退款 returnNo={}, 商品={}, 運費={}, 付款狀態={}",
+                returnNo, request.refundAmount(), shippingRefund, payment.status());
         return ReturnRequestView.from(updated);
     }
 

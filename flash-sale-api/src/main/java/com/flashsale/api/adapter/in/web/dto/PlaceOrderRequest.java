@@ -1,6 +1,7 @@
 package com.flashsale.api.adapter.in.web.dto;
 
 import com.flashsale.application.port.in.PlaceOrderUseCase;
+import com.flashsale.domain.shipping.ShippingMethod;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -50,7 +51,10 @@ public record PlaceOrderRequest(
          * 呼叫端若能指定折多少，那就不叫折扣了。
          * 滿減這類不需券的優惠由伺服器自行判定，不必也不該由呼叫端指定。
          */
-        Long couponId
+        Long couponId,
+
+        /** 配送方式；省略為宅配。 */
+        ShippingMethod shippingMethod
 ) {
 
     public PlaceOrderUseCase.PlaceOrderCommand toCommand(Long userId) {
@@ -58,7 +62,7 @@ public record PlaceOrderRequest(
                 items.stream()
                         .map(item -> new PlaceOrderUseCase.OrderItem(item.skuId(), item.quantity()))
                         .toList(),
-                couponId);
+                couponId, shippingMethod);
     }
 
     /** 買哪個規格、幾件。 */

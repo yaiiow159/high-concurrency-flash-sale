@@ -67,6 +67,17 @@ public class OrderEntity {
     private BigDecimal totalAmount;
 
     /**
+     * 運費。<b>不計入 total_amount</b>（ADR-0019 決策 1）——
+     * 那條恆等式是退款按行退的基礎，而運費不分攤到行。
+     */
+    @Column(name = "shipping_fee", nullable = false, precision = 12, scale = 2,
+            updatable = false)
+    private BigDecimal shippingFee;
+
+    @Column(name = "shipping_method", nullable = false, length = 24, updatable = false)
+    private String shippingMethod;
+
+    /**
      * 收貨資訊快照，全部 {@code updatable = false}。
      *
      * <p>與金額同理（見 ADR-0007 與 CLAUDE.md 規則 7-2）：訂單記錄的是
@@ -121,7 +132,10 @@ public class OrderEntity {
 
     public OrderEntity(String orderNo, Long userId, String channel, String requestId,
                        BigDecimal totalAmount, String status, Instant createdAt,
-                       Instant paidAt, String closeReason) {
+                       Instant paidAt, String closeReason,
+                       BigDecimal shippingFee, String shippingMethod) {
+        this.shippingFee = shippingFee;
+        this.shippingMethod = shippingMethod;
         this.orderNo = orderNo;
         this.userId = userId;
         this.channel = channel;
@@ -228,6 +242,14 @@ public class OrderEntity {
 
     public BigDecimal getTotalAmount() {
         return totalAmount;
+    }
+
+    public BigDecimal getShippingFee() {
+        return shippingFee;
+    }
+
+    public String getShippingMethod() {
+        return shippingMethod;
     }
 
     public String getStatus() {

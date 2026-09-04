@@ -4,6 +4,7 @@ import com.flashsale.application.port.in.CartUseCase;
 import com.flashsale.application.port.in.PlaceOrderUseCase;
 import com.flashsale.application.port.in.dto.CartView;
 import com.flashsale.application.port.in.dto.OrderView;
+import com.flashsale.application.port.out.AddressRepository;
 import com.flashsale.application.port.out.OrderRepository;
 import com.flashsale.domain.order.Order;
 import com.flashsale.domain.order.OrderLine;
@@ -58,6 +59,8 @@ class CheckoutServiceTest {
     private PlaceOrderUseCase placeOrderUseCase;
     @Mock
     private OrderRepository orderRepository;
+    @Mock
+    private AddressRepository addressRepository;
 
     @Nested
     @DisplayName("冪等")
@@ -184,7 +187,8 @@ class CheckoutServiceTest {
     // ---- fixtures ----
 
     private CheckoutService service() {
-        return new CheckoutService(cartUseCase, placeOrderUseCase, orderRepository);
+        return new CheckoutService(cartUseCase, placeOrderUseCase, orderRepository,
+                addressRepository);
     }
 
     private void givenNoExistingOrder() {

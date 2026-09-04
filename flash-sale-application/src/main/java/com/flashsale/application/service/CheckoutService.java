@@ -6,6 +6,9 @@ import com.flashsale.application.port.in.PlaceOrderUseCase;
 import com.flashsale.application.port.in.dto.CartView;
 import com.flashsale.application.port.in.dto.CheckoutPreview;
 import com.flashsale.application.port.in.dto.OrderView;
+import com.flashsale.application.port.out.AddressRepository;
+import com.flashsale.domain.identity.Address;
+import com.flashsale.domain.shipping.ShippingMethod;
 import com.flashsale.application.port.out.OrderRepository;
 import com.flashsale.domain.shared.BusinessException;
 import com.flashsale.domain.shared.ErrorCode;
@@ -38,10 +41,13 @@ public class CheckoutService implements CheckoutUseCase {
     private final CartUseCase cartUseCase;
     private final PlaceOrderUseCase placeOrderUseCase;
     private final OrderRepository orderRepository;
+    private final AddressRepository addressRepository;
 
     public CheckoutService(CartUseCase cartUseCase,
                            PlaceOrderUseCase placeOrderUseCase,
-                           OrderRepository orderRepository) {
+                           OrderRepository orderRepository,
+                           AddressRepository addressRepository) {
+        this.addressRepository = addressRepository;
         this.cartUseCase = cartUseCase;
         this.placeOrderUseCase = placeOrderUseCase;
         this.orderRepository = orderRepository;
@@ -60,7 +66,7 @@ public class CheckoutService implements CheckoutUseCase {
      */
     @Override
     @Transactional(readOnly = true)
-    public CheckoutPreview preview(Long userId, Long couponId) {
+    public CheckoutPreview preview(Long userId, Long couponId, Long addressId) {
         CartView cart = cartUseCase.view(userId);
         List<PlaceOrderUseCase.OrderItem> items = cart.items().stream()
                 .filter(CartView.Item::purchasable)
@@ -68,15 +74,27 @@ public class CheckoutService implements CheckoutUseCase {
                 .toList();
         if (items.isEmpty()) {
             return new CheckoutPreview(BigDecimal.ZERO, List.of(), BigDecimal.ZERO,
+                    BigDecimal.ZERO, BigDecimal.ZERO, false, null,
                     BigDecimal.ZERO, List.of());
         }
-        return placeOrderUseCase.preview(
-                new PlaceOrderUseCase.PreviewCommand(userId, items, couponId));
+        // 沒選地址就算不出運費。查地址而不是要求前端傳郵遞區號——
+        // 讓呼叫端傳郵遞區號等於讓它決定運費區域，而離島是本島的兩三倍
+        String postalCode = addressId == null ? null : addressRepository.findById(addressId)
+                .filter(address -> address.userId().equals(userId))
+                .map(Address::postalCode)
+                .orElse(null);
+
+        return placeOrderUseCase.preview(new PlaceOrderUseCase.PreviewCommand(
+                userId, items, couponId, postalCode, ShippingMethod.HOME_DELIVERY));
     }
 
     @Override
     @Transactional
-    public OrderView checkout(Long userId, String requestId, Long addressId, Long couponId) {
+    public OrderView checkout(Long userId, String requestId, Long addressId, Long couponId,
+                              ShippingMethod shippingMethod) {
+        // 沒指定就宅配。多數人不會特別選，而讓它變成必填只是多一個會出錯的欄位
+        ShippingMethod method = shippingMethod == null
+                ? ShippingMethod.HOME_DELIVERY : shippingMethod;
         // 冪等檢查必須排在「購物車是空的」之前。
         //
         // 順序反了的話，網路逾時後重送會撞上「購物車是空的」——
@@ -113,7 +131,7 @@ public class CheckoutService implements CheckoutUseCase {
                 cart.items().stream()
                         .map(item -> new PlaceOrderUseCase.OrderItem(item.skuId(), item.quantity()))
                         .toList(),
-                couponId));
+                couponId, method));
 
         cartUseCase.clear(userId);
         log.info("購物車結帳完成 userId={}, orderNo={}, 品項數={}",

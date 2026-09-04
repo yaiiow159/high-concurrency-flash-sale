@@ -163,7 +163,9 @@ useHead({ title: `訂單 ${orderNo}` })
           <h2 class="eyebrow mb-4">訂單金額</h2>
           <PriceBreakdown
             :subtotal="order.subtotal" :discounts="order.discounts ?? []"
-            :payable="order.totalAmount" size="xl"
+            :payable="order.totalAmount"
+            :shipping-fee="order.shippingFee"
+            size="xl"
           />
 
           <AppButton

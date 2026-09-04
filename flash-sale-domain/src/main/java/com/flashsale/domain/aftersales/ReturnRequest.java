@@ -180,6 +180,31 @@ public final class ReturnRequest {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
+    /**
+     * 這次退貨要不要連運費一起退（ADR-0019 決策 7）。
+     *
+     * <p>{@code ReturnReason.isSellerFault()} 早就存在，而且它的註解就寫著
+     * 「決定運費由誰負擔」——這是它第一次真的被用來算錢。
+     *
+     * <p>兩個條件都要成立：
+     *
+     * <ul>
+     *   <li><b>賣方責任</b>（瑕疵、與描述不符、出錯貨）。買家改變心意時
+     *       配送已經發生，那個成本是真的</li>
+     *   <li><b>全額退貨</b>。部分退貨時貨還是寄了那一趟，
+     *       退一半的運費沒有任何依據</li>
+     * </ul>
+     *
+     * <p>「全額退貨」由呼叫端判斷並傳入，而不是這個聚合根自己算——
+     * 它只看得到自己這一張退貨單，看不到同一張訂單的其他退貨單。
+     * 分兩次退完應該與一次退完結果相同，而那需要訂單層級的視野。
+     *
+     * @param fullyReturned 這次退完之後，訂單已經沒有任何可退的東西了
+     */
+    public boolean shouldRefundShipping(boolean fullyReturned) {
+        return fullyReturned && reason.isSellerFault();
+    }
+
     /** 需要回補到一般庫存的行。免寄回時全數回補——貨從未離開倉庫。 */
     public List<ReturnLine> restockableLines() {
         return requiresGoodsReturn

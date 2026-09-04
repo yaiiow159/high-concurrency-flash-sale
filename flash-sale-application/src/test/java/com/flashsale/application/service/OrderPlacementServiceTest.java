@@ -11,6 +11,7 @@ import com.flashsale.application.port.out.OrderNoGenerator;
 import com.flashsale.application.port.out.OrderRepository;
 import com.flashsale.application.port.out.ProductRepository;
 import com.flashsale.application.port.out.PromotionRepository;
+import com.flashsale.application.port.out.ShippingRateRepository;
 import com.flashsale.domain.catalog.Product;
 import com.flashsale.domain.catalog.ProductStatus;
 import com.flashsale.domain.catalog.Sku;
@@ -26,6 +27,9 @@ import com.flashsale.domain.promotion.CouponStatus;
 import com.flashsale.domain.promotion.DiscountType;
 import com.flashsale.domain.promotion.Promotion;
 import com.flashsale.domain.promotion.PromotionRule;
+import com.flashsale.domain.shipping.ShippingMethod;
+import com.flashsale.domain.shipping.ShippingRate;
+import com.flashsale.domain.shipping.ShippingZone;
 import com.flashsale.domain.shared.BusinessException;
 import com.flashsale.domain.shared.ErrorCode;
 import com.flashsale.domain.stock.StockDeductionOutcome;
@@ -91,6 +95,8 @@ class OrderPlacementServiceTest {
     private EventOutbox eventOutbox;
     @Mock
     private PromotionRepository promotionRepository;
+    @Mock
+    private ShippingRateRepository shippingRateRepository;
 
     @Nested
     @DisplayName("價格由目錄決定")
@@ -436,7 +442,117 @@ class OrderPlacementServiceTest {
         }
     }
 
+    @Nested
+    @DisplayName("運費")
+    class ShippingFee {
+
+        @Test
+        @DisplayName("運費不進 totalAmount——那條恆等式是退款按行退的基礎")
+        void shippingStaysOutOfGoodsTotal() {
+            givenCatalog();
+            givenDeductSucceeds();
+            givenOrderSaves();
+            givenPromotions();
+
+            service().place(command(new OrderItem(SKU_A, 1)));
+
+            Order order = capturedOrder();
+            // 商品 29900、運費 80（1 公斤落在最低級距）
+            assertThat(order.totalAmount()).isEqualByComparingTo("29900");
+            assertThat(order.shippingFee()).isEqualByComparingTo("80");
+            assertThat(order.payableAmount()).isEqualByComparingTo("29980");
+            // 各行分攤加總仍然等於 totalAmount，運費不在裡面
+            assertThat(order.lines().stream().map(OrderLine::allocatedAmount)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add))
+                    .isEqualByComparingTo(order.totalAmount());
+        }
+
+        @Test
+        @DisplayName("重量跨級距時用較貴的那一檔")
+        void heavierOrderCostsMore() {
+            givenCatalog();
+            givenDeductSucceeds();
+            givenOrderSaves();
+            givenPromotions();
+
+            // 每件 1000 克，六件 = 6000 克 → 超過 5000 的級距
+            service().place(command(new OrderItem(SKU_A, 6)));
+
+            assertThat(capturedOrder().shippingFee()).isEqualByComparingTo("120");
+        }
+
+        @Test
+        @DisplayName("免運是一個 Promotion，而且折抵不進商品金額的恆等式")
+        void freeShippingIsAPromotion() {
+            givenCatalog();
+            givenDeductSucceeds();
+            givenOrderSaves();
+            givenPromotions(shippingPromotion(5L, "滿兩萬免運", "20000"));
+
+            service().place(command(new OrderItem(SKU_A, 1)));
+
+            Order order = capturedOrder();
+            assertThat(order.shippingFee()).isEqualByComparingTo("0");
+            // 折抵有進快照（客服要看得到為什麼免運）
+            assertThat(order.discounts()).anySatisfy(discount -> {
+                assertThat(discount.sourceType()).isEqualTo("SHIPPING");
+                assertThat(discount.appliesToShipping()).isTrue();
+            });
+            // 但商品金額完全沒被它影響——這正是 Order.place 那條檢查在保護的
+            assertThat(order.totalAmount()).isEqualByComparingTo("29900");
+        }
+
+        @Test
+        @DisplayName("未達免運門檻就照收——門檻看的是折後金額")
+        void belowThresholdStillPays() {
+            givenCatalog();
+            givenDeductSucceeds();
+            givenOrderSaves();
+            givenPromotions(shippingPromotion(5L, "滿十萬免運", "100000"));
+
+            service().place(command(new OrderItem(SKU_A, 1)));
+
+            assertThat(capturedOrder().shippingFee()).isEqualByComparingTo("80");
+        }
+
+        @Test
+        @DisplayName("試算沒選地址時運費是 0，但要標明「還算不出來」而不是免運")
+        void previewWithoutAddressCannotKnowShipping() {
+            givenCatalog();
+            givenPromotions();
+
+            var preview = service().preview(new PlaceOrderUseCase.PreviewCommand(
+                    USER, List.of(new OrderItem(SKU_A, 1)), null));
+
+            assertThat(preview.shippingFee()).isEqualByComparingTo("0");
+            assertThat(preview.shippingKnown()).isFalse();
+            assertThat(preview.shippingZone()).isNull();
+        }
+
+        @Test
+        @DisplayName("試算選了地址就算得出來，並說得出是哪一區")
+        void previewWithAddressKnowsShipping() {
+            givenCatalog();
+            givenPromotions();
+
+            var preview = service().preview(new PlaceOrderUseCase.PreviewCommand(
+                    USER, List.of(new OrderItem(SKU_A, 1)), null, "110",
+                    ShippingMethod.HOME_DELIVERY));
+
+            assertThat(preview.shippingKnown()).isTrue();
+            assertThat(preview.shippingFee()).isEqualByComparingTo("80");
+            assertThat(preview.shippingZone()).isEqualTo("本島");
+            assertThat(preview.total()).isEqualByComparingTo("29980");
+        }
+    }
+
     // ---- fixtures ----
+
+    private static Promotion shippingPromotion(long id, String name, String threshold) {
+        // 折抵值給一個夠大的數字，實際折抵由「夾在運費本身」保證
+        return rule(id, name, DiscountType.SHIPPING, threshold, "9999");
+    }
+
 
     private static final long COUPON = 55L;
 
@@ -474,7 +590,8 @@ class OrderPlacementServiceTest {
 
     private OrderPlacementService service() {
         return new OrderPlacementService(productRepository, addressRepository, inventoryService,
-                orderRepository, orderNoGenerator, eventOutbox, promotionRepository, CLOCK);
+                orderRepository, orderNoGenerator, eventOutbox, promotionRepository,
+                shippingRateRepository, CLOCK);
     }
 
     private static PlaceOrderCommand command(OrderItem... items) {
@@ -491,7 +608,22 @@ class OrderPlacementServiceTest {
                 .thenReturn(List.of(product(ProductStatus.ON_SHELF)));
     }
 
+    /**
+     * 運費費率。與遷移種下的本島級距一致。
+     *
+     * <p>放進 {@code givenAddress} 而不是每個測試各自 stub：
+     * 有地址就一定會算運費，兩件事本來就綁在一起。
+     */
+    private void givenShippingRates() {
+        when(shippingRateRepository.findAll()).thenReturn(List.of(
+                new ShippingRate(ShippingMethod.HOME_DELIVERY, ShippingZone.MAIN_ISLAND,
+                        5_000, new BigDecimal("80")),
+                new ShippingRate(ShippingMethod.HOME_DELIVERY, ShippingZone.MAIN_ISLAND,
+                        20_000, new BigDecimal("120"))));
+    }
+
     private void givenAddress() {
+        givenShippingRates();
         when(addressRepository.findById(ADDRESS)).thenReturn(Optional.of(Address.restore(
                 ADDRESS, USER, "王小明", "0912345678", "110",
                 "臺北市", "信義區", "市府路 1 號", true, NOW)));

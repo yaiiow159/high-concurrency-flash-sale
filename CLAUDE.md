@@ -143,6 +143,19 @@ Spring 的交易是動態代理，同一個 Bean 內部呼叫 `this.method()` **
 與 `OutboxRelayer` 拆分同理。**這個 bug 是實機驗證才發現的，
 mock 單元測試看到 `revokeFamily` 有被呼叫就會判定通過。**
 
+### 7-5. 運費不進 `totalAmount`，付款要用 `payableAmount()`
+
+`Order.totalAmount` 是<b>商品</b>折後應付，而 `totalAmount == Σ allocatedAmount`
+這條恆等式是退款按行退的基礎。運費不分攤到行（三件一起寄、退掉一件，
+沒有「三分之一趟」），因此它是獨立欄位。
+
+**付款金額與退款上限一律用 `order.payableAmount()`**（= totalAmount + shippingFee）。
+用 `totalAmount` 的話運費收不到，而且**沒有任何東西會發現**——
+付款成功、訂單完成、貨也寄了，只有月底對帳才看得出每一單都少收幾十元。
+
+運費折抵（免運）也進 `discounts` 快照，但**不算進**
+「小計 − 折扣 == 折後應付」那條檢查——用 `OrderDiscount.appliesToShipping()` 排除。
+
 ### 7-3. 聚合計數一律用增量 UPDATE，不可讀出來加完再寫回
 
 `product_rating` 的 `rating_sum` / `rating_count` / `count_1..5` 全部走
@@ -289,6 +302,7 @@ cd web && npx nuxt typecheck                          # 前端型別檢查
 | 「一張券用分散式鎖擋重複使用」 | [ADR-0013](docs/adr/0013-promotion-pricing-engine.md) 決策 6 |
 | 「評分聚合存平均值就好」 | [ADR-0014](docs/adr/0014-review-and-rating-aggregate.md) 決策 2 |
 | 「等級用積分餘額算」 | [ADR-0016](docs/adr/0016-membership-points-and-tiers.md) 決策 4 |
+| 「運費加進 totalAmount 就好」 | [ADR-0019](docs/adr/0019-shipping-fee-model.md) 決策 1 |
 | 「積分直接折抵訂單就好」 | [ADR-0016](docs/adr/0016-membership-points-and-tiers.md) 決策 7 |
 
 若確實有新的理由推翻既有決策，**請新增一份 ADR 說明前提變化**，而不是直接改程式碼。

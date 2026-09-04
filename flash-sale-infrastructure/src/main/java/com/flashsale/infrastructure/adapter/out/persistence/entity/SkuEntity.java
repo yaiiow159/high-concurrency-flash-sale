@@ -42,6 +42,10 @@ public class SkuEntity {
     @Column(name = "price", nullable = false, precision = 12, scale = 2)
     private BigDecimal price;
 
+    /** 單件重量（克），用於運費計費。既有商品由遷移給 1000 克的預設值。 */
+    @Column(name = "weight_grams", nullable = false)
+    private int weightGrams;
+
     @Column(name = "barcode", length = 64)
     private String barcode;
 
@@ -51,11 +55,13 @@ public class SkuEntity {
     protected SkuEntity() {
     }
 
-    public SkuEntity(String specJson, BigDecimal price, String barcode, String status) {
+    public SkuEntity(String specJson, BigDecimal price, String barcode, String status,
+                     int weightGrams) {
         this.specJson = specJson;
         this.price = price;
         this.barcode = barcode;
         this.status = status;
+        this.weightGrams = weightGrams;
     }
 
     void attachTo(ProductEntity product) {
@@ -83,6 +89,10 @@ public class SkuEntity {
 
     public BigDecimal getPrice() {
         return price;
+    }
+
+    public int getWeightGrams() {
+        return weightGrams;
     }
 
     public String getBarcode() {

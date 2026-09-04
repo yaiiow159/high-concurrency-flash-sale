@@ -73,7 +73,7 @@ async function refreshPreview() {
     preview.value = await request<CheckoutPreview>('/api/v1/orders/checkout/preview', {
       method: 'POST',
       authenticated: true,
-      body: { couponId: selectedCouponId.value },
+      body: { couponId: selectedCouponId.value, addressId: selectedAddressId.value },
     })
   } catch {
     preview.value = null
@@ -143,8 +143,15 @@ watch(() => auth.isAuthenticated, (authenticated) => {
 
 // 換券或購物車內容變動都要重算。監看品項的簽章而不是整個陣列，
 // 是為了避免購物車重新載入（內容相同但物件不同）時多打一次試算
+// 換券、換地址、或購物車內容變動都要重算。
+// **地址必須在裡面**——離島運費是本島的兩三倍，換了地址卻沿用舊運費，
+// 使用者會在下一步被收一個他沒看過的金額
 watch(
-  [selectedCouponId, () => items.value.map((item) => `${item.skuId}x${item.quantity}`).join(',')],
+  [
+    selectedCouponId,
+    selectedAddressId,
+    () => items.value.map((item) => `${item.skuId}x${item.quantity}`).join(','),
+  ],
   () => { void refreshPreview() },
 )
 watchEffect(() => {
@@ -233,7 +240,11 @@ useHead({ title: '結帳' })
         <h2 class="eyebrow mb-4">應付金額</h2>
         <PriceBreakdown
           :subtotal="preview?.subtotal ?? cart.remote?.totalAmount"
-          :discounts="discounts" :payable="payable" size="xl"
+          :discounts="discounts" :payable="payable"
+          :shipping-fee="preview?.shippingFee"
+          :shipping-known="preview?.shippingKnown ?? false"
+          :shipping-zone="preview?.shippingZone"
+          size="xl"
         />
 
         <AppButton class="mt-6" size="lg" block :disabled="!canSubmit" @click="submit">
@@ -258,9 +269,12 @@ useHead({ title: '結帳' })
 
     <StickyActionBar v-if="auth.isAuthenticated && items.length > 0">
       <template #info>
-        <MoneyText :amount="payable" size="lg" />
+        <MoneyText :amount="preview?.shippingKnown ? preview.total : payable" size="lg" />
         <p v-if="discounts.length > 0" class="mt-0.5 truncate text-xs text-accent">
           已折 {{ preview?.totalDiscount?.toLocaleString() }}
+        </p>
+        <p v-else-if="!preview?.shippingKnown" class="mt-0.5 truncate text-xs text-ink-faint">
+          未含運費
         </p>
         <p v-if="error" class="mt-0.5 truncate text-xs text-danger">{{ error }}</p>
       </template>

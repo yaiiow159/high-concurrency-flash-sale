@@ -111,7 +111,10 @@ public class GlobalExceptionHandler {
             // 「不開放兌換」與「積分不足」都是狀態問題而不是請求寫錯：
             // 同一個請求在別的時間點或別的餘額下會成功
             Map.entry(ErrorCode.PROMOTION_NOT_EXCHANGEABLE, HttpStatus.CONFLICT),
-            Map.entry(ErrorCode.INSUFFICIENT_POINTS, HttpStatus.CONFLICT)
+            Map.entry(ErrorCode.INSUFFICIENT_POINTS, HttpStatus.CONFLICT),
+            // 費率表有缺口是**設定問題**而不是使用者輸入錯誤。
+            // 回 409 而非 400：同一個請求在補上費率之後會成功
+            Map.entry(ErrorCode.SHIPPING_RATE_NOT_FOUND, HttpStatus.CONFLICT)
     );
 
     @ExceptionHandler(BusinessException.class)

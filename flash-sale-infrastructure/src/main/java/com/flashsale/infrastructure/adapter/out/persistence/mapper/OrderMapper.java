@@ -5,6 +5,7 @@ import com.flashsale.domain.order.OrderChannel;
 import com.flashsale.domain.order.OrderDiscount;
 import com.flashsale.domain.order.OrderLine;
 import com.flashsale.domain.order.OrderNo;
+import com.flashsale.domain.shipping.ShippingMethod;
 import com.flashsale.domain.order.OrderStatus;
 import com.flashsale.domain.order.ShippingInfo;
 import com.flashsale.infrastructure.adapter.out.persistence.entity.OrderEntity;
@@ -27,7 +28,9 @@ public final class OrderMapper {
                 order.status().name(),
                 order.createdAt(),
                 order.paidAt(),
-                order.closeReason());
+                order.closeReason(),
+                order.shippingFee(),
+                order.shippingMethod().name());
 
         ShippingInfo shipping = order.shippingInfo();
         if (shipping != null) {
@@ -67,7 +70,9 @@ public final class OrderMapper {
                         .map(discount -> new OrderDiscount(discount.getSourceType(),
                                 discount.getSourceId(), discount.getName(), discount.getAmount()))
                         .toList(),
-                entity.getVersion());
+                entity.getVersion(),
+                entity.getShippingFee(),
+                ShippingMethod.valueOf(entity.getShippingMethod()));
     }
 
     /**
