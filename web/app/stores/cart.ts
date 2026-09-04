@@ -136,7 +136,9 @@ export const useCartStore = defineStore('cart', () => {
   async function changeQuantity(skuId: number, quantity: number): Promise<void> {
     if (auth.isAuthenticated) {
       remote.value = await request<CartView>(`/api/v1/cart/items/${skuId}`, {
-        method: 'PUT', authenticated: true, body: { skuId, quantity },
+        // 只送 quantity——skuId 在路徑上。兩邊都送會製造
+        // 「不一致時聽誰的」這個沒有答案的問題
+        method: 'PUT', authenticated: true, body: { quantity },
       })
       return
     }

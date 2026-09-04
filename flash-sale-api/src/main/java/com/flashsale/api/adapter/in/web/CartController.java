@@ -2,6 +2,7 @@ package com.flashsale.api.adapter.in.web;
 
 import com.flashsale.api.adapter.in.web.dto.ApiResponse;
 import com.flashsale.api.adapter.in.web.dto.CartMergeRequest;
+import com.flashsale.api.adapter.in.web.dto.CartQuantityRequest;
 import com.flashsale.api.adapter.in.web.dto.CartRequest;
 import com.flashsale.api.adapter.in.web.security.CurrentUser;
 import com.flashsale.application.port.in.CartUseCase;
@@ -61,7 +62,7 @@ public class CartController {
     @PutMapping("/items/{skuId}")
     @Operation(summary = "調整數量", description = "設為 0 等同移除")
     public ApiResponse<CartView> changeQuantity(@PathVariable Long skuId,
-                                                @Valid @RequestBody CartRequest request,
+                                                @Valid @RequestBody CartQuantityRequest request,
                                                 @CurrentUser Long userId) {
         return ApiResponse.ok(cartUseCase.changeQuantity(userId, skuId, request.quantity()));
     }

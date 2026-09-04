@@ -64,19 +64,53 @@ const canSubmit = computed(
  * 它掛掉不該擋住使用者結帳——真正的金額本來就是下單當下才決定的。
  * 這是 fail-open，因為這道防線失守的代價只是「少看到折扣」。
  */
+/**
+ * 合併同一批變動。
+ *
+ * 進頁面時購物車、優惠券、預設地址是各自 resolve 的，每一份到齊都會觸發
+ * 一次試算——實測單次載入打了 **3 次** `/checkout/preview`。
+ * 三次的輸入不同（地址還沒設好時算不出運費），所以不是重複請求而是
+ * 三次不同的試算，但使用者只看得到最後一次。
+ */
+const PREVIEW_DEBOUNCE_MS = 100
+let previewTimer: ReturnType<typeof setTimeout> | null = null
+
+function schedulePreview() {
+  if (previewTimer) {
+    clearTimeout(previewTimer)
+  }
+  previewTimer = setTimeout(() => { void refreshPreview() }, PREVIEW_DEBOUNCE_MS)
+}
+
+/**
+ * 序號，用來丟掉**過期**的試算結果。
+ *
+ * 沒有它的話：使用者從本島換到離島，兩次試算同時在路上，
+ * 而先發出的本島那份比較慢回來——它會覆蓋掉離島的結果，
+ * 畫面顯示 80 元運費而下單當下收 200 元。
+ * 這與去抖是兩件事，去抖減少請求，序號保證顯示的是最後一次的答案。
+ */
+let previewSeq = 0
+
 async function refreshPreview() {
+  const seq = ++previewSeq
   if (!auth.isAuthenticated || items.value.length === 0) {
     preview.value = null
     return
   }
   try {
-    preview.value = await request<CheckoutPreview>('/api/v1/orders/checkout/preview', {
+    const result = await request<CheckoutPreview>('/api/v1/orders/checkout/preview', {
       method: 'POST',
       authenticated: true,
       body: { couponId: selectedCouponId.value, addressId: selectedAddressId.value },
     })
+    if (seq === previewSeq) {
+      preview.value = result
+    }
   } catch {
-    preview.value = null
+    if (seq === previewSeq) {
+      preview.value = null
+    }
   }
 }
 
@@ -125,7 +159,9 @@ async function loadCheckoutData() {
     return
   }
   await Promise.all([cart.load(), loadAddresses(), loadCoupons()])
-  await refreshPreview()
+  // 排程而不是直接呼叫——三份資料到齊會各自觸發 watch，
+  // 讓它們與這一次合併成同一次試算
+  schedulePreview()
 }
 
 // onMounted 只在客戶端跑，這是刻意的：這幾份都是個資，
@@ -152,7 +188,7 @@ watch(
     selectedAddressId,
     () => items.value.map((item) => `${item.skuId}x${item.quantity}`).join(','),
   ],
-  () => { void refreshPreview() },
+  schedulePreview,
 )
 watchEffect(() => {
   if (selectedAddressId.value === null && defaultAddress.value) {
