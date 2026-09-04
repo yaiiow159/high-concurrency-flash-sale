@@ -28,22 +28,33 @@
 
 @layer base {
   /*
-   * 淺色是完整定義，深色只覆寫 token。
-   * 元件一律透過 token 取色，絕不在 media query 裡直接寫顏色——
-   * 那樣寫出來的顏色只在其中一個主題下存在。
+   * **這個站只有亮色，而且刻意不跟隨系統。**
+   *
+   * 先前有一整套深色 token 掛在 `prefers-color-scheme: dark` 底下，
+   * 於是使用者的作業系統決定了商店長什麼樣子——同一個商品頁，
+   * 有人看到的是米白配陶土，有人看到的是墨綠配青。
+   * 商品的顏色是這個介面最重要的資訊之一（色塊視覺、星等金、售罄紅），
+   * 而讓它隨環境變動等於放棄對「商品看起來如何」的控制。
+   *
+   * 實體零售不會因為外面天黑就把整間店的燈換成另一個色溫，
+   * 線上商店同理。`color-scheme: light` 一併宣告出去，
+   * 讓表單控制項與捲軸也留在亮色，不會出現「亮色頁面配深色下拉選單」。
+   *
+   * 要做深色的話，正確的做法是一個**使用者可以自己切換**的偏好，
+   * 而不是讀系統設定——那是兩件事。
    */
   :root {
     color-scheme: light;
 
-    --ground: #edf1f3;
+    --ground: #f6f8f9;
     --surface: #ffffff;
-    --surface-sunken: #f5f7f8;
-    --line: #dee5e8;
-    --line-strong: #bfcace;
+    --surface-sunken: #eef2f4;
+    --line: #e4eaed;
+    --line-strong: #c3ced3;
 
-    --ink: #0d1719;
-    --ink-muted: #55666c;
-    --ink-faint: #87979d;
+    --ink: #0c1618;
+    --ink-muted: #52626a;
+    --ink-faint: #8494a0;
 
     /* 連結與強調用的深青，對白底有足夠對比 */
     --accent: #0a6a74;
@@ -80,80 +91,16 @@
     --radius: 12px;
     --radius-sm: 8px;
 
-    /* 卡片抬起用極淡的陰影，只在互動時出現——靜態列表仍靠邊框 */
-    --lift: 0 1px 2px rgb(13 23 25 / 6%), 0 8px 24px -12px rgb(13 23 25 / 18%);
-  }
-
-  :root:not([data-theme='light']) {
-    @media (prefers-color-scheme: dark) {
-      color-scheme: dark;
-
-      --ground: #0b1114;
-      --surface: #141f23;
-      --surface-sunken: #101a1d;
-      --line: #24343a;
-      --line-strong: #3a5058;
-
-      --ink: #e7eef0;
-      --ink-muted: #93a5ac;
-      --ink-faint: #6b7d84;
-
-      --accent: #4bbcc9;
-      --accent-hover: #6ccfda;
-      --accent-soft: #10333a;
-      --on-accent: #062226;
-
-      --cta: #17a2b2;
-      --cta-hover: #26bccc;
-      --cta-active: #128d9b;
-
-      --danger: #e2865f;
-      --danger-soft: #38201a;
-
-      --ok: #6cc39a;
-      --ok-soft: #12291f;
-
-      /* 深底上把金色調亮一階，否則星星會沉進背景 */
-      --star: #f2b544;
-      --star-empty: #33454b;
-
-      --lift: 0 1px 2px rgb(0 0 0 / 40%), 0 8px 24px -12px rgb(0 0 0 / 60%);
-    }
-  }
-
-  :root[data-theme='dark'] {
-    color-scheme: dark;
-
-    --ground: #0b1114;
-    --surface: #141f23;
-    --surface-sunken: #101a1d;
-    --line: #24343a;
-    --line-strong: #3a5058;
-
-    --ink: #e7eef0;
-    --ink-muted: #93a5ac;
-    --ink-faint: #6b7d84;
-
-    --accent: #4bbcc9;
-    --accent-hover: #6ccfda;
-    --accent-soft: #10333a;
-    --on-accent: #062226;
-
-    --cta: #17a2b2;
-    --cta-hover: #26bccc;
-    --cta-active: #128d9b;
-
-    --danger: #e2865f;
-    --danger-soft: #38201a;
-
-    --ok: #6cc39a;
-    --ok-soft: #12291f;
-
-    /* 深底上把金色調亮一階，否則星星會沉進背景 */
-    --star: #f2b544;
-    --star-empty: #33454b;
-
-    --lift: 0 1px 2px rgb(0 0 0 / 40%), 0 8px 24px -12px rgb(0 0 0 / 60%);
+    /*
+     * 卡片有**靜止時就存在**的陰影。
+     *
+     * 先前只在 hover 時才抬起，靜態列表全靠邊框撐——結果整頁是一堆
+     * 同樣粗細的線，沒有前後關係，看起來就是「平」。
+     * 一層很淡的投影就能讓卡片浮在紙面上，而這是亮色介面
+     * 產生層次最便宜的方式（深色介面靠的是明度差，亮色靠的是陰影）。
+     */
+    --rest: 0 1px 2px rgb(12 22 24 / 4%), 0 1px 3px rgb(12 22 24 / 6%);
+    --lift: 0 2px 4px rgb(12 22 24 / 5%), 0 12px 28px -10px rgb(12 22 24 / 18%);
   }
 
   html {
