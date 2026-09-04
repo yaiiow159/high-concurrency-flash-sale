@@ -160,5 +160,6 @@ Java 端的「查過沒有」檢查——與訂單的 `request_id`、
 - 積分要多一步才用得掉（先換券）。這是決策 7 的代價
 - **`member_account` 與流水之間可能不同步**。兩者在同一個交易內更新，
   正常路徑不會分岔；但若有人繞過 `MembershipService` 直接寫流水，餘額就會失準。
-  需要一支對帳（`SELECT SUM(delta) GROUP BY user_id` 比對 `point_balance`），
-  與庫存、評分聚合同一個道理
+  **已補上對帳**（`GET /api/v1/admin/inventory/reconciliation/points`）。
+  只讀不修——偏差分不出是「流水漏寫」還是「有人改了餘額」，
+  而兩者的正確修法相反

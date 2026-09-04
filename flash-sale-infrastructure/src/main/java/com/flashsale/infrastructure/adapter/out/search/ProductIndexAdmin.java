@@ -8,6 +8,8 @@ import org.springframework.stereotype.Component;
 import java.io.IOException;
 import java.time.Clock;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.Comparator;
+import java.util.Set;
 import java.util.List;
 
 /**
@@ -169,6 +171,89 @@ public class ProductIndexAdmin {
                     .result().keySet().stream().toList();
         } catch (IOException | RuntimeException e) {
             throw new IllegalStateException("查詢搜尋 alias 指向哪些索引時失敗", e);
+        }
+    }
+
+
+    /**
+     * 清掉過舊的索引版本，只留最近幾代。
+     *
+     * <p><b>為什麼需要它：</b>{@code switchAliasTo} 的註解寫著「舊索引保留供回退」，
+     * 但先前<b>沒有任何東西會刪掉它們</b>。每重建一次就留下一份完整的商品索引副本，
+     * 而重建是維運按得到的按鈕——按十次就是十份。
+     * 磁碟滿了的症狀是整個 Elasticsearch 進入唯讀，
+     * 那時連「搜尋降級回資料庫」都救不了寫入。
+     *
+     * <p><b>保留一代而不是零代</b>：保留的理由本來就是回退。
+     * 新索引出問題時要能把 alias 指回去，而那需要它還在。
+     *
+     * <p><b>絕不刪 alias 正在指的那一個。</b> 這是這個方法唯一不能出錯的地方，
+     * 因此它從 alias 當場問而不是從參數推——呼叫端傳錯就等於刪掉線上索引。
+     *
+     * <p><b>失敗不影響重建結果。</b> 重建已經成功、alias 已經切好，
+     * 而刪不掉一個舊索引是磁碟問題不是正確性問題。
+     * 讓它把整次重建變成失敗，會誘使維運再按一次——而那又多留一份。
+     */
+    void pruneOldVersions(int keepGenerations) {
+        try {
+            Set<String> live = Set.copyOf(currentIndices());
+            Set<String> all = client.indices()
+                    .get(request -> request.index(ALIAS_PREFIX + "*"))
+                    .result().keySet();
+
+            List<String> obsolete = selectObsolete(all, live, keepGenerations);
+            for (String index : obsolete) {
+                client.indices().delete(request -> request.index(index));
+                log.info("已刪除過舊的搜尋索引 {}", index);
+            }
+            if (obsolete.isEmpty()) {
+                log.debug("沒有需要清理的舊搜尋索引");
+            }
+        } catch (IOException | RuntimeException e) {
+            // 刪不掉舊索引不該讓重建變成失敗——重建已經成功了
+            log.warn("清理舊搜尋索引失敗，索引仍在但不影響服務", e);
+        }
+    }
+
+    /**
+     * 挑出該刪的索引。
+     *
+     * <p>抽成<b>純函式</b>而不是寫在上面那串串流裡，是為了讓它測得到。
+     * 這裡唯一不能出錯的性質是「絕不刪 alias 正在指的那一個」，
+     * 而那件事一旦錯了就是線上搜尋整個消失——那種程式碼不該只靠讀過一遍來保證。
+     *
+     * @param all             所有 {@code products_v*} 索引
+     * @param live            alias 目前指向的（可能不只一個，例如切換失敗留下的中間狀態）
+     * @param keepGenerations 除了 live 之外還要保留幾代
+     */
+    static List<String> selectObsolete(Set<String> all, Set<String> live, int keepGenerations) {
+        return all.stream()
+                // alias 指向的一律不動
+                .filter(name -> !live.contains(name))
+                // 版本號是建立當下的毫秒數，數字大的是新的。
+                // 用數值比較而不是字串：毫秒數的位數在未來會增加，
+                // 而那一天字串排序會把新索引排到舊索引前面
+                .sorted(Comparator.comparingLong(ProductIndexAdmin::versionOf).reversed())
+                .skip(Math.max(keepGenerations, 0))
+                .toList();
+    }
+
+    /**
+     * 從索引名解出版本號（建立當下的毫秒數）。
+     *
+     * <p>解不出來時回 0，讓它排到最後而優先被清掉：
+     * 一個不符合命名規則的 {@code products_v*} 索引不是我們建的，
+     * 而我們不知道它是什麼——但它也絕不會是 alias 正在指的那個
+     * （那個已經被過濾掉了）。
+     */
+    private static long versionOf(String indexName) {
+        String suffix = indexName.substring(ALIAS_PREFIX.length());
+        int separator = suffix.indexOf('_');
+        String millis = separator < 0 ? suffix : suffix.substring(0, separator);
+        try {
+            return Long.parseLong(millis);
+        } catch (NumberFormatException notOurs) {
+            return 0L;
         }
     }
 

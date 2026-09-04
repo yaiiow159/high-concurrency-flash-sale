@@ -75,4 +75,87 @@ public interface ProductRatingJpaRepository extends JpaRepository<ProductRatingE
 
     @Query("select r from ProductRatingEntity r where r.productId in :productIds")
     List<ProductRatingEntity> findAllByProductIds(@Param("productIds") List<Long> productIds);
+
+    /**
+     * 對帳：聚合與 {@code review} 表的真實統計不符的商品。
+     *
+     * <p><b>比對在資料庫端做完，只把不平的搬回來。</b>
+     * 把所有評價撈進 Java 再分組加總，在評價數上百萬時是一次全表搬運。
+     *
+     * <p>{@code left join} 而非 {@code join}：一個「沒有任何評價卻有聚合數字」
+     * 的商品，用 inner join 會從結果裡消失——而那正是最該被發現的異常。
+     * 反向（有評價卻沒有聚合列）由 {@link #findMissingAggregates} 負責，
+     * 因為那需要從 review 那一側出發。
+     */
+    @Query(value = "select r.product_id as productId, "
+            + "coalesce(count(v.id), 0) as actualCount, "
+            + "coalesce(sum(v.rating), 0) as actualSum, "
+            + "r.rating_count as storedCount, "
+            + "r.rating_sum as storedSum "
+            + "from product_rating r "
+            + "left join review v on v.product_id = r.product_id "
+            + "group by r.product_id, r.rating_count, r.rating_sum "
+            + "having coalesce(count(v.id), 0) <> r.rating_count "
+            + "    or coalesce(sum(v.rating), 0) <> r.rating_sum",
+            nativeQuery = true)
+    List<RatingDriftRow> findRatingDrifts();
+
+    /**
+     * 有評價、卻連一列聚合都沒有的商品。
+     *
+     * <p>這種商品在商品頁上會顯示「尚無評價」——評價明明存在，
+     * 卻因為聚合列缺席而完全看不到。它不會出現在 {@link #findRatingDrifts} 裡，
+     * 因為那支是從 {@code product_rating} 出發的。
+     */
+    @Query(value = "select v.product_id as productId, "
+            + "count(v.id) as actualCount, "
+            + "sum(v.rating) as actualSum, "
+            + "0 as storedCount, "
+            + "0 as storedSum "
+            + "from review v "
+            + "where not exists (select 1 from product_rating r where r.product_id = v.product_id) "
+            + "group by v.product_id",
+            nativeQuery = true)
+    List<RatingDriftRow> findMissingAggregates();
+
+    /**
+     * 把聚合重算成 {@code review} 表的真實統計。
+     *
+     * <p><b>整列覆寫而不是增量。</b> 這是全篇唯一一處「設成」而非「加上去」的寫入，
+     * 而它之所以安全，正是因為它不做增量：來源是 {@code review} 表的當下統計，
+     * 不依賴聚合的舊值。並行的評價寫入可能讓這次重算稍微落後一則，
+     * 而下一次對帳會再抓到它——這比「修一半」安全。
+     */
+    @Modifying
+    @Query(value = "update product_rating r set "
+            + "r.rating_sum = (select coalesce(sum(v.rating), 0) from review v "
+            + "                 where v.product_id = r.product_id), "
+            + "r.rating_count = (select count(v.id) from review v "
+            + "                   where v.product_id = r.product_id), "
+            + "r.count_1 = (select count(v.id) from review v "
+            + "              where v.product_id = r.product_id and v.rating = 1), "
+            + "r.count_2 = (select count(v.id) from review v "
+            + "              where v.product_id = r.product_id and v.rating = 2), "
+            + "r.count_3 = (select count(v.id) from review v "
+            + "              where v.product_id = r.product_id and v.rating = 3), "
+            + "r.count_4 = (select count(v.id) from review v "
+            + "              where v.product_id = r.product_id and v.rating = 4), "
+            + "r.count_5 = (select count(v.id) from review v "
+            + "              where v.product_id = r.product_id and v.rating = 5) "
+            + "where r.product_id = :productId",
+            nativeQuery = true)
+    int recomputeFromReviews(@Param("productId") Long productId);
+
+    /** 原生查詢的投影。取值方法名要對應 SQL 的別名。 */
+    interface RatingDriftRow {
+        Long getProductId();
+
+        long getActualCount();
+
+        long getActualSum();
+
+        long getStoredCount();
+
+        long getStoredSum();
+    }
 }

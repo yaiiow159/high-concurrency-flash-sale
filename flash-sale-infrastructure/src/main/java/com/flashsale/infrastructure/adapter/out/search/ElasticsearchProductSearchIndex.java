@@ -75,6 +75,15 @@ public class ElasticsearchProductSearchIndex implements ProductSearchIndex {
      */
     private final AtomicReference<String> rebuildTarget = new AtomicReference<>();
 
+    /**
+     * 重建後保留幾代舊索引。
+     *
+     * <p>1 代表「除了正在服務的那一個之外，再留一個」——新索引出問題時
+     * 把 alias 指回去就能救。留 0 代表沒有回退的餘地；
+     * 留太多則每一代都是一份完整的商品索引副本。
+     */
+    private static final int KEEP_GENERATIONS = 1;
+
     private final ElasticsearchClient client;
     private final ProductIndexAdmin indexAdmin;
     private final ProductRepository productRepository;
@@ -387,6 +396,13 @@ public class ElasticsearchProductSearchIndex implements ProductSearchIndex {
             }
             // 全部寫完才切 alias。中途切換會讓使用者看到一份只索引到一半的結果
             indexAdmin.switchAliasTo(target);
+
+            // 切完才清舊索引。**順序不可調換**：先清再切的話，
+            // 中間若切換失敗，就會變成「新索引還沒生效、舊索引已經沒了」——
+            // 而那是唯一一種會讓搜尋完全消失的組合。
+            //
+            // 保留一代供回退，那正是 switchAliasTo 保留舊索引的理由。
+            indexAdmin.pruneOldVersions(KEEP_GENERATIONS);
             return total;
         } catch (IOException | RuntimeException e) {
             throw new IllegalStateException("重建搜尋索引失敗，alias 未切換，舊索引仍在服務", e);

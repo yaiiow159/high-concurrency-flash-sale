@@ -10,7 +10,7 @@ import java.util.List;
  *
  * @param driftCount 不平的帳戶數
  */
-public record PointBalanceReconciliation(int driftCount, List<Drift> drifts) {
+public record PointBalanceReconciliation(int driftCount, List<Drift> drifts, boolean balanced) {
 
     /**
      * @param ledgerSum  流水的 delta 加總（真實來源）
@@ -21,12 +21,14 @@ public record PointBalanceReconciliation(int driftCount, List<Drift> drifts) {
     public record Drift(Long userId, long ledgerSum, long balance, long difference) {
     }
 
+    /**
+     * {@code balanced} 是<b>真正的欄位</b>而不是導出方法。
+     *
+     * <p>導出方法不會被 Jackson 序列化進 record 的 JSON——呼叫端拿不到它，
+     * 而文件上又寫著有。這個工廠方法保證它與明細一致，
+     * 與 {@code SearchIndexReconciliation} 的做法一致。
+     */
     public static PointBalanceReconciliation of(List<Drift> drifts) {
-        return new PointBalanceReconciliation(drifts.size(), drifts);
-    }
-
-    /** 由明細是否為空推導，不另存一個布林——兩個欄位描述同一件事遲早會不一致。 */
-    public boolean balanced() {
-        return drifts.isEmpty();
+        return new PointBalanceReconciliation(drifts.size(), drifts, drifts.isEmpty());
     }
 }

@@ -163,6 +163,32 @@ public class JpaReviewRepository implements ReviewRepository {
                         JpaReviewRepository::toDomain, (first, second) -> first));
     }
 
+    /**
+     * {@inheritDoc}
+     *
+     * <p>兩支查詢合起來：一支從聚合出發（數字對不上），
+     * 一支從 review 出發（連聚合列都沒有）。少了後者，
+     * 「有評價但商品頁顯示尚無評價」這種偏差永遠查不出來。
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public List<RatingDrift> findRatingDrifts() {
+        return java.util.stream.Stream.concat(
+                        ratingJpaRepository.findRatingDrifts().stream(),
+                        ratingJpaRepository.findMissingAggregates().stream())
+                .map(row -> new RatingDrift(row.getProductId(), row.getActualCount(),
+                        row.getActualSum(), row.getStoredCount(), row.getStoredSum()))
+                .toList();
+    }
+
+    @Override
+    @Transactional
+    public void recomputeRating(Long productId) {
+        // 聚合列不存在時先補一列，否則 UPDATE 影響 0 列而修復靜靜地失敗
+        ensureRow(productId);
+        ratingJpaRepository.recomputeFromReviews(productId);
+    }
+
     private void ensureRow(Long productId) {
         try {
             ratingJpaRepository.saveAndFlush(new ProductRatingEntity(productId));
