@@ -58,6 +58,7 @@ export default <Partial<Config>>{
         prose: '40rem',
       },
       boxShadow: {
+        rest: 'var(--rest)',
         lift: 'var(--lift)',
       },
     },

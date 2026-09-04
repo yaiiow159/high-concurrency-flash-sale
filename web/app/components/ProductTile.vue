@@ -26,12 +26,12 @@ const props = withDefaults(defineProps<{
  * 飽和度刻意壓低——這些方塊是背景，不該蓋過價格與商品名。
  */
 const PALETTE = [
-  ['#dce9ea', '#a9c9cd'], // 淺青
-  ['#e4e6f0', '#b3b8d4'], // 霧藍紫
-  ['#e7ece2', '#bacaae'], // 灰綠
-  ['#f0e9df', '#d5c3a8'], // 砂
-  ['#efe3e0', '#d3b0a6'], // 陶土
-  ['#e2eaf0', '#aac2d4'], // 石板藍
+  ['#e8f2f3', '#b6d4d8'], // 淺青
+  ['#ecedf6', '#bfc4dd'], // 霧藍紫
+  ['#eef3e9', '#c6d5ba'], // 灰綠
+  ['#f6f0e7', '#dfceb5'], // 砂
+  ['#f5eae7', '#debdb3'], // 陶土
+  ['#ebf1f6', '#b8cbdb'], // 石板藍
 ] as const
 
 /** 簡單的字串雜湊。不需要密碼學強度，只要同一個輸入永遠給同一個輸出。 */
@@ -66,7 +66,11 @@ const initial = computed(() => {
     :style="style"
     aria-hidden="true"
   >
-    <span class="text-4xl font-bold tracking-tight text-black/30 sm:text-5xl">
+    <span
+      class="flex h-14 w-14 items-center justify-center rounded-full bg-white/45
+             text-xl font-semibold tracking-tight text-black/45
+             backdrop-blur-[1px] sm:h-16 sm:w-16 sm:text-2xl"
+    >
       {{ initial }}
     </span>
   </div>
@@ -74,19 +78,14 @@ const initial = computed(() => {
 
 <style scoped>
 /*
- * 深色模式壓暗。
- *
- * 這些色塊是淺色系的裝飾方塊，不是商品照片——照片在深色介面上維持原亮度是對的，
- * 但一整排淺色方塊放在深底上會刺眼到蓋過價格。
- * 用 filter 而不是另備一組深色色盤：色盤要維護兩份，而這裡要的只是「暗一點」。
+ * 頂部一道極淡的高光，讓方塊看起來有受光面而不是一片平色。
+ * 這是它唯一的「材質」，其餘全靠色盤。
  */
-:root:not([data-theme='light']) .tile {
-  @media (prefers-color-scheme: dark) {
-    filter: brightness(0.62) saturate(0.85);
-  }
-}
-
-:root[data-theme='dark'] .tile {
-  filter: brightness(0.62) saturate(0.85);
+.tile::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgb(255 255 255 / 28%) 0%, transparent 45%);
+  pointer-events: none;
 }
 </style>

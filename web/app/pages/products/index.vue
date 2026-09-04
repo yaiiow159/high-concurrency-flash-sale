@@ -198,10 +198,10 @@ useHead({ title: '全部商品' })
     <nav class="mb-8 flex flex-wrap gap-2" aria-label="類目篩選">
       <NuxtLink
         to="/products"
-        class="rounded-sm border px-3 py-1.5 text-sm transition-colors"
+        class="rounded-full border px-3.5 py-1.5 text-sm transition-colors"
         :class="categoryId === null
-          ? 'border-accent text-accent'
-          : 'border-line text-ink-muted hover:border-line-strong hover:text-ink'"
+          ? 'border-accent bg-accent-soft font-medium text-accent'
+          : 'border-line bg-surface text-ink-muted hover:border-line-strong hover:text-ink'"
       >
         全部
       </NuxtLink>
@@ -209,11 +209,11 @@ useHead({ title: '全部商品' })
         v-for="option in categoryOptions"
         :key="option.id"
         :to="{ path: '/products', query: { category: option.id } }"
-        class="rounded-sm border px-3 py-1.5 text-sm transition-colors"
+        class="rounded-full border px-3.5 py-1.5 text-sm transition-colors"
         :class="[
           categoryId === option.id
-            ? 'border-accent text-accent'
-            : 'border-line text-ink-muted hover:border-line-strong hover:text-ink',
+            ? 'border-accent bg-accent-soft font-medium text-accent'
+            : 'border-line bg-surface text-ink-muted hover:border-line-strong hover:text-ink',
         ]"
         :style="option.depth > 0 ? { marginLeft: `${option.depth * 10}px` } : undefined"
       >
@@ -221,23 +221,32 @@ useHead({ title: '全部商品' })
       </NuxtLink>
     </nav>
 
-    <!-- 排序。用連結而不是 select，讓每一種排序都是可以貼出去的網址 -->
-    <div class="mb-5 flex flex-wrap items-center gap-2">
-      <span class="eyebrow mr-1">排序</span>
-      <NuxtLink
-        v-for="option in SORT_OPTIONS"
-        :key="option.value"
-        :to="{ path: '/products', query: {
-          ...(categoryId === null ? {} : { category: categoryId }),
-          ...(option.value === 'NEWEST' ? {} : { sort: option.value }),
-        } }"
-        class="rounded-sm px-2.5 py-1 text-xs transition-colors"
-        :class="sort === option.value
-          ? 'bg-accent/10 text-accent'
-          : 'text-ink-muted hover:text-ink'"
-      >
-        {{ option.label }}
-      </NuxtLink>
+    <!--
+      排序做成分段控制項的樣子，而不是一排文字連結。
+
+      先前是純文字，混在標題與商品格之間讀起來像說明文字而不是可以按的東西。
+      仍然用 <a>：每一種排序都要是可以貼出去的網址。
+    -->
+    <div class="mb-5 flex flex-wrap items-center justify-between gap-3">
+      <div class="inline-flex rounded-sm border border-line bg-surface p-0.5 shadow-rest">
+        <NuxtLink
+          v-for="option in SORT_OPTIONS"
+          :key="option.value"
+          :to="{ path: '/products', query: {
+            ...(categoryId === null ? {} : { category: categoryId }),
+            ...(option.value === 'NEWEST' ? {} : { sort: option.value }),
+          } }"
+          class="rounded-sm px-3 py-1.5 text-xs font-medium transition-colors"
+          :class="sort === option.value
+            ? 'bg-accent text-on-accent'
+            : 'text-ink-muted hover:bg-sunken hover:text-ink'"
+        >
+          {{ option.label }}
+        </NuxtLink>
+      </div>
+      <p v-if="products.length > 0" class="figure text-xs text-ink-faint">
+        已顯示 {{ products.length.toLocaleString() }} 件
+      </p>
     </div>
 
     <ul

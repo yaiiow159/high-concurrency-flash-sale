@@ -126,10 +126,10 @@ useHead({ title: '我的訂單' })
         v-for="filter in STATUS_FILTERS"
         :key="filter.label"
         type="button"
-        class="rounded-sm border px-3 py-1.5 text-sm transition-colors"
+        class="rounded-full border px-3.5 py-1.5 text-sm transition-colors"
         :class="activeStatus === filter.value
-          ? 'border-accent text-accent'
-          : 'border-line text-ink-muted hover:border-line-strong hover:text-ink'"
+          ? 'border-accent bg-accent-soft font-medium text-accent'
+          : 'border-line bg-surface text-ink-muted hover:border-line-strong hover:text-ink'"
         @click="activeStatus = filter.value"
       >
         {{ filter.label }}
