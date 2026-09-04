@@ -93,9 +93,11 @@ public class JpaProductRepository implements ProductRepository {
 
     @Override
     @Transactional(readOnly = true)
-    public List<Product> searchByKeyword(String keyword, Long categoryId, int limit, int offset) {
+    public List<Product> searchByKeyword(String keyword, Long categoryId, String brand,
+                                         int limit, int offset) {
         return jpaRepository
                 .searchByKeyword(keyword == null ? "" : keyword, categoryId,
+                        brand == null || brand.isBlank() ? null : brand,
                         PageRequest.of(offset / Math.max(limit, 1), limit))
                 .stream()
                 .map(this::toDomain)

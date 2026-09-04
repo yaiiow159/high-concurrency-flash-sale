@@ -43,12 +43,14 @@ public interface ProductJpaRepository extends JpaRepository<ProductEntity, Long>
             select p from ProductEntity p
             where p.status = 'ON_SHELF'
               and (:categoryId is null or p.categoryId = :categoryId)
+              and (:brand is null or p.brand = :brand)
               and (:keyword = '' or lower(p.name) like lower(concat('%', :keyword, '%'))
                    or lower(p.brand) like lower(concat('%', :keyword, '%')))
             order by p.id desc
             """)
     List<ProductEntity> searchByKeyword(@Param("keyword") String keyword,
                                         @Param("categoryId") Long categoryId,
+                                        @Param("brand") String brand,
                                         Pageable pageable);
 
     @Query("select s from SkuEntity s where s.id in :ids")

@@ -57,5 +57,6 @@ public interface ProductRepository {
      * <p>刻意不加索引優化這條查詢。它只在 ES 掛掉時才會走到，
      * 為一條故障路徑加索引，等於讓正常路徑一直付出寫入成本。
      */
-    List<Product> searchByKeyword(String keyword, Long categoryId, int limit, int offset);
+    List<Product> searchByKeyword(String keyword, Long categoryId, String brand,
+                                  int limit, int offset);
 }
