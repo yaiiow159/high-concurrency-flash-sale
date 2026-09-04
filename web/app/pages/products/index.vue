@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useApi } from '~/composables/useApi'
-import type { ApiResponse, CategoryView, ProductRatingView, ProductView } from '~/types/api'
+import type { ApiResponse, CategoryView, ProductPage, ProductRatingView, ProductView } from '~/types/api'
 
 /**
  * 商品列表。
@@ -18,26 +18,114 @@ const categoryId = computed(() => {
 const { data: categoryData } = await useFetch<ApiResponse<CategoryView[]>>(
   '/api/v1/catalog/categories',
 )
-const { data: productData } = await useFetch<ApiResponse<ProductView[]>>(
+const { data: productData } = await useFetch<ApiResponse<ProductPage>>(
   '/api/v1/catalog/products',
   // key 帶上類目，否則切換類目時 Nuxt 會沿用同一份快取結果
   { query: { categoryId }, key: () => `products-${categoryId.value ?? 'all'}` },
 )
 
 const categories = computed(() => categoryData.value?.data ?? [])
-const products = computed(() => productData.value?.data ?? [])
 
-/** 把類目樹壓平成選項，兩層以內用巢狀清單反而更難掃 */
-const categoryOptions = computed(() =>
-  categories.value.flatMap((parent) => [
-    { id: parent.categoryId, label: parent.name, depth: 0 },
-    ...parent.children.map((child) => ({
-      id: child.categoryId,
-      label: child.name,
-      depth: 1,
-    })),
-  ]),
-)
+/**
+ * 已載入的商品。
+ *
+ * 第一頁來自 SSR（可被 ISR 快取），後續由「載入更多」在客戶端接上去。
+ * **不把後續頁併進 SSR**——那會讓捲到第幾頁變成快取鍵的一部分，
+ * 命中率立刻掉到零。
+ */
+const loadedMore = ref<ProductView[]>([])
+const products = computed(() => [
+  ...(productData.value?.data?.items ?? []),
+  ...loadedMore.value,
+])
+
+const cursor = ref<number | null>(null)
+const hasMore = ref(false)
+const loadingMore = ref(false)
+
+// 換類目時已載入的第二頁以後全部作廢——它們屬於上一個類目
+watch(categoryId, () => {
+  loadedMore.value = []
+  cursor.value = productData.value?.data?.nextCursor ?? null
+  hasMore.value = productData.value?.data?.hasMore ?? false
+})
+watchEffect(() => {
+  if (loadedMore.value.length === 0) {
+    cursor.value = productData.value?.data?.nextCursor ?? null
+    hasMore.value = productData.value?.data?.hasMore ?? false
+  }
+})
+
+async function loadMore() {
+  if (loadingMore.value || !hasMore.value || cursor.value === null) {
+    return
+  }
+  loadingMore.value = true
+  try {
+    const { request } = useApi()
+    const query = new URLSearchParams({ cursor: String(cursor.value) })
+    if (categoryId.value !== null) {
+      query.set('categoryId', String(categoryId.value))
+    }
+    const page = await request<ProductPage>(`/api/v1/catalog/products?${query}`)
+    loadedMore.value = [...loadedMore.value, ...page.items]
+    // 游標原樣沿用伺服器給的值，不從 items 自己取最後一筆的 id
+    cursor.value = page.nextCursor
+    hasMore.value = page.hasMore
+  } catch {
+    // 載入更多失敗不清掉已經看到的商品——使用者按一次沒反應，
+    // 比整頁商品憑空消失好得多
+    hasMore.value = false
+  } finally {
+    loadingMore.value = false
+  }
+}
+
+type CategoryOption = { id: number, label: string, depth: number }
+
+/** 從根到指定類目的路徑；找不到時回空陣列。 */
+function pathTo(nodes: CategoryView[], target: number): CategoryView[] {
+  for (const node of nodes) {
+    if (node.categoryId === target) {
+      return [node]
+    }
+    const below = pathTo(node.children ?? [], target)
+    if (below.length > 0) {
+      return [node, ...below]
+    }
+  }
+  return []
+}
+
+/**
+ * 逐層展開，不是一次攤平整棵樹。
+ *
+ * 先前只攤平兩層，商品卻掛在第三層，於是 225 個類目只有 15 個點得到——
+ * 而那 15 個又因為篩選不含子樹全部回空頁面（ADR-0022）。
+ *
+ * **但「完整攤平」是另一個極端**：225 個類目一次全列出來，
+ * 實測會把商品格擠出整個畫面，使用者要捲過一整頁的類目才看得到第一件商品。
+ * 攤平修好了「點不到」，卻換來「找不到」。
+ *
+ * 因此只顯示：根類目 + 目前選取路徑上每一層的子類目。
+ * 沒選時只有根，逐層點下去逐層展開，畫面上最多幾十個而不是 225 個。
+ * 選取狀態本身就在網址上，不需要額外的展開狀態。
+ */
+const categoryOptions = computed<CategoryOption[]>(() => {
+  const roots = categories.value
+  const path = categoryId.value === null ? [] : pathTo(roots, categoryId.value)
+
+  const options: CategoryOption[] = roots.map((node) => ({
+    id: node.categoryId, label: node.name, depth: 0,
+  }))
+
+  path.forEach((node, index) => {
+    (node.children ?? []).forEach((child) => {
+      options.push({ id: child.categoryId, label: child.name, depth: index + 1 })
+    })
+  })
+  return options
+})
 
 const activeCategoryName = computed(() =>
   categoryOptions.value.find((option) => option.id === categoryId.value)?.label ?? null,
@@ -107,8 +195,8 @@ useHead({ title: '全部商品' })
           categoryId === option.id
             ? 'border-accent text-accent'
             : 'border-line text-ink-muted hover:border-line-strong hover:text-ink',
-          option.depth > 0 ? 'ml-1' : '',
         ]"
+        :style="option.depth > 0 ? { marginLeft: `${option.depth * 10}px` } : undefined"
       >
         <span v-if="option.depth > 0" class="mr-1 text-ink-faint">└</span>{{ option.label }}
       </NuxtLink>
@@ -162,5 +250,21 @@ useHead({ title: '全部商品' })
         看全部商品
       </AppButton>
     </EmptyState>
+
+    <!--
+      載入更多，不是頁碼。keyset 分頁只知道「上一頁的最後一筆」，
+      跳頁做不到——而商店的互動本來就是往下捲（ADR-0021 決策 4）
+    -->
+    <div v-if="hasMore" class="mt-8 flex justify-center">
+      <AppButton variant="secondary" :disabled="loadingMore" @click="loadMore">
+        {{ loadingMore ? '載入中⋯' : '載入更多' }}
+      </AppButton>
+    </div>
+    <p
+      v-else-if="products.length > 0"
+      class="mt-8 text-center text-xs text-ink-faint"
+    >
+      已顯示全部 {{ products.length.toLocaleString() }} 件商品
+    </p>
   </div>
 </template>

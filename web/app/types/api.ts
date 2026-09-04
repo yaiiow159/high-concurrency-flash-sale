@@ -103,6 +103,19 @@ export interface OrderView {
   processing: boolean
 }
 
+/**
+ * 商品列表的一頁（keyset 分頁，ADR-0021）。
+ *
+ * `nextCursor` 由伺服器給，前端**原樣送回**即可——不要自己從
+ * items 取最後一筆的 id，那等於把伺服器的排序鍵寫死在前端。
+ */
+export interface ProductPage {
+  items: ProductView[]
+  /** null 代表沒有下一頁 */
+  nextCursor: number | null
+  hasMore: boolean
+}
+
 export interface PaymentIntentView {
   paymentNo: string
   orderNo: string

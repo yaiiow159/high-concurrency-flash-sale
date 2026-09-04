@@ -3,6 +3,7 @@ package com.flashsale.api.adapter.in.web;
 import com.flashsale.api.adapter.in.web.dto.ApiResponse;
 import com.flashsale.application.port.in.CatalogQueryUseCase;
 import com.flashsale.application.port.in.dto.CategoryView;
+import com.flashsale.application.port.in.dto.ProductPage;
 import com.flashsale.application.port.in.dto.ProductView;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirements;
@@ -36,16 +37,36 @@ public class CatalogController {
     }
 
     @GetMapping("/products")
-    @SecurityRequirements
-    @Operation(summary = "商品列表", description = "回應為精簡版，不含描述與完整 SKU 清單")
-    public ApiResponse<List<ProductView>> listProducts(
+    @Operation(summary = "商品列表",
+            description = "keyset 分頁：帶上一頁回傳的 nextCursor 取下一頁；"
+                    + "categoryId 包含該類目的整棵子樹")
+    public ApiResponse<ProductPage> listProducts(
             @RequestParam(required = false) Long categoryId,
-            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(required = false) String cursor,
             @RequestParam(defaultValue = "20") int size) {
 
-        // 分頁上限由 Use Case 夾住——這是對外開放的端點，
-        // 沒有上限的話任何人都能用 size=1000000 讓資料庫掃全表
-        return ApiResponse.ok(catalogQueryUseCase.listProducts(categoryId, page, size));
+        return ApiResponse.ok(catalogQueryUseCase.listProducts(categoryId, parseCursor(cursor), size));
+    }
+
+    /**
+     * 解析游標。
+     *
+     * <p><b>解析不了就當第一頁，不回 400。</b> 游標會出現在網址上，
+     * 而使用者會改它、也會貼舊連結——逛商品列表這件事
+     * 不該因為網址被改壞而失敗。
+     *
+     * <p>指向已下架商品的游標仍然是合法的：{@code id < 那個值} 依然成立，
+     * 只是那一筆不會出現在結果裡。這是對的行為，不需要特別處理。
+     */
+    private static Long parseCursor(String cursor) {
+        if (cursor == null || cursor.isBlank()) {
+            return null;
+        }
+        try {
+            return Long.parseLong(cursor.trim());
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
     }
 
     @GetMapping("/products/{productId}")

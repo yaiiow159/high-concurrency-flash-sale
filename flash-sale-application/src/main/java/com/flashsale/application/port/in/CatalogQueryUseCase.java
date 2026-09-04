@@ -1,6 +1,7 @@
 package com.flashsale.application.port.in;
 
 import com.flashsale.application.port.in.dto.CategoryView;
+import com.flashsale.application.port.in.dto.ProductPage;
 import com.flashsale.application.port.in.dto.ProductView;
 
 import java.util.List;
@@ -13,7 +14,15 @@ public interface CatalogQueryUseCase {
      *
      * @param categoryId {@code null} 表示不限類目
      */
-    List<ProductView> listProducts(Long categoryId, int page, int size);
+    /**
+     * 商店的商品列表（ADR-0021 keyset 分頁、ADR-0022 類目子樹）。
+     *
+     * @param categoryId 篩選的類目；<b>包含它的整棵子樹</b>。
+     *                   只比對單一節點的話，點中間層會得到空結果——
+     *                   商品只掛在葉節點上
+     * @param cursor     上一頁最後一筆的商品 ID；{@code null} 代表第一頁
+     */
+    ProductPage listProducts(Long categoryId, Long cursor, int size);
 
     /**
      * 商品詳情，含所有 SKU。

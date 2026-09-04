@@ -1,12 +1,15 @@
 package com.flashsale.application.service;
 
 import com.flashsale.application.port.in.CatalogQueryUseCase;
-import com.flashsale.domain.catalog.Sku;
-import com.flashsale.domain.catalog.Product;
 import com.flashsale.application.port.in.dto.CategoryView;
+import com.flashsale.application.port.in.dto.ProductPage;
 import com.flashsale.application.port.in.dto.ProductView;
 import com.flashsale.application.port.out.CategoryRepository;
 import com.flashsale.application.port.out.ProductRepository;
+import com.flashsale.domain.catalog.CategoryTree;
+import com.flashsale.domain.catalog.Product;
+import com.flashsale.domain.catalog.ProductSummary;
+import com.flashsale.domain.catalog.Sku;
 import com.flashsale.domain.shared.BusinessException;
 import com.flashsale.domain.shared.ErrorCode;
 import org.springframework.stereotype.Service;
@@ -14,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /**
  * 商品目錄查詢服務。
@@ -41,17 +45,41 @@ public class CatalogQueryService implements CatalogQueryUseCase {
 
     @Override
     @Transactional(readOnly = true)
-    public List<ProductView> listProducts(Long categoryId, int page, int size) {
+    public ProductPage listProducts(Long categoryId, Long cursor, int size) {
         int safeSize = Math.clamp(size <= 0 ? DEFAULT_PAGE_SIZE : size, 1, MAX_PAGE_SIZE);
-        int safePage = Math.max(0, page);
 
-        // 走 findOnShelfSummaries 而不是 findOnShelf：後者回傳完整聚合，
-        // 而映射聚合會碰到 lazy 的 SKU 關聯，於是每筆商品多打一次查詢——
-        // 那些 SKU 又在下一行被丟掉。摘要版是固定兩次查詢，與頁大小無關
-        return productRepository.findOnShelfSummaries(categoryId, safeSize, safePage * safeSize)
-                .stream()
-                .map(ProductView::fromSummary)
-                .toList();
+        // 多取一筆來判斷還有沒有下一頁，而不是再打一次 COUNT(*)——
+        // 在 5 萬列上那個 count 比查詢本身還貴，而它只是為了決定一個布林值
+        List<ProductSummary> rows = productRepository.findOnShelfSummaries(
+                resolveCategoryFilter(categoryId), cursor, safeSize + 1);
+
+        boolean hasMore = rows.size() > safeSize;
+        List<ProductSummary> pageRows = hasMore ? rows.subList(0, safeSize) : rows;
+        if (pageRows.isEmpty()) {
+            return ProductPage.empty();
+        }
+
+        // 游標是這一頁最後一筆的 ID。由伺服器給而不是讓前端自己取，
+        // 否則「排序鍵是什麼」就變成對外契約的一部分（ADR-0021）
+        Long nextCursor = hasMore ? pageRows.get(pageRows.size() - 1).id() : null;
+        return ProductPage.of(pageRows.stream().map(ProductView::fromSummary).toList(), nextCursor);
+    }
+
+    /**
+     * 把「點了哪個類目」翻譯成「要涵蓋哪些類目」（ADR-0022）。
+     *
+     * <p>回傳 {@code null} 代表不篩選。<b>子樹涵蓋整棵樹時刻意回 null</b>：
+     * 點根類目等於「全部商品」，此時那個包含每一個類目 ID 的
+     * {@code in (...)} 沒有任何作用，卻會讓優化器放棄主鍵反向掃描、
+     * 退回索引加排序，正好踩中 ADR-0021 要避開的懸崖。
+     */
+    private Set<Long> resolveCategoryFilter(Long categoryId) {
+        if (categoryId == null) {
+            return null;
+        }
+        CategoryTree tree = CategoryTree.of(categoryRepository.findAll());
+        Set<Long> subtree = tree.withDescendants(categoryId);
+        return tree.coversAll(subtree) ? null : subtree;
     }
 
     @Override
