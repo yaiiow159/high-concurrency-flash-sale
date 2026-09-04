@@ -5,6 +5,8 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flashsale.application.port.out.ProductRepository;
 import com.flashsale.domain.catalog.Product;
+import com.flashsale.domain.shared.BusinessException;
+import com.flashsale.domain.shared.ErrorCode;
 import com.flashsale.domain.catalog.ProductStatus;
 import com.flashsale.domain.catalog.Sku;
 import com.flashsale.domain.catalog.SkuSpec;
@@ -77,6 +79,27 @@ public class JpaProductRepository implements ProductRepository {
     @Transactional(readOnly = true)
     public Optional<Product> findById(Long productId) {
         return jpaRepository.findWithSkusById(productId).map(this::toDomain);
+    }
+
+    @Override
+    @Transactional
+    public Product updateStatus(Product product) {
+        ProductEntity entity = jpaRepository.findById(product.id())
+                .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_NOT_FOUND,
+                        "商品不存在: " + product.id()));
+        entity.applyStatus(product.status().name());
+        return toDomain(entity);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Product> searchByKeyword(String keyword, Long categoryId, int limit, int offset) {
+        return jpaRepository
+                .searchByKeyword(keyword == null ? "" : keyword, categoryId,
+                        PageRequest.of(offset / Math.max(limit, 1), limit))
+                .stream()
+                .map(this::toDomain)
+                .toList();
     }
 
     @Override

@@ -130,7 +130,7 @@ class ProductTest {
         void takeOffShelfKeepsData() {
             Product product = persistedPhone(ProductStatus.ON_SHELF);
 
-            product.takeOffShelf();
+            product.takeOffShelf(NOW);
 
             assertThat(product.status()).isEqualTo(ProductStatus.OFF_SHELF);
             assertThat(product.skus()).isNotEmpty();

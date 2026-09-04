@@ -69,6 +69,13 @@ spring:
           min-idle: 8
           max-wait: 500ms
 
+  elasticsearch:
+    uris: ${ES_URIS:http://localhost:9200}
+    # 搜尋是可以降級的功能，連線逾時設短：ES 慢的時候，
+    # 快速失敗退回資料庫，遠好過讓使用者盯著轉圈
+    connection-timeout: 1s
+    socket-timeout: 3s
+
   kafka:
     bootstrap-servers: ${KAFKA_SERVERS:localhost:9092}
     producer:
@@ -209,6 +216,23 @@ management:
       show-details: when-authorized
       probes:
         enabled: true
+      group:
+        # readiness 決定「這個實例能不能接流量」，因此只能包含
+        # 「壞了就真的不能服務」的依賴。
+        #
+        # **Elasticsearch 刻意不在裡面。** 搜尋是設計成可降級的
+        # （ADR-0012 決策 4：ES 掛掉退回資料庫查詢），
+        # 但預設的健康檢查會把 ES 的 DOWN 聚合進整體狀態 → /actuator/health 回 503
+        # → K8s 把這個 Pod 移出負載平衡 → **整個下單系統跟著 ES 一起掛掉**。
+        #
+        # 實測過：停掉 ES 之後下單與商品查詢都正常，但健康檢查回 503。
+        # 那等於用一個「可降級」的依賴綁架了所有不依賴它的功能。
+        readiness:
+          include: db, redis
+        # ES 仍然出現在完整的 /actuator/health 明細裡，維運看得到它掛了，
+        # 只是那不會讓實例被判定為不可服務
+        liveness:
+          include: livenessState
   metrics:
     tags:
       application: ${spring.application.name}

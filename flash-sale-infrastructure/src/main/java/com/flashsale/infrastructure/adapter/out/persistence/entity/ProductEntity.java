@@ -104,6 +104,16 @@ public class ProductEntity {
         return status;
     }
 
+    /**
+     * 變更上架狀態。
+     *
+     * <p>只開放這一個欄位可寫：名稱、描述、SKU 一旦有人下過單就不該再動，
+     * 那會讓訂單裡的商品快照與商品本身對不上——而快照才是財務憑據。
+     */
+    public void applyStatus(String status) {
+        this.status = status;
+    }
+
     public Instant getCreatedAt() {
         return createdAt;
     }
