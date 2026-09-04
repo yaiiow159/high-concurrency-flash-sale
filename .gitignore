@@ -19,3 +19,6 @@ logs/
 # hook 測試時產生的 Python 快取
 __pycache__/
 *.pyc
+
+# 本機開發伺服器設定，因人而異
+.claude/launch.json

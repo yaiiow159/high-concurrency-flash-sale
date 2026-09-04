@@ -16,13 +16,34 @@ import { useAuthStore } from '~/stores/auth'
  *       等於讓一次頁面預算生成消耗掉使用者的令牌</li>
  * </ul>
  *
- * <p>失敗不做任何事：沒有 cookie、cookie 過期、或本來就沒登入都會走到這裡，
- * 那些全是正常狀態，不是錯誤。
+ * <h2>必須等 hydration 結束才能動 store</h2>
+ *
+ * <p><b>這個外掛先前直接 `await auth.refresh()`，那是一個會弄壞整個前端的錯。</b>
+ *
+ * <p>Nuxt 的外掛跑在 hydration <b>之前</b>。續期一旦在那時完成，
+ * 客戶端第一次渲染看到的就是「已登入」，而伺服器送來的 HTML 是「未登入」——
+ * 兩棵樹對不起來。Vue 接手失敗後丟出
+ * {@code insertBefore ... is not a child of this node}，
+ * 接著整棵元件樹的事件處理器就死了。
+ *
+ * <p>症狀不是「畫面閃一下」而是**頁面沒有反應**：`/cart` 畫得出來但按鈕點不動，
+ * `/checkout` 直接渲染成空白。而且它只在「有 refresh cookie」時發生，
+ * 所以本機第一次開沒事、登入過一次之後才開始壞——最容易被誤判成偶發問題。
+ *
+ * <p>因此改用 {@code onNuxtReady}：它在 hydration 完成後才觸發，
+ * 此時再改 store 就是一次正常的響應式更新，Vue 會自己重繪頁首。
+ * 代價是登入狀態會晚幾十毫秒出現，那是這個設計無法避免的——
+ * 伺服器端本來就不該知道你是誰（見上面 ISR 那條）。
  */
-export default defineNuxtPlugin(async () => {
+export default defineNuxtPlugin(() => {
   const auth = useAuthStore()
-  if (auth.isAuthenticated) {
-    return
-  }
-  await auth.refresh().catch(() => null)
+
+  onNuxtReady(async () => {
+    if (auth.isAuthenticated) {
+      return
+    }
+    // 失敗不做任何事：沒有 cookie、cookie 過期、或本來就沒登入都會走到這裡，
+    // 那些全是正常狀態，不是錯誤
+    await auth.refresh().catch(() => null)
+  })
 })
