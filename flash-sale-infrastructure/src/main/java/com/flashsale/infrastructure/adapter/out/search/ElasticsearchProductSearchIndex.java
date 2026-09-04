@@ -1,6 +1,8 @@
 package com.flashsale.infrastructure.adapter.out.search;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
+import co.elastic.clients.elasticsearch._types.FieldValue;
+import co.elastic.clients.elasticsearch._types.SortOrder;
 import co.elastic.clients.elasticsearch._types.query_dsl.Query;
 import co.elastic.clients.elasticsearch.core.SearchResponse;
 import co.elastic.clients.elasticsearch.core.bulk.BulkOperation;
@@ -18,7 +20,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -53,6 +57,9 @@ public class ElasticsearchProductSearchIndex implements ProductSearchIndex {
     private static final int REINDEX_BATCH = 500;
 
     private static final String FACET_BRAND = "brand";
+
+    /** 對帳掃描的單批筆數。 */
+    private static final int SCAN_BATCH = 1000;
 
     /**
      * 重建進行中的目標索引名；沒有重建時為 {@code null}。
@@ -195,6 +202,52 @@ public class ElasticsearchProductSearchIndex implements ProductSearchIndex {
     @FunctionalInterface
     private interface EsCall {
         void run() throws IOException;
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>用 {@code search_after} 分頁而不是 {@code from/size}。
+     * ES 的 {@code from + size} 有 10000 筆的硬上限（{@code max_result_window}），
+     * 而對帳本來就是要掃完整份索引——用一般分頁在商品破萬時會直接失敗，
+     * 而且是「對帳這件事本身壞掉」，比它要偵測的問題更難發現。
+     *
+     * <p>只取 ID 不取內容（{@code _source: false}）：對帳問的是「在不在」。
+     */
+    @Override
+    public Set<Long> allIndexedIds() {
+        Set<Long> ids = new HashSet<>();
+        List<FieldValue> cursor = List.of();
+        try {
+            while (true) {
+                final List<FieldValue> after = cursor;
+                SearchResponse<Void> response = client.search(request -> {
+                    request.index(ALIAS)
+                            .query(q -> q.matchAll(all -> all))
+                            .source(source -> source.fetch(false))
+                            .sort(sort -> sort.field(f -> f.field("productId").order(SortOrder.Asc)))
+                            .size(SCAN_BATCH);
+                    // 第一批沒有游標。這裡必須「不呼叫」而不是「傳 null」——
+                    // 客戶端的 searchAfter 對 null 直接丟 NPE
+                    if (!after.isEmpty()) {
+                        request.searchAfter(after);
+                    }
+                    return request;
+                }, Void.class);
+
+                var hits = response.hits().hits();
+                if (hits.isEmpty()) {
+                    return ids;
+                }
+                hits.forEach(hit -> ids.add(Long.valueOf(hit.id())));
+                cursor = hits.get(hits.size() - 1).sort();
+            }
+        } catch (IOException | RuntimeException e) {
+            // 讀不到索引就沒辦法對帳。往上拋而不是回空集合——
+            // 空集合會被解讀成「索引整份不見了」而觸發全量修復，
+            // 那是把一次連線失敗放大成一次全量重寫
+            throw searchUnavailable("讀取搜尋索引的文件 ID 失敗", e);
+        }
     }
 
     @Override

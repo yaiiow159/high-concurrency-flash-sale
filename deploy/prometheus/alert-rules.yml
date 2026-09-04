@@ -25,6 +25,17 @@ groups:
           summary: "Outbox 事件停止投遞"
           description: "訂單持續建立但事件未投遞，補償鏈已斷，逾期訂單的庫存不會回退"
 
+      - alert: SearchIndexDrift
+        # 索引與資料庫分岔是完全靜默的：搜尋照樣回 200，只是結果錯了。
+        # 自動修復會補，所以持續 30 分鐘還在差，代表修復本身也失敗了
+        expr: search_index_drift > 0
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "搜尋索引與資料庫不一致（{{ $labels.direction }}：{{ $value }} 筆）"
+          description: "missing 代表商品搜不到、orphaned 代表搜到了買不到。自動修復連續失敗才會觸發此告警"
+
       # 對帳偏差：最終一致系統唯一能主動發現「悄悄對不上」的機制
       - alert: StockDriftOversellRisk
         expr: seckill_stock_drift > 0

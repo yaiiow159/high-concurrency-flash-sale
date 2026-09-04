@@ -96,8 +96,17 @@ public class ProductIndexAdmin {
                     .index(name)
                     .mappings(mapping -> mapping
                             .properties("productId", p -> p.long_(l -> l))
-                            // name 用 text（要分詞才搜得到「手機」）
-                            .properties("name", p -> p.text(t -> t.analyzer("standard")))
+                            // name 用 text 並套 cjk 分析器。
+                            //
+                            // standard 對中文是<b>逐字切</b>：「幽靈商品」→ 幽/靈/商/品，
+                            // 於是它會命中「測試用商品」——只因為共用了「商」「品」兩個字。
+                            // 實測過那個假命中。
+                            //
+                            // cjk 產生雙字組（幽靈/靈商/商品），精準度高一個量級，
+                            // 而且是 ES 內建、不需要安裝外掛。ADR-0012 說的
+                            // 「IK 或內建 CJK 分析器」指的就是它——先前寫成 standard
+                            // 等於把選 ES 的三個理由之一打了折。
+                            .properties("name", p -> p.text(t -> t.analyzer("cjk")))
                             // brand 同時要能全文搜尋與做精確分面，
                             // 因此 text 之下再掛一個 keyword 子欄位
                             // brand 要同時支援「部分關鍵字搜尋」與「精確分面」：
@@ -105,9 +114,9 @@ public class ProductIndexAdmin {
                             // 而 buildQuery 對 brand 的加權會完全失效。
                             // 因此主欄位是 text，底下掛一個 keyword 子欄位給 filter 與 aggregation
                             .properties("brand", p -> p.text(t -> t
-                                    .analyzer("standard")
+                                    .analyzer("cjk")
                                     .fields("keyword", f -> f.keyword(k -> k))))
-                            .properties("description", p -> p.text(t -> t.analyzer("standard")))
+                            .properties("description", p -> p.text(t -> t.analyzer("cjk")))
                             .properties("categoryId", p -> p.long_(l -> l))
                             .properties("lowestPrice", p -> p.double_(d -> d))));
             log.info("已建立搜尋索引 {}", name);

@@ -32,6 +32,10 @@ public interface ProductJpaRepository extends JpaRepository<ProductEntity, Long>
             """)
     List<ProductEntity> findOnShelf(@Param("categoryId") Long categoryId, Pageable pageable);
 
+    /** 所有已上架商品的 ID。只取 ID——對帳問的是「在不在」，不需要內容。 */
+    @Query("select p.id from ProductEntity p where p.status = 'ON_SHELF'")
+    List<Long> findOnShelfIds();
+
     /**
      * 關鍵字模糊比對——搜尋引擎故障時的降級路徑。
      *

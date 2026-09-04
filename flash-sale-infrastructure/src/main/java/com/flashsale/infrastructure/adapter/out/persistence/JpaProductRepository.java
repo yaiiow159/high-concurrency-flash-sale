@@ -21,6 +21,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /** 商品持久化埠的 JPA 實作。 */
 @Repository
@@ -79,6 +80,12 @@ public class JpaProductRepository implements ProductRepository {
     @Transactional(readOnly = true)
     public Optional<Product> findById(Long productId) {
         return jpaRepository.findWithSkusById(productId).map(this::toDomain);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Set<Long> findOnShelfIds() {
+        return Set.copyOf(jpaRepository.findOnShelfIds());
     }
 
     @Override
