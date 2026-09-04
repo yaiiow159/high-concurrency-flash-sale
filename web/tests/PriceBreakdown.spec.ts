@@ -137,4 +137,59 @@ describe('PriceBreakdown', () => {
       expect(wrapper.text()).not.toContain('運費')
     })
   })
+  describe('免運折抵', () => {
+    /**
+     * 免運是一個 `DiscountType.SHIPPING` 的優惠（ADR-0019 決策 6），
+     * 但它**不從小計扣**——它從運費扣，而 `shippingFee` 傳進來就已經是實收淨額。
+     */
+    const freeShipping: OrderDiscount = {
+      sourceType: 'SHIPPING', sourceId: 9, name: '滿 2000 免運', amount: 80,
+    }
+
+    it('免運折抵不與商品折扣並排列出——列了就是同一筆優惠算兩次', () => {
+      // 這是實機踩到的：畫面出現「滿 2000 免運 −NT$ 80」與「運費 免運」兩行，
+      // 使用者由上往下加得到 2,997 − 80 = 2,917，而應付寫的是 2,997
+      const wrapper = render({
+        subtotal: 2997, discounts: [freeShipping], payable: 2997,
+        shippingFee: 0, shippingZone: '本島',
+      })
+
+      expect(wrapper.text()).not.toContain('−')
+      expect(wrapper.text()).toContain('免運')
+      expect(wrapper.text()).toContain('2,997')
+    })
+
+    it('折抵的名稱要留著——只寫「免運」的話客服查不到是哪個活動給的', () => {
+      const wrapper = render({
+        subtotal: 2997, discounts: [freeShipping], payable: 2997,
+        shippingFee: 0, shippingZone: '本島',
+      })
+
+      expect(wrapper.text()).toContain('滿 2000 免運')
+    })
+
+    it('商品折扣照常逐筆列出，只有運費那一筆被移出去', () => {
+      const wrapper = render({
+        subtotal: 2997, discounts: [discount('新客八折券', 100, 2), freeShipping],
+        payable: 2897, shippingFee: 0, shippingZone: '本島',
+      })
+
+      expect(wrapper.text()).toContain('新客八折券')
+      // 商品折扣仍然是一筆減項，而免運不是
+      expect(wrapper.text().match(/−/g)).toHaveLength(1)
+      expect(wrapper.text()).toContain('2,897')
+    })
+
+    it('折抵不足以免運時，運費顯示實收的差額而不是 0', () => {
+      // 運費 200、折抵 80 → 實收 120。由上往下加：2,997 + 120 = 3,117
+      const wrapper = render({
+        subtotal: 2997, discounts: [{ ...freeShipping, name: '運費折 80' }],
+        payable: 2997, shippingFee: 120, shippingZone: '離島',
+      })
+
+      expect(wrapper.text()).toContain('120')
+      expect(wrapper.text()).toContain('運費折 80')
+      expect(wrapper.text()).toContain('3,117')
+    })
+  })
 })

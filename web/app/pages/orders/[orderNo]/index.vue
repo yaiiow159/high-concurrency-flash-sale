@@ -2,7 +2,7 @@
 import { useApi } from '~/composables/useApi'
 import { useReturns } from '~/composables/useReturns'
 import { useReviews } from '~/composables/useReviews'
-import type { OrderView, ShipmentView } from '~/types/api'
+import type { OrderView, PaymentIntentView, ShipmentView } from '~/types/api'
 
 /**
  * 訂單詳情與付款。
@@ -71,12 +71,17 @@ async function load() {
 async function pay() {
   paying.value = true
   try {
-    const intent = await request<{ payUrl: string }>(
+    // 用共用的 PaymentIntentView 而不是就地寫一個行內型別——
+    // 這裡原本寫成 `{ payUrl: string }`，而後端回的是 paymentUrl。
+    // 行內型別讓 TypeScript 沒有東西可以比對，於是 undefined 被指派給
+    // location.href，瀏覽器把字串 "undefined" 當相對路徑解析，
+    // 使用者被導到 /orders/undefined。**付款按鈕是死的，而且沒有任何錯誤**
+    const intent = await request<PaymentIntentView>(
       `/api/v1/orders/${orderNo}/payments`,
       { method: 'POST', authenticated: true, body: { method: 'CREDIT_CARD' } },
     )
     // 導向模擬金流頁；真實金流同樣是離站，回來時靠回調而非這個導向
-    window.location.href = intent.payUrl
+    window.location.href = intent.paymentUrl
   } catch (error) {
     loadError.value = (error as { message?: string }).message ?? '無法發起付款'
     paying.value = false
