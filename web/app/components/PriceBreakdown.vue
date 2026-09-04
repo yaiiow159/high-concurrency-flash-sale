@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import type { OrderDiscount } from '~/types/api'
 
+/** 與後端 `DiscountType.SHIPPING` 是一組契約，改了任何一邊另一邊都要跟。 */
+const SHIPPING_SOURCE_TYPE = 'SHIPPING'
+
 /**
  * 金額明細：小計 → 逐筆折扣 → 應付。
  *
@@ -34,6 +37,24 @@ const props = withDefaults(defineProps<{
 const showsShipping = computed(() => props.shippingFee !== undefined
   && props.shippingFee !== null)
 
+/**
+ * 免運折抵**不可與商品折扣並排列出**。
+ *
+ * 它沒有從小計扣，而是從運費扣，而 `shippingFee` 傳進來時已經是實收淨額
+ * （後端 `Order.shippingFee` 的語意就是「已扣掉免運折抵的實收運費」）。
+ * 兩邊都列的話，同一筆優惠在畫面上出現兩次：
+ * 使用者由上往下加會得到 2,997 − 80 = 2,917，而應付寫的是 2,997。
+ *
+ * 領域層的 `Order` 建構訂單時也是這樣切的（`!discount.appliesToShipping()`
+ * 才計入行加總恆等式）——前端跟著同一條線切，兩邊才不會長出不同的解讀。
+ */
+const goodsDiscounts = computed(() => props.discounts
+  .filter(discount => discount.sourceType !== SHIPPING_SOURCE_TYPE))
+
+/** 折抵的名稱要留著——「免運」不說明是哪個活動給的，客服就查不到。 */
+const shippingDiscountName = computed(() => props.discounts
+  .find(discount => discount.sourceType === SHIPPING_SOURCE_TYPE)?.name ?? null)
+
 /** 總計。運費未知時不加，避免顯示一個之後會變的數字。 */
 const total = computed(() => {
   const goods = props.payable ?? 0
@@ -57,7 +78,7 @@ const detailed = computed(() => props.discounts.length > 0 || showsShipping.valu
     </div>
 
     <div
-      v-for="discount in discounts"
+      v-for="discount in goodsDiscounts"
       :key="`${discount.sourceType}-${discount.sourceId}-${discount.name}`"
       class="flex items-baseline justify-between gap-3 text-sm"
     >
@@ -75,10 +96,14 @@ const detailed = computed(() => props.discounts.length > 0 || showsShipping.valu
       v-if="showsShipping"
       class="flex items-baseline justify-between gap-3 text-sm"
     >
-      <span class="text-ink-muted">
+      <span class="min-w-0 text-ink-muted">
         運費<span v-if="shippingZone" class="ml-1 text-xs text-ink-faint">
           （{{ shippingZone }}）
         </span>
+        <span
+          v-if="shippingDiscountName"
+          class="ml-1 truncate text-xs text-accent"
+        >· {{ shippingDiscountName }}</span>
       </span>
       <span v-if="!shippingKnown" class="text-xs text-ink-faint">選擇地址後計算</span>
       <span v-else-if="shippingFee === 0" class="text-sm font-medium text-accent">免運</span>
