@@ -324,6 +324,7 @@ Notification 做下來最有價值的一課是**實機第一次啟動才發現�
 | ~~**營運後台**~~ ✅ | `[必要]` | 已完成：出貨、退貨審核、商品上下架與建立、活動配置、維運工具（[ADR-0015](../adr/0015-operations-console.md)）|
 | ~~**Promotion 脈絡**~~ ✅ | `[展示]` ⭐ | 已完成：純函式計價引擎、折扣快照進訂單、券以條件式 UPDATE 核銷（[ADR-0013](../adr/0013-promotion-pricing-engine.md)）|
 | ~~**Review 脈絡**~~ ✅ | `[必要]` | 已完成：只有買過的人能評、評分聚合可增量維護（[ADR-0014](../adr/0014-review-and-rating-aggregate.md)）|
+| ~~**Membership 脈絡**~~ ✅ | `[展示]` | 已完成：積分流水、等級決定回饋倍率、退貨扣回堵住套利（[ADR-0016](../adr/0016-membership-points-and-tiers.md)）|
 
 **搜尋是這個階段的重點**。用 Outbox 事件同步到 Elasticsearch，
 是「事件驅動 + CQRS 讀模型」的教科書級應用，而且**你已經有 Outbox 了**——
@@ -367,6 +368,7 @@ Notification 做下來最有價值的一課是**實機第一次啟動才發現�
 | [ADR-0013](../adr/0013-promotion-pricing-engine.md) ✅ | 優惠計算引擎與折扣的快照邊界 | P4 |
 | [ADR-0014](../adr/0014-review-and-rating-aggregate.md) ✅ | 評價的可信度與評分聚合 | P4 |
 | [ADR-0015](../adr/0015-operations-console.md) ✅ | 營運後台的邊界 | P4 |
+| [ADR-0016](../adr/0016-membership-points-and-tiers.md) ✅ | 會員積分與等級 | P4 |
 
 **ADR 先於程式碼。** P1 的三份（0006–0008）**已完成** —— 它們互相牽連，
 因此一起寫：通道決定庫存機制，庫存機制決定訂單建立路徑。

@@ -26,4 +26,21 @@ public interface PromotionJpaRepository extends JpaRepository<PromotionEntity, L
              order by p.id
             """)
     List<PromotionEntity> findActive(@Param("now") Instant now);
+
+    /**
+     * 開放用積分兌換的優惠。
+     *
+     * <p>{@code point_cost > 0} 而不是 {@code is not null}：
+     * 兌換價填成 0 的資料不該出現在兌換清單上——免費的「兌換」多半是填錯，
+     * 而它會讓所有人瞬間拿到無限張券。
+     */
+    @Query("""
+            select p from PromotionEntity p
+             where p.enabled = true
+               and p.pointCost > 0
+               and p.startAt <= :now
+               and p.endAt > :now
+             order by p.pointCost
+            """)
+    List<PromotionEntity> findExchangeable(@Param("now") Instant now);
 }

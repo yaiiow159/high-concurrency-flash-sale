@@ -17,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 /** 優惠與券持久化埠的 JPA 實作。 */
 @Repository
@@ -74,12 +75,40 @@ public class JpaPromotionRepository implements PromotionRepository {
         return couponJpaRepository.redeem(couponId, orderNo, usedAt) == 1;
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<Promotion> findExchangeable(Instant now) {
+        return promotionJpaRepository.findExchangeable(now).stream()
+                .map(JpaPromotionRepository::toDomain)
+                .toList();
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>券號用 {@code EX-} 前綴加 UUID 片段。<b>不用流水號</b>：
+     * 券號會被使用者看到也會被貼出來，可預測的號碼等於讓人猜得到別人的券。
+     * 猜到也用不了（核銷會檢查擁有者），但那不是把它做成可猜的理由。
+     *
+     * <p>有效期 30 天。寫死在這裡而不是設定檔——它是券的一部分，
+     * 改它等於改所有已發出的券的預期，值得一次明確的程式碼變更。
+     */
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY)
+    public String issueCoupon(Long userId, Long promotionId, Instant expiresAt) {
+        String code = "EX-" + UUID.randomUUID().toString().substring(0, 12).toUpperCase();
+        couponJpaRepository.saveAndFlush(new CouponEntity(
+                userId, promotionId, code, CouponStatus.ISSUED.name(), expiresAt));
+        return code;
+    }
+
     private static Promotion toDomain(PromotionEntity entity) {
         return Promotion.of(entity.getId(), entity.getName(),
                 DiscountType.valueOf(entity.getType()),
                 PromotionRule.valueOf(entity.getRule()),
                 entity.getThreshold(), entity.getValue(), entity.getMaxDiscount(),
-                entity.getStartAt(), entity.getEndAt(), entity.isEnabled());
+                entity.getStartAt(), entity.getEndAt(), entity.isEnabled(),
+                entity.getPointCost());
     }
 
     private static Coupon toDomain(CouponEntity entity) {
