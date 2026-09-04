@@ -73,6 +73,30 @@ async function payNow(orderNo: string): Promise<void> {
   }
 }
 
+/**
+ * 排隊提示。
+ *
+ * 等待秒數為 -1 代表**算不出來**（速率還沒量到），此時只說「排隊中」——
+ * 顯示「約 0 秒」然後讓人等四十分鐘，比誠實承認不知道更糟。
+ */
+const queueHint = computed(() => {
+  if (outcome.value.kind !== 'processing') {
+    return null
+  }
+  const queue = outcome.value.queue
+  if (!queue) {
+    return null
+  }
+  const ahead = `前面約 ${queue.ahead.toLocaleString()} 筆`
+  if (queue.estimatedWaitSeconds < 0) {
+    return `${ahead}，時間待估`
+  }
+  const minutes = Math.ceil(queue.estimatedWaitSeconds / 60)
+  return queue.estimatedWaitSeconds < 60
+    ? `${ahead}，約 ${queue.estimatedWaitSeconds} 秒`
+    : `${ahead}，約 ${minutes} 分鐘`
+})
+
 useHead(() => ({
   title: activity.value ? `${activity.value.productName} — 限時搶購` : '限時搶購',
 }))
@@ -128,6 +152,7 @@ useHead(() => ({
             <p v-if="outcome.kind === 'processing'" class="text-ink-muted">
               已受理，訂單建立中⋯
               <span class="figure block">{{ outcome.orderNo }}</span>
+              <span v-if="queueHint" class="mt-1 block text-xs text-ink-faint">{{ queueHint }}</span>
             </p>
 
             <div
@@ -199,6 +224,7 @@ useHead(() => ({
           <p v-if="outcome.kind === 'processing'" class="text-ink-muted">
             已受理，訂單建立中⋯
             <span class="figure block">{{ outcome.orderNo }}</span>
+            <span v-if="queueHint" class="mt-1 block text-xs text-ink-faint">{{ queueHint }}</span>
           </p>
 
           <div

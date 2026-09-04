@@ -4,6 +4,7 @@ import com.flashsale.application.port.in.OrderQueryUseCase;
 import com.flashsale.application.port.in.dto.OrderView;
 
 import java.util.List;
+import com.flashsale.application.port.out.OrderQueueDepth;
 import com.flashsale.application.port.out.OrderRepository;
 import com.flashsale.application.port.out.SeckillRequestTracker;
 import com.flashsale.domain.order.OrderNo;
@@ -30,10 +31,13 @@ public class OrderQueryService implements OrderQueryUseCase {
 
     private final OrderRepository orderRepository;
     private final SeckillRequestTracker requestTracker;
+    private final OrderQueueDepth queueDepth;
 
-    public OrderQueryService(OrderRepository orderRepository, SeckillRequestTracker requestTracker) {
+    public OrderQueryService(OrderRepository orderRepository, SeckillRequestTracker requestTracker,
+                             OrderQueueDepth queueDepth) {
         this.orderRepository = orderRepository;
         this.requestTracker = requestTracker;
+        this.queueDepth = queueDepth;
     }
 
     @Override
@@ -56,7 +60,10 @@ public class OrderQueryService implements OrderQueryUseCase {
             throw new BusinessException(ErrorCode.ORDER_NOT_FOUND, status.reason());
         }
         ensureOwnedBy(status.userId(), userId, orderNo);
-        return OrderView.processing(orderNo);
+        // 排隊資訊取自已經算好的佇列深度（ADR-0023），不額外查任何東西。
+        // 使用者不會因為要等四十分鐘就原諒你，但他至少不會以為系統壞了
+        return OrderView.processing(orderNo,
+                new OrderView.Queue(queueDepth.backlog(), queueDepth.estimatedWaitSeconds()));
     }
 
     /**

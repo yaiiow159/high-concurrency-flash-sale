@@ -21,7 +21,8 @@ import java.time.Clock;
  * 把 {@code @ConfigurationProperties} 綁定的結果，轉成應用層自己定義的純值物件。
  */
 @Configuration
-@EnableConfigurationProperties({FlashSaleProperties.class, JwtProperties.class, PaymentProperties.class})
+@EnableConfigurationProperties({FlashSaleProperties.class, JwtProperties.class, PaymentProperties.class,
+        AdmissionProperties.class})
 public class ApplicationCoreConfig {
 
     /**

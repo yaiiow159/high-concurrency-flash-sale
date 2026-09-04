@@ -182,6 +182,17 @@ flash-sale:
     # 過期令牌的清理排程；已過期的紀錄仍保留 30 天供安全事件調查
     token-cleanup-cron: "0 15 4 * * *"
 
+  # 入場控制（ADR-0023）。**預設關閉**——會主動拒絕合法請求的機制，
+  # 先讓指標跑一段時間、確認閾值訂得合理再打開。
+  admission:
+    enabled: ${ADMISSION_CONTROL_ENABLED:false}
+    # 閾值以「使用者要等多久」表示，不以訊息數表示——
+    # 訊息數在消費端加機器之後就失去意義
+    max-wait-seconds: 300
+    # 熱路徑讀的是這個間隔更新一次的快取值，因此尖峰的前 5 秒擋不住。
+    # 那是「熱路徑零額外往返」換來的
+    sample-interval-millis: 5000
+
   rate-limit:
     # 單一使用者：桶容量 5、每秒補 1 個。容許手滑連點，擋得住腳本刷單。
     capacity: 5

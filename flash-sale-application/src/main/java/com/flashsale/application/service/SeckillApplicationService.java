@@ -5,6 +5,7 @@ import com.flashsale.application.port.in.command.SeckillCommand;
 import com.flashsale.application.port.in.dto.SeckillTicket;
 import com.flashsale.application.port.out.ActivityRepository;
 import com.flashsale.application.port.out.OrderNoGenerator;
+import com.flashsale.application.port.out.OrderQueueDepth;
 import com.flashsale.application.port.out.SeckillMessagePublisher;
 import com.flashsale.application.port.out.SeckillRequestTracker;
 import com.flashsale.application.port.out.SoldOutMarker;
@@ -50,6 +51,7 @@ public class SeckillApplicationService implements SeckillUseCase {
     private final SeckillMessagePublisher messagePublisher;
     private final SeckillRequestTracker requestTracker;
     private final SoldOutMarker soldOutMarker;
+    private final OrderQueueDepth queueDepth;
     private final OrderNoGenerator orderNoGenerator;
     private final SeckillMetrics metrics;
     private final Clock clock;
@@ -59,6 +61,7 @@ public class SeckillApplicationService implements SeckillUseCase {
                                      SeckillMessagePublisher messagePublisher,
                                      SeckillRequestTracker requestTracker,
                                      SoldOutMarker soldOutMarker,
+                                     OrderQueueDepth queueDepth,
                                      OrderNoGenerator orderNoGenerator,
                                      SeckillMetrics metrics,
                                      Clock clock) {
@@ -67,6 +70,7 @@ public class SeckillApplicationService implements SeckillUseCase {
         this.messagePublisher = messagePublisher;
         this.requestTracker = requestTracker;
         this.soldOutMarker = soldOutMarker;
+        this.queueDepth = queueDepth;
         this.orderNoGenerator = orderNoGenerator;
         this.metrics = metrics;
         this.clock = clock;
@@ -87,6 +91,7 @@ public class SeckillApplicationService implements SeckillUseCase {
 
     private SeckillTicket execute(SeckillCommand command) {
         rejectIfSoldOutLocally(command.activityId());
+        rejectIfQueueOverloaded();
 
         SeckillActivity activity = loadPurchasableActivity(command);
         OrderNo candidateOrderNo = orderNoGenerator.next();
@@ -110,6 +115,26 @@ public class SeckillApplicationService implements SeckillUseCase {
     private void rejectIfSoldOutLocally(Long activityId) {
         if (soldOutMarker.isSoldOut(activityId)) {
             throw new BusinessException(ErrorCode.SOLD_OUT);
+        }
+    }
+
+    /**
+     * 第 1.5 層漏斗：入場控制（ADR-0023）。
+     *
+     * <p>庫存還有，但建單佇列已經積到使用者要等太久——此時繼續收單
+     * 只是把等待時間變得更長。<b>擋在扣庫存之前</b>，
+     * 被擋下的請求沒有扣到庫存，不需要補償，也不會產生孤兒扣減。
+     *
+     * <p><b>讀的是記憶體裡的快取值，不問 Kafka。</b>
+     * 熱路徑上只有 Redis 與 Kafka 各一次，那是上限——
+     * 這一層與售罄標記同型，都是用一次記憶體讀取擋下不該進來的請求。
+     *
+     * <p>已經扣了庫存的請求一律不受影響：承諾已經做出去了，
+     * 反悔等於少賣，而且是系統自己造成的。
+     */
+    private void rejectIfQueueOverloaded() {
+        if (queueDepth.isOverloaded()) {
+            throw new BusinessException(ErrorCode.QUEUE_OVERLOADED);
         }
     }
 

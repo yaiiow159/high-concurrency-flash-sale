@@ -64,6 +64,38 @@ groups:
           summary: "偵測到孤兒扣減，活動 {{ $labels.activity }}"
           description: "庫存已扣、訂單不存在且已超過寬限期。確認 auto-repair-orphans 是否該啟用"
 
+      # 佇列積壓（ADR-0023）。
+      #
+      # **既有的 OutboxEventsStuck 抓不到這件事**——它量的是建單「速率」，
+      # 而積壓的時候速率是正常的，甚至更高。這一條問的是「還欠多少」。
+      #
+      # 壓測時 78,037 則訊息積在佇列裡超過半小時，九條告警一條都沒響。
+      - alert: OrderCreateBacklogGrowing
+        expr: seckill_order_create_wait_seconds > 300
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "建單佇列積壓，預估等待超過 5 分鐘"
+          description: >-
+            積壓 {{ $value | humanize }} 秒份的訊息。
+            使用者已經扣了庫存但訂單還沒建立，這段期間他們只看得到「處理中」。
+            檢查消費端是否還活著、分區是否平均（ADR-0020）、資料庫是否變慢。
+
+      # 消費端完全停住：積壓還在，但速率掉到 0。
+      # 與上一條分開，因為處置方式不同——上面是「消化得太慢」，
+      # 這一條是「根本沒有在消化」，而後者通常代表消費端掛了或卡住
+      - alert: OrderCreateConsumerStalled
+        expr: seckill_order_create_lag > 0 and seckill_order_create_drain_rate == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "建單消費端停止消化"
+          description: >-
+            佇列裡仍有積壓的訊息，
+            但建單速率為 0。消費端可能掛了、卡在某一則訊息上、或正在無限重試。
+
       - alert: ReconciliationNotRunning
         expr: increase(seckill_reconciliation_total[30m]) == 0
         for: 10m

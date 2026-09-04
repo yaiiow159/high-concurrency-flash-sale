@@ -40,8 +40,27 @@ public record OrderView(
         String closeReason,
         Instant createdAt,
         Instant paidAt,
-        boolean processing
+        boolean processing,
+
+        /** 仍在佇列中時的排隊資訊；訂單已建立時為 {@code null}。 */
+        Queue queue
 ) {
+
+    /**
+     * 排隊資訊（ADR-0023）。
+     *
+     * <p>訂單號發出去了、訂單還不存在，這段期間使用者只看得到「處理中」。
+     * 不知道是三秒還是四十分鐘，而那會讓人以為系統壞了。
+     *
+     * @param ahead                 前面大約還有幾筆。取自已經算好的佇列積壓，
+     *                              是<b>整個佇列</b>的近似值而非精確的個人名次——
+     *                              要精確就得記錄每則訊息的位移並回查，
+     *                              而那是為了一個顯示欄位在熱路徑上加負擔
+     * @param estimatedWaitSeconds  預估還要多久；{@code -1} 代表<b>算不出來</b>。
+     *                              回 0 會被讀成「不用等」，而那不是同一件事
+     */
+    public record Queue(long ahead, long estimatedWaitSeconds) {
+    }
 
     /**
      * 訂單行。刻意不含 sourceActivityId——那是內部追溯用的，前端不需要。
@@ -102,13 +121,14 @@ public record OrderView(
                 order.closeReason(),
                 order.createdAt(),
                 order.paidAt(),
-                false);
+                false,
+                null);
     }
 
     /** 庫存已扣減、訂單仍在非同步建立中。 */
-    public static OrderView processing(String orderNo) {
+    public static OrderView processing(String orderNo, Queue queue) {
         return new OrderView(orderNo, null, null, List.of(), null, List.of(), null,
                 null, null, null, null,
-                "PROCESSING", null, null, null, true);
+                "PROCESSING", null, null, null, true, queue);
     }
 }

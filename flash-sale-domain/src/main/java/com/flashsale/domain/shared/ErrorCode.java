@@ -97,7 +97,16 @@ public enum ErrorCode {
      * 訊息會第一次就進死信，而那件商品的索引<b>永久停在舊狀態</b>——
      * 下架的繼續被搜到、上架的永遠搜不到，而且完全沒有錯誤訊息。
      */
-    SEARCH_INDEX_UNAVAILABLE("C0006", "搜尋索引暫時不可用");
+    SEARCH_INDEX_UNAVAILABLE("C0006", "搜尋索引暫時不可用"),
+
+    /**
+     * 入場控制擋下（ADR-0023）。
+     *
+     * <p>C 系列（可重試）而不是 B 系列：積壓會退，稍後再試是有意義的。
+     * 與「已售罄」不同——那是終局，重試沒有用。
+     * 兩者共用一個碼的話，前端就沒辦法決定要不要顯示重試按鈕。
+     */
+    QUEUE_OVERLOADED("C0007", "目前排隊人數過多，請稍後再試");
 
     private final String code;
     private final String defaultMessage;
