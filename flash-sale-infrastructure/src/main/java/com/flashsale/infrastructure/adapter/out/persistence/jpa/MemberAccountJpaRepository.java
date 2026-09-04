@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 /**
  * 會員帳戶的增量更新。
@@ -85,4 +86,35 @@ public interface MemberAccountJpaRepository extends JpaRepository<MemberAccountE
     @Query(value = "select point_balance from member_account where user_id = :userId",
             nativeQuery = true)
     Long findBalance(@Param("userId") Long userId);
+
+    /**
+     * 對帳：餘額與流水加總不符的帳戶。
+     *
+     * <p><b>比對在資料庫端做完，只把不平的搬回來。</b>
+     * 把所有帳戶與流水撈進 Java 再加總，在帳戶數上萬時是一次全表搬運，
+     * 而對帳的目的是「找出少數異常」——搬運全部只為了丟掉 99.99%。
+     *
+     * <p>{@code left join} 而不是 {@code join}：沒有任何流水的帳戶
+     * （剛註冊、還沒消費）餘額應該是 0，而它們同樣要被檢查。
+     * 用 inner join 的話，一個「沒有流水卻有餘額」的帳戶會從對帳結果裡消失——
+     * 而那正是最該被發現的一種異常。
+     */
+    @Query(value = "select a.user_id as userId, "
+            + "coalesce(sum(t.delta), 0) as ledgerSum, "
+            + "a.point_balance as balance "
+            + "from member_account a "
+            + "left join point_transaction t on t.user_id = a.user_id "
+            + "group by a.user_id, a.point_balance "
+            + "having coalesce(sum(t.delta), 0) <> a.point_balance",
+            nativeQuery = true)
+    List<BalanceDriftRow> findBalanceDrifts();
+
+    /** 原生查詢的投影。介面的取值方法名要對應 SQL 的別名。 */
+    interface BalanceDriftRow {
+        Long getUserId();
+
+        long getLedgerSum();
+
+        long getBalance();
+    }
 }

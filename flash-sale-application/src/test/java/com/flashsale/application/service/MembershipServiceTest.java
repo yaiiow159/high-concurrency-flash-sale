@@ -103,11 +103,25 @@ class MembershipServiceTest {
         }
 
         @Test
-        @DisplayName("金額不足一點時不寫流水——零異動的流水只會讓它變長而說不出任何事")
-        void tooSmallEarnsNothing() {
+        @DisplayName("不足一點仍要計入累計消費——否則一連串小額訂單永遠推不動等級")
+        void tooSmallStillCountsTowardTier() {
             givenAccount(0L, "0");
+            givenRecordSucceeds();
 
             assertThat(service().awardForOrder(USER, ORDER_NO, money("50"))).isZero();
+
+            // 拿 0 點，但 50 元要進累計消費——這一條先前是反的，
+            // 而註解說的與程式碼做的剛好相反
+            verify(membershipRepository).record(eq(USER), eq(0L),
+                    eq(PointReason.ORDER_COMPLETED), eq(ORDER_NO), eq(money("50")), any());
+        }
+
+        @Test
+        @DisplayName("零元訂單才真的什麼都不做")
+        void zeroAmountRecordsNothing() {
+            givenAccount(0L, "0");
+
+            assertThat(service().awardForOrder(USER, ORDER_NO, money("0"))).isZero();
 
             verify(membershipRepository, never())
                     .record(anyLong(), anyLong(), any(), any(), any(), any());

@@ -16,6 +16,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -44,6 +46,19 @@ public class JpaPromotionRepository implements PromotionRepository {
     @Transactional(readOnly = true)
     public Optional<Promotion> findPromotionById(Long promotionId) {
         return promotionJpaRepository.findById(promotionId).map(JpaPromotionRepository::toDomain);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<Long, Promotion> findPromotionsByIds(List<Long> promotionIds) {
+        if (promotionIds.isEmpty()) {
+            // 空集合會產生 `in ()` 這種在部分資料庫上非法的 SQL
+            return Map.of();
+        }
+        return promotionJpaRepository.findAllById(promotionIds).stream()
+                .map(JpaPromotionRepository::toDomain)
+                .collect(Collectors.toMap(Promotion::id, promotion -> promotion,
+                        (first, second) -> first));
     }
 
     @Override

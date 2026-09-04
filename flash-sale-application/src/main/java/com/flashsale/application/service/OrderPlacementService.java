@@ -39,6 +39,8 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import java.util.Optional;
 
 /**
@@ -166,8 +168,20 @@ public class OrderPlacementService implements PlaceOrderUseCase, CouponQueryUseC
     @Transactional(readOnly = true)
     public List<CouponView> myUsableCoupons(Long userId) {
         Instant now = clock.instant();
-        return promotionRepository.findUsableCoupons(userId, now).stream()
-                .flatMap(coupon -> promotionRepository.findPromotionById(coupon.promotionId())
+        List<Coupon> coupons = promotionRepository.findUsableCoupons(userId, now);
+        if (coupons.isEmpty()) {
+            return List.of();
+        }
+
+        // **一次批次查完規則。** 先前是逐張券呼叫 findPromotionById，
+        // 而這支在結帳頁載入時就會被打——手上有 20 張券就是 20 次往返。
+        // 多張券共用同一個規則是常態（同一檔活動發給很多人），
+        // 批次查連重複的部分都省掉了。
+        Map<Long, Promotion> rules = promotionRepository.findPromotionsByIds(
+                coupons.stream().map(Coupon::promotionId).distinct().toList());
+
+        return coupons.stream()
+                .flatMap(coupon -> java.util.Optional.ofNullable(rules.get(coupon.promotionId()))
                         // 規則被硬刪時券就沒有意義了。跳過而不是拋例外——
                         // 一張壞掉的券不該讓使用者連結帳頁都打不開
                         .filter(promotion -> promotion.isApplicableAt(now))
@@ -299,11 +313,27 @@ public class OrderPlacementService implements PlaceOrderUseCase, CouponQueryUseC
      * 商家日後改名或調價，歷史訂單不能跟著變。那是財務問題，不是顯示問題。
      */
     private List<OrderLine> resolveLines(List<OrderItem> items) {
+        // **一次批次查完，不要逐筆查。**
+        //
+        // 先前是在迴圈裡呼叫 findBySkuId，而單筆訂單最多 50 個品項——
+        // 那是下單路徑上的 50 次資料庫往返。在 200ms 延遲的環境下光這一段就 10 秒，
+        // 而它們彼此不相依，本來就該一次問完。
+        //
+        // 批次方法本來就存在（findBySkuIds），先前只是沒有用它。
+        Map<Long, Product> bySkuId = productRepository
+                .findBySkuIds(items.stream().map(OrderItem::skuId).toList()).stream()
+                .flatMap(product -> product.skus().stream()
+                        .map(sku -> Map.entry(sku.id(), product)))
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue,
+                        (first, second) -> first));
+
         List<OrderLine> lines = new ArrayList<>(items.size());
         for (OrderItem item : items) {
-            Product product = productRepository.findBySkuId(item.skuId())
-                    .orElseThrow(() -> new BusinessException(ErrorCode.SKU_NOT_FOUND,
-                            "找不到規格 %d".formatted(item.skuId())));
+            Product product = bySkuId.get(item.skuId());
+            if (product == null) {
+                throw new BusinessException(ErrorCode.SKU_NOT_FOUND,
+                        "找不到規格 %d".formatted(item.skuId()));
+            }
 
             // 上下架與規格存在性的判斷在聚合根裡，錯誤碼才能區分
             // 「商品已下架」與「規格不存在」——前端需要顯示不同文案
