@@ -1,0 +1,6 @@
+{
+  "name": "flash-sale-benchmark",
+  "private": true,
+  "type": "module",
+  "dependencies": { "autocannon": "^8.0.0" }
+}

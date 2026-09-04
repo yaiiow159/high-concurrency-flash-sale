@@ -45,9 +45,12 @@ public class CatalogQueryService implements CatalogQueryUseCase {
         int safeSize = Math.clamp(size <= 0 ? DEFAULT_PAGE_SIZE : size, 1, MAX_PAGE_SIZE);
         int safePage = Math.max(0, page);
 
-        return productRepository.findOnShelf(categoryId, safeSize, safePage * safeSize).stream()
-                // 列表不帶描述與 SKU 清單——列表頁用不到，卻會讓回應大上數倍
-                .map(product -> ProductView.from(product).asSummary())
+        // 走 findOnShelfSummaries 而不是 findOnShelf：後者回傳完整聚合，
+        // 而映射聚合會碰到 lazy 的 SKU 關聯，於是每筆商品多打一次查詢——
+        // 那些 SKU 又在下一行被丟掉。摘要版是固定兩次查詢，與頁大小無關
+        return productRepository.findOnShelfSummaries(categoryId, safeSize, safePage * safeSize)
+                .stream()
+                .map(ProductView::fromSummary)
                 .toList();
     }
 

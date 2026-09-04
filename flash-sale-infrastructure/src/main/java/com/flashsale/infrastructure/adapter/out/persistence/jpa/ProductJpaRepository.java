@@ -1,5 +1,6 @@
 package com.flashsale.infrastructure.adapter.out.persistence.jpa;
 
+import com.flashsale.domain.catalog.ProductSummary;
 import com.flashsale.infrastructure.adapter.out.persistence.entity.ProductEntity;
 import com.flashsale.infrastructure.adapter.out.persistence.entity.SkuEntity;
 import org.springframework.data.domain.Pageable;
@@ -31,6 +32,25 @@ public interface ProductJpaRepository extends JpaRepository<ProductEntity, Long>
             order by p.id desc
             """)
     List<ProductEntity> findOnShelf(@Param("categoryId") Long categoryId, Pageable pageable);
+
+    /**
+     * 列表用的商品摘要，<b>不碰 SKU 關聯</b>。
+     *
+     * <p>投影成建構子而不是撈 entity：撈 entity 的話 {@code toDomain}
+     * 一旦讀了 {@code getSkus()} 就又變回 N+1，而那是一行不起眼的程式碼。
+     * 投影讓 SKU 根本不在手上，想犯這個錯都沒有辦法。
+     */
+    @Query("""
+            select new com.flashsale.domain.catalog.ProductSummary(
+                p.id, p.categoryId, p.name, p.brand,
+                com.flashsale.domain.catalog.ProductStatus.ON_SHELF, null)
+            from ProductEntity p
+            where p.status = 'ON_SHELF'
+              and (:categoryId is null or p.categoryId = :categoryId)
+            order by p.id desc
+            """)
+    List<ProductSummary> findOnShelfSummaries(@Param("categoryId") Long categoryId,
+                                              Pageable pageable);
 
     /**
      * 後台用：所有狀態的商品。
@@ -88,10 +108,17 @@ public interface ProductJpaRepository extends JpaRepository<ProductEntity, Long>
     @Query("select distinct p from ProductEntity p join p.skus s where s.id in :skuIds")
     List<ProductEntity> findBySkuIds(@Param("skuIds") List<Long> skuIds);
 
-    /** 列表頁的「NT$ x 起」：一次取回多個商品的最低價，避免 N+1。 */
+    /**
+     * 列表頁的「NT$ x 起」：一次取回多個商品的最低價，避免 N+1。
+     *
+     * <p><b>只算已上架的 SKU。</b> 下架的規格買不到，
+     * 把它算進最低價會讓列表標一個點進去就不存在的價格——
+     * 而使用者是照價格排序找過來的。
+     */
     @Query("""
             select s.product.id, min(s.price) from SkuEntity s
-            where s.product.id in :productIds group by s.product.id
+            where s.product.id in :productIds and s.status = 'ON_SHELF'
+            group by s.product.id
             """)
     List<Object[]> findLowestPrices(@Param("productIds") List<Long> productIds);
 }
