@@ -254,41 +254,7 @@ useHead({ title: '全部商品' })
       class="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4"
     >
       <li v-for="product in products" :key="product.productId">
-        <NuxtLink :to="`/products/${product.productId}`" class="group block h-full">
-          <AppCard interactive class="flex h-full flex-col overflow-hidden">
-            <!-- 目錄沒有圖片欄位，用 productId 推導的確定性色塊給網格視覺重量 -->
-            <ProductTile
-              :seed="product.productId" :label="product.name"
-              class="transition-transform duration-300 group-hover:scale-[1.03]"
-            />
-            <div class="flex flex-1 flex-col justify-between gap-3 p-3.5 sm:p-4">
-              <div>
-                <p v-if="product.brand" class="eyebrow mb-1">{{ product.brand }}</p>
-                <h2 class="text-sm font-medium leading-snug sm:text-base">{{ product.name }}</h2>
-
-                <!--
-                  沒有評價的商品**不顯示空星星**，整行留白。
-                  一排灰星星讀起來像「被評了 0 分」，
-                  而「還沒有人評價」與「評價很差」是完全不同的兩件事
-                -->
-                <p
-                  v-if="ratings[product.productId]?.count"
-                  class="mt-1.5 flex items-center gap-1.5"
-                >
-                  <StarRating :value="ratings[product.productId]!.average" size="sm" />
-                  <span class="figure text-xs text-ink-faint">
-                    {{ ratings[product.productId]!.count.toLocaleString() }}
-                  </span>
-                </p>
-              </div>
-              <div class="flex items-baseline gap-1">
-                <MoneyText :amount="product.lowestPrice" size="lg" />
-                <!-- 多規格商品各 SKU 價格不同，列表只能顯示「起」價 -->
-                <span class="text-xs text-ink-faint">起</span>
-              </div>
-            </div>
-          </AppCard>
-        </NuxtLink>
+        <ProductCard :product="product" :rating="ratings[product.productId] ?? null" />
       </li>
     </ul>
 
