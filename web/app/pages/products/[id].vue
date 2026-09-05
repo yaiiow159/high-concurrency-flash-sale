@@ -5,7 +5,9 @@ import { useReviews } from '~/composables/useReviews'
 import { useCheckout } from '~/composables/useCheckout'
 import { useCartStore } from '~/stores/cart'
 import { useAuthStore } from '~/stores/auth'
-import type { ApiResponse, ProductView, SkuStockView, SkuView } from '~/types/api'
+import type {
+  ApiResponse, CategoryView, ProductPage, ProductView, SkuStockView, SkuView,
+} from '~/types/api'
 
 /**
  * 商品詳情與直接購買。
@@ -23,6 +25,70 @@ const { data } = await useFetch<ApiResponse<ProductView>>(
   `/api/v1/catalog/products/${productId}`,
 )
 const product = computed(() => data.value?.data ?? null)
+
+/**
+ * 麵包屑與同類商品。
+ *
+ * <p>先前商品頁是一條<b>死路</b>——看完只能按瀏覽器上一頁。
+ * 逛街的體驗是一個接一個，而「回到這個類目」與「看看類似的」
+ * 是最自然的兩個下一步。
+ *
+ * <p>兩者都不需要新端點：類目路徑從既有的類目樹算出來，
+ * 同類商品用既有的列表 API 加 categoryId（而它現在含子樹，ADR-0022）。
+ */
+const { data: categoryData } = await useFetch<ApiResponse<CategoryView[]>>(
+  '/api/v1/catalog/categories')
+
+/** 從根到目標類目的路徑；找不到時回空陣列。 */
+function pathTo(nodes: CategoryView[], target: number): CategoryView[] {
+  for (const node of nodes) {
+    if (node.categoryId === target) {
+      return [node]
+    }
+    const below = pathTo(node.children ?? [], target)
+    if (below.length > 0) {
+      return [node, ...below]
+    }
+  }
+  return []
+}
+
+const breadcrumb = computed(() => {
+  const categoryId = product.value?.categoryId
+  return categoryId === undefined || categoryId === null
+    ? []
+    : pathTo(categoryData.value?.data ?? [], categoryId)
+})
+
+const related = ref<ProductView[]>([])
+
+/**
+ * 同類商品。
+ *
+ * 在客戶端取而不是併進 SSR：這一頁是 ISR 快取的，
+ * 而「同類商品」會隨著上下架變動——跟著被快取會顯示已下架的商品。
+ *
+ * 多要一筆再把自己濾掉：不濾的話推薦區第一個就是使用者正在看的東西。
+ */
+async function loadRelated() {
+  const categoryId = product.value?.categoryId
+  if (categoryId === undefined || categoryId === null) {
+    return
+  }
+  try {
+    const { request } = useApi()
+    const page = await request<ProductPage>(
+      `/api/v1/catalog/products?categoryId=${categoryId}&size=9`)
+    related.value = page.items
+      .filter((item) => String(item.productId) !== productId)
+      .slice(0, 8)
+  } catch {
+    // fail-open：推薦掛掉不該讓人看不到商品本身
+    related.value = []
+  }
+}
+
+onMounted(loadRelated)
 
 const auth = useAuthStore()
 const { state, place, reset } = useCheckout()
@@ -188,12 +254,27 @@ useHead(() => ({ title: product.value?.name ?? '商品' }))
 
 <template>
   <div v-if="product" class="pb-action-bar">
-    <NuxtLink
-      to="/products"
-      class="inline-block text-sm text-ink-muted transition-colors hover:text-ink"
-    >
-      ← 全部商品
-    </NuxtLink>
+    <!--
+      麵包屑取代原本那個「← 全部商品」。
+      單一個返回連結只答得出「怎麼離開」，麵包屑還答得出「我在哪一層」，
+      而後者才是使用者要繼續逛下去需要的資訊。
+    -->
+    <nav aria-label="麵包屑" class="text-sm text-ink-muted">
+      <ol class="flex flex-wrap items-center gap-1.5">
+        <li>
+          <NuxtLink to="/products" class="transition-colors hover:text-ink">全部商品</NuxtLink>
+        </li>
+        <li v-for="node in breadcrumb" :key="node.categoryId" class="flex items-center gap-1.5">
+          <span aria-hidden="true" class="text-ink-faint">/</span>
+          <NuxtLink
+            :to="{ path: '/products', query: { category: node.categoryId } }"
+            class="transition-colors hover:text-ink"
+          >
+            {{ node.name }}
+          </NuxtLink>
+        </li>
+      </ol>
+    </nav>
 
     <div class="mt-5 grid gap-8 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start lg:gap-12">
       <!-- 左欄：商品視覺與規格 -->
@@ -289,6 +370,20 @@ useHead(() => ({ title: product.value?.name ?? '商品' }))
             </AppButton>
           </div>
         </section>
+
+        <!--
+          同類商品。放在評價**之後**：使用者看完評價才會決定要不要繼續找，
+          放在評價之前等於在他還沒判斷完就叫他離開。
+        -->
+        <ProductRail
+          v-if="related.length > 0"
+          class="mt-12"
+          title="同類商品"
+          :products="related"
+          :more-to="product.categoryId === null
+            ? { path: '/products' }
+            : { path: '/products', query: { category: product.categoryId } }"
+        />
       </div>
 
       <!-- 右欄：購買面板。桌機固定在側，手機改用底部操作列 -->
