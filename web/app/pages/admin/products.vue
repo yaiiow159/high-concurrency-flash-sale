@@ -217,7 +217,7 @@ useHead({ title: '商品管理' })
         <AppCard class="flex flex-wrap items-center gap-x-5 gap-y-3 p-4">
           <ProductTile
             :seed="product.productId" :label="product.name"
-            :src="images[product.productId]?.[0]?.url ?? null"
+            :src="images[product.productId]?.[0]?.thumbUrl ?? null"
             class="h-14 w-14 shrink-0 rounded-sm"
           />
 
@@ -243,7 +243,7 @@ useHead({ title: '商品管理' })
                 :title="`取消掛載`"
                 @click="onRemoveImage(product.productId, image.imageId)"
               >
-                <img :src="image.url" alt="" class="h-full w-full object-cover">
+                <img :src="image.thumbUrl" alt="" class="h-full w-full object-cover">
               </button>
             </li>
           </ul>

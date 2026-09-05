@@ -5,6 +5,9 @@ import com.flashsale.application.port.in.dto.ProductImageView;
 import com.flashsale.application.port.in.dto.UploadAuthorization;
 import com.flashsale.application.port.out.MediaStorage;
 import com.flashsale.application.port.out.ProductImageRepository;
+import com.flashsale.application.port.out.EventOutbox;
+import com.flashsale.domain.catalog.ImageVariant;
+import com.flashsale.domain.catalog.event.ProductImageAttachedEvent;
 import com.flashsale.domain.catalog.ProductImage;
 import com.flashsale.domain.shared.BusinessException;
 import com.flashsale.domain.shared.ErrorCode;
@@ -13,6 +16,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -36,12 +40,17 @@ public class ProductMediaService implements ProductMediaUseCase {
 
     private final ProductImageRepository imageRepository;
     private final MediaStorage storage;
+    private final EventOutbox eventOutbox;
+    private final Clock clock;
     private final Duration uploadTtl;
 
     public ProductMediaService(ProductImageRepository imageRepository, MediaStorage storage,
+                               EventOutbox eventOutbox, Clock clock,
                                MediaUploadTtl uploadTtl) {
         this.imageRepository = imageRepository;
         this.storage = storage;
+        this.eventOutbox = eventOutbox;
+        this.clock = clock;
         this.uploadTtl = uploadTtl.value();
     }
 
@@ -96,8 +105,14 @@ public class ProductMediaService implements ProductMediaUseCase {
         }
 
         ProductImage image = imageRepository.attach(productId, objectKey, contentType, byteSize);
+
+        // 縮圖走**慢車道**：原圖先可用，變體晚幾秒到，而那幾秒商品多半
+        // 還沒上架。放在這裡同步做的話，上傳一張圖要等縮圖跑完才回應
+        eventOutbox.append(List.of(ProductImageAttachedEvent.of(
+                productId, objectKey, contentType, clock.instant())));
+
         log.info("商品 {} 掛上圖片 {}", productId, objectKey);
-        return ProductImageView.of(image, storage.publicUrl(objectKey));
+        return toView(image);
     }
 
     /**
@@ -118,7 +133,7 @@ public class ProductMediaService implements ProductMediaUseCase {
     @Transactional(readOnly = true)
     public List<ProductImageView> imagesOf(Long productId) {
         return imageRepository.findByProductId(productId).stream()
-                .map(image -> ProductImageView.of(image, storage.publicUrl(image.objectKey())))
+                .map(this::toView)
                 .toList();
     }
 
@@ -130,8 +145,22 @@ public class ProductMediaService implements ProductMediaUseCase {
         }
         List<Long> capped = productIds.stream().distinct().limit(MAX_BATCH).toList();
         return imageRepository.findPrimaryByProductIds(capped).values().stream()
-                .collect(Collectors.toMap(ProductImage::productId,
-                        image -> ProductImageView.of(image, storage.publicUrl(image.objectKey())),
+                .collect(Collectors.toMap(ProductImage::productId, this::toView,
                         (first, second) -> first));
     }
+    /**
+     * 每個用途各給一個網址。
+     *
+     * <p>由後端挑而不是讓前端拼變體名稱：命名規則是實作細節，
+     * 洩漏出去之後就再也改不動了。變體還沒好時 {@code keyFor}
+     * 會退回原圖，前端完全不必知道這件事。
+     */
+    private ProductImageView toView(ProductImage image) {
+        return new ProductImageView(image.id(),
+                storage.publicUrl(image.keyFor(ImageVariant.DETAIL)),
+                storage.publicUrl(image.keyFor(ImageVariant.LIST)),
+                storage.publicUrl(image.keyFor(ImageVariant.THUMB)),
+                image.sortOrder());
+    }
+
 }

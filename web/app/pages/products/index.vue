@@ -354,7 +354,7 @@ useHead({ title: '全部商品' })
         <ProductCard
           :product="product"
           :rating="ratings[product.productId] ?? null"
-          :image-url="images[product.productId]?.url ?? null"
+          :image-url="images[product.productId]?.listUrl ?? null"
         />
       </li>
     </ul>

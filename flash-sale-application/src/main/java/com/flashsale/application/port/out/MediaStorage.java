@@ -25,6 +25,23 @@ public interface MediaStorage {
      */
     String presignUpload(String objectKey, String contentType, long byteSize, Duration ttl);
 
+    /**
+     * 讀回一個物件的位元組。
+     *
+     * <p><b>這與「位元組不經過應用伺服器」不衝突。</b> 那條規則講的是
+     * <b>請求路徑</b>——使用者上傳時佔住的請求執行緒是秒殺要用的。
+     * 縮圖產生在慢車道的 MQ 消費端上跑，它本來就是背景工作，
+     * 而產生縮圖不可能不讀原圖。
+     *
+     * @return 找不到時回 {@code null}
+     */
+    byte[] download(String objectKey);
+
+    /**
+     * 直接寫入一個物件。同樣<b>只給慢車道用</b>。
+     */
+    void put(String objectKey, byte[] content, String contentType);
+
     /** 物件的公開讀取網址。 */
     String publicUrl(String objectKey);
 

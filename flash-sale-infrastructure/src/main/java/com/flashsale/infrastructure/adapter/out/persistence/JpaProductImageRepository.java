@@ -56,7 +56,7 @@ public class JpaProductImageRepository implements ProductImageRepository {
                 .executeUpdate();
 
         Object[] row = (Object[]) entityManager.createNativeQuery("""
-                        select id, sort_order from product_image
+                        select id, sort_order, variants_ready from product_image
                         where product_id = :productId and object_key = :objectKey
                         """)
                 .setParameter("productId", productId)
@@ -64,7 +64,7 @@ public class JpaProductImageRepository implements ProductImageRepository {
                 .getSingleResult();
 
         return new ProductImage(((Number) row[0]).longValue(), productId, objectKey,
-                contentType, byteSize, ((Number) row[1]).intValue());
+                contentType, byteSize, ((Number) row[1]).intValue(), flag(row[2]));
     }
 
     @Override
@@ -82,7 +82,7 @@ public class JpaProductImageRepository implements ProductImageRepository {
     public List<ProductImage> findByProductId(Long productId) {
         @SuppressWarnings("unchecked")
         List<Object[]> rows = entityManager.createNativeQuery("""
-                        select id, object_key, content_type, byte_size, sort_order
+                        select id, object_key, content_type, byte_size, sort_order, variants_ready
                         from product_image where product_id = :productId
                         order by sort_order asc, id asc
                         """)
@@ -106,9 +106,11 @@ public class JpaProductImageRepository implements ProductImageRepository {
         }
         @SuppressWarnings("unchecked")
         List<Object[]> rows = entityManager.createNativeQuery("""
-                        select product_id, id, object_key, content_type, byte_size, sort_order
+                        select product_id, id, object_key, content_type, byte_size, sort_order,
+                               variants_ready
                         from (
                             select product_id, id, object_key, content_type, byte_size, sort_order,
+                                   variants_ready,
                                    row_number() over (partition by product_id
                                                       order by sort_order asc, id asc) as rn
                             from product_image where product_id in (:productIds)
@@ -122,9 +124,24 @@ public class JpaProductImageRepository implements ProductImageRepository {
             Long productId = ((Number) row[0]).longValue();
             result.put(productId, new ProductImage(((Number) row[1]).longValue(), productId,
                     (String) row[2], (String) row[3], ((Number) row[4]).longValue(),
-                    ((Number) row[5]).intValue()));
+                    ((Number) row[5]).intValue(), flag(row[6])));
         }
         return result;
+    }
+
+    /**
+     * 標記變體已產生。
+     *
+     * <p>依<b>物件鍵</b>更新：同一張圖可能掛在多個商品上，
+     * 而變體是物件的屬性，產生一次對所有掛載都成立。
+     */
+    @Override
+    @Transactional
+    public void markVariantsReady(String objectKey) {
+        entityManager.createNativeQuery(
+                        "update product_image set variants_ready = 1 where object_key = :objectKey")
+                .setParameter("objectKey", objectKey)
+                .executeUpdate();
     }
 
     @Override
@@ -163,9 +180,30 @@ public class JpaProductImageRepository implements ProductImageRepository {
         return new HashSet<>(keys);
     }
 
+    /**
+     * 讀 {@code TINYINT(1)} 旗標。
+     *
+     * <p><b>不可直接轉成 {@code Number}。</b> MySQL Connector/J 預設
+     * {@code tinyInt1isBit=true}，會把 {@code TINYINT(1)} 當成布林值回傳
+     * {@link Boolean}——而這是連線字串上的一個旗標，不是我們控制的東西。
+     * 兩種都收，換掉驅動或改了設定都不會壞。
+     *
+     * <p>這個坑實機才會踩到：JPA 實體有型別轉換器接住，
+     * 只有原生查詢會拿到驅動的原始回傳值。
+     *
+     * <p>放成 package-private 是為了讓單元測試能直接打它——
+     * 這裡沒有 MySQL 的測試容器，而這個轉換是純函式。
+     */
+    static boolean flag(Object value) {
+        if (value instanceof Boolean bool) {
+            return bool;
+        }
+        return value instanceof Number number && number.intValue() == 1;
+    }
+
     private static ProductImage toDomain(Object[] row, Long productId) {
         return new ProductImage(((Number) row[0]).longValue(), productId,
                 (String) row[1], (String) row[2], ((Number) row[3]).longValue(),
-                ((Number) row[4]).intValue());
+                ((Number) row[4]).intValue(), flag(row[5]));
     }
 }
