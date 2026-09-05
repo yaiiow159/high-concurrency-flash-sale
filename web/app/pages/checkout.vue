@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useAddresses } from '~/composables/useAddresses'
-import { useApi } from '~/composables/useApi'
+import { errorMessage, useApi } from '~/composables/useApi'
 import { useAuthStore } from '~/stores/auth'
 import { useCartStore } from '~/stores/cart'
 import type { CheckoutPreview, CouponView, OrderView } from '~/types/api'
@@ -147,7 +147,7 @@ async function submit() {
     cart.reset()
     await navigateTo(`/orders/${order.orderNo}`)
   } catch (cause) {
-    error.value = (cause as { message?: string }).message ?? '結帳失敗，請稍後再試'
+    error.value = errorMessage(cause, '結帳失敗，請稍後再試')
   } finally {
     submitting.value = false
   }

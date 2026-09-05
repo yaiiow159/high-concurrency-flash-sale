@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useApi } from '~/composables/useApi'
+import { errorMessage, useApi } from '~/composables/useApi'
 import { useAuthStore } from '~/stores/auth'
 import type { OrderView } from '~/types/api'
 
@@ -63,7 +63,7 @@ async function load(reset = true) {
     // 回傳不足一頁就代表沒有更多了，不需要多打一次空的請求確認
     reachedEnd.value = batch.length < PAGE_SIZE
   } catch (cause) {
-    error.value = (cause as { message?: string }).message ?? '無法載入訂單'
+    error.value = errorMessage(cause, '無法載入訂單')
   } finally {
     loading.value = false
     loadingMore.value = false

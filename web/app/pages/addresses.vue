@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { errorMessage } from '~/composables/useApi'
 import { useAddresses } from '~/composables/useAddresses'
 import { useAuthStore } from '~/stores/auth'
 import type { AddressPayload, AddressView } from '~/types/api'
@@ -28,7 +29,7 @@ async function handleSubmit(payload: AddressPayload) {
     }
     closeForm()
   } catch (cause) {
-    actionError.value = (cause as { message?: string }).message ?? '儲存失敗'
+    actionError.value = errorMessage(cause, '儲存失敗')
   } finally {
     submitting.value = false
   }
@@ -39,7 +40,7 @@ async function handleRemove(address: AddressView) {
   try {
     await remove(address.addressId)
   } catch (cause) {
-    actionError.value = (cause as { message?: string }).message ?? '刪除失敗'
+    actionError.value = errorMessage(cause, '刪除失敗')
   }
 }
 

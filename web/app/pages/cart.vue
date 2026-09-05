@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useApi } from '~/composables/useApi'
+import { errorMessage, useApi } from '~/composables/useApi'
 import { useAuthStore } from '~/stores/auth'
 import { useCartStore } from '~/stores/cart'
 import type { CartItemView, CartView } from '~/types/api'
@@ -33,7 +33,7 @@ async function refresh() {
       anonymousView.value = await priceLocalCart()
     }
   } catch (cause) {
-    error.value = (cause as { message?: string }).message ?? '無法載入購物車'
+    error.value = errorMessage(cause, '無法載入購物車')
   }
 }
 
@@ -96,7 +96,7 @@ async function updateQuantity(skuId: number, quantity: number) {
     await cart.changeQuantity(skuId, quantity)
     await refresh()
   } catch (cause) {
-    error.value = (cause as { message?: string }).message ?? '調整失敗'
+    error.value = errorMessage(cause, '調整失敗')
   }
 }
 
@@ -106,7 +106,7 @@ async function remove(skuId: number) {
     await cart.removeItem(skuId)
     await refresh()
   } catch (cause) {
-    error.value = (cause as { message?: string }).message ?? '移除失敗'
+    error.value = errorMessage(cause, '移除失敗')
   }
 }
 

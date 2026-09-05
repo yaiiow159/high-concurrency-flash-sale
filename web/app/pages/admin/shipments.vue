@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { errorMessage } from '~/composables/useApi'
 import { useAdmin } from '~/composables/useAdmin'
 import type { ShipmentView } from '~/types/api'
 
@@ -63,7 +64,7 @@ async function load() {
   try {
     rows.value = await shipments(tab.value)
   } catch (cause) {
-    error.value = (cause as { message?: string }).message ?? '無法載入出貨清單'
+    error.value = errorMessage(cause, '無法載入出貨清單')
     rows.value = []
   } finally {
     loading.value = false
@@ -88,7 +89,7 @@ async function confirmDispatch() {
     dispatching.value = null
     await load()
   } catch (cause) {
-    error.value = (cause as { message?: string }).message ?? '出貨失敗'
+    error.value = errorMessage(cause, '出貨失敗')
   } finally {
     submitting.value = false
   }
@@ -108,7 +109,7 @@ async function confirmDelivered(orderNo: string) {
     await markDelivered(orderNo)
     await load()
   } catch (cause) {
-    error.value = (cause as { message?: string }).message ?? '標記送達失敗'
+    error.value = errorMessage(cause, '標記送達失敗')
   }
 }
 
@@ -122,7 +123,7 @@ async function reportFailure(orderNo: string) {
     await markFailed(orderNo, reason.trim())
     await load()
   } catch (cause) {
-    error.value = (cause as { message?: string }).message ?? '標記失敗'
+    error.value = errorMessage(cause, '標記失敗')
   }
 }
 

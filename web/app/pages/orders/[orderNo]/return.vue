@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { errorMessage } from '~/composables/useApi'
 import { useReturns } from '~/composables/useReturns'
 import { useAuthStore } from '~/stores/auth'
 import type { ReturnReason, ReturnableView } from '~/types/api'
@@ -99,7 +100,7 @@ async function load() {
       quantities[line.skuId] = 0
     }
   } catch (cause) {
-    loadError.value = (cause as { message?: string }).message ?? '無法載入訂單'
+    loadError.value = errorMessage(cause, '無法載入訂單')
   } finally {
     loading.value = false
   }
@@ -121,7 +122,7 @@ async function submit() {
     requestId = null
     await navigateTo(`/returns/${created.returnNo}`)
   } catch (cause) {
-    submitError.value = (cause as { message?: string }).message ?? '申請失敗'
+    submitError.value = errorMessage(cause, '申請失敗')
     // 送出失敗通常代表可退數量已經變了（例如另一個分頁剛送出一張）。
     // 重新查一次，讓畫面回到真實狀態而不是停在一個已經不成立的表單上
     await load()

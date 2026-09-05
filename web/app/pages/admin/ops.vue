@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { errorMessage } from '~/composables/useApi'
 import { useAdmin, type SearchReconciliationView } from '~/composables/useAdmin'
 
 /**
@@ -36,7 +37,7 @@ async function check(repair: boolean) {
       message.value = `已修復 ${report.value.repaired} 筆`
     }
   } catch (cause) {
-    error.value = (cause as { message?: string }).message ?? '對帳失敗'
+    error.value = errorMessage(cause, '對帳失敗')
   } finally {
     flag.value = false
   }
@@ -62,7 +63,7 @@ async function rebuild() {
     message.value = `索引重建完成，共 ${result.indexed.toLocaleString()} 筆`
     report.value = null
   } catch (cause) {
-    error.value = (cause as { message?: string }).message ?? '重建索引失敗'
+    error.value = errorMessage(cause, '重建索引失敗')
   } finally {
     rebuilding.value = false
   }

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { errorMessage } from '~/composables/useApi'
 import { useAdmin } from '~/composables/useAdmin'
 import type { ReturnRequestView } from '~/types/api'
 
@@ -53,7 +54,7 @@ async function load() {
   try {
     rows.value = await returns(tab.value)
   } catch (cause) {
-    error.value = (cause as { message?: string }).message ?? '無法載入退貨清單'
+    error.value = errorMessage(cause, '無法載入退貨清單')
     rows.value = []
   } finally {
     loading.value = false
@@ -70,7 +71,7 @@ async function approve(row: ReturnRequestView) {
     await approveReturn(row.returnNo)
     await load()
   } catch (cause) {
-    error.value = (cause as { message?: string }).message ?? '核准失敗'
+    error.value = errorMessage(cause, '核准失敗')
   } finally {
     busy.value = null
   }
@@ -87,7 +88,7 @@ async function reject(row: ReturnRequestView) {
     await rejectReturn(row.returnNo, note.trim())
     await load()
   } catch (cause) {
-    error.value = (cause as { message?: string }).message ?? '駁回失敗'
+    error.value = errorMessage(cause, '駁回失敗')
   } finally {
     busy.value = null
   }

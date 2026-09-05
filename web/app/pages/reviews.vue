@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { errorMessage } from '~/composables/useApi'
 import { useReviews } from '~/composables/useReviews'
 import { useAuthStore } from '~/stores/auth'
 import type { ReviewView } from '~/types/api'
@@ -34,7 +35,7 @@ async function load() {
   try {
     reviews.value = await mine()
   } catch (cause) {
-    error.value = (cause as { message?: string }).message ?? '無法載入評價'
+    error.value = errorMessage(cause, '無法載入評價')
   } finally {
     loading.value = false
   }
@@ -67,7 +68,7 @@ async function save() {
       (review) => review.reviewId === updated.reviewId ? updated : review)
     editingId.value = null
   } catch (cause) {
-    error.value = (cause as { message?: string }).message ?? '修改失敗'
+    error.value = errorMessage(cause, '修改失敗')
   } finally {
     saving.value = false
   }

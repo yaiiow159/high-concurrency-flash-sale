@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { errorMessage } from '~/composables/useApi'
 import { useAdmin } from '~/composables/useAdmin'
 import type { ActivityView } from '~/types/api'
 
@@ -30,7 +31,7 @@ async function load() {
   try {
     rows.value = await activities()
   } catch (cause) {
-    error.value = (cause as { message?: string }).message ?? '無法載入活動清單'
+    error.value = errorMessage(cause, '無法載入活動清單')
     rows.value = []
   } finally {
     loading.value = false
@@ -77,7 +78,7 @@ async function run(activityId: number, action: () => Promise<void>) {
     await action()
     await load()
   } catch (cause) {
-    error.value = (cause as { message?: string }).message ?? '操作失敗'
+    error.value = errorMessage(cause, '操作失敗')
   } finally {
     busy.value = null
   }

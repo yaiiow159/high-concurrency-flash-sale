@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { errorMessage } from '~/composables/useApi'
 import { useAddresses } from '~/composables/useAddresses'
 import { useReviews } from '~/composables/useReviews'
 import { useCheckout } from '~/composables/useCheckout'
@@ -44,7 +45,7 @@ async function addToCart() {
     await cart.addItem(selectedSku.value.skuId, quantity.value)
     cartMessage.value = '已加入購物車'
   } catch (cause) {
-    cartMessage.value = (cause as { message?: string }).message ?? '加入購物車失敗'
+    cartMessage.value = errorMessage(cause, '加入購物車失敗')
   } finally {
     addingToCart.value = false
   }

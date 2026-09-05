@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { errorMessage } from '~/composables/useApi'
 import { useReviews } from '~/composables/useReviews'
 import { useAuthStore } from '~/stores/auth'
 import type { ReviewableView } from '~/types/api'
@@ -52,7 +53,7 @@ async function load() {
       selectedSkuId.value = pendingLines.value[0]!.skuId
     }
   } catch (cause) {
-    error.value = (cause as { message?: string }).message ?? '無法載入可評價項目'
+    error.value = errorMessage(cause, '無法載入可評價項目')
   } finally {
     loading.value = false
   }
@@ -76,7 +77,7 @@ async function submit() {
     stars.value = 0
     content.value = ''
   } catch (cause) {
-    error.value = (cause as { message?: string }).message ?? '發表評價失敗'
+    error.value = errorMessage(cause, '發表評價失敗')
   } finally {
     submitting.value = false
   }
