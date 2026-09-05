@@ -1,5 +1,6 @@
 package com.flashsale.api.adapter.in.web;
 
+import com.flashsale.application.service.MediaReconciliationService;
 import com.flashsale.api.adapter.in.web.dto.ApiResponse;
 import com.flashsale.application.port.in.InventoryReconciliationUseCase;
 import com.flashsale.application.port.in.StockReconciliationUseCase;
@@ -35,6 +36,7 @@ import java.util.Map;
 public class InventoryAdminController {
 
     private final StockReconciliationUseCase stockReconciliationUseCase;
+    private final MediaReconciliationService mediaReconciliationService;
     private final InventoryReconciliationUseCase inventoryReconciliationUseCase;
     private final StockReleaseUseCase stockReleaseUseCase;
     private final MembershipReconciliationUseCase membershipReconciliationUseCase;
@@ -42,7 +44,9 @@ public class InventoryAdminController {
     public InventoryAdminController(StockReconciliationUseCase stockReconciliationUseCase,
                                     InventoryReconciliationUseCase inventoryReconciliationUseCase,
                                     StockReleaseUseCase stockReleaseUseCase,
-                                    MembershipReconciliationUseCase membershipReconciliationUseCase) {
+                                    MembershipReconciliationUseCase membershipReconciliationUseCase,
+                                    MediaReconciliationService mediaReconciliationService) {
+        this.mediaReconciliationService = mediaReconciliationService;
         this.membershipReconciliationUseCase = membershipReconciliationUseCase;
         this.stockReconciliationUseCase = stockReconciliationUseCase;
         this.inventoryReconciliationUseCase = inventoryReconciliationUseCase;
@@ -93,4 +97,17 @@ public class InventoryAdminController {
         boolean released = stockReleaseUseCase.release(activityId);
         return ApiResponse.ok(Map.of("activityId", activityId, "released", released));
     }
+    /**
+     * 圖片對帳（ADR-0027）。
+     *
+     * <p><b>沒有自動修復的參數</b>，這與其他對帳不同——
+     * 「沒有人指向這個物件」的判斷一旦有 bug，代價是永久性資料遺失，
+     * 而那沒有補償路徑。庫存算錯還能退回來，圖片刪掉就沒了。
+     */
+    @GetMapping("/reconciliation/media")
+    @Operation(summary = "圖片對帳", description = "只報告，不刪除；孤兒與破圖分開統計")
+    public ApiResponse<MediaReconciliationService.MediaReconciliation> reconcileMedia() {
+        return ApiResponse.ok(mediaReconciliationService.reconcile());
+    }
+
 }

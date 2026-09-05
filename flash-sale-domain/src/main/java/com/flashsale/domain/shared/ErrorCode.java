@@ -83,6 +83,13 @@ public enum ErrorCode {
     REFUND_AMOUNT_EXCEEDED("B0037", "退款金額超過已付金額"),
     NOTIFICATION_NOT_FOUND("B0042", "通知不存在"),
 
+    /**
+     * 圖片格式或大小不符（ADR-0027）。
+     *
+     * <p>B 系列（不可重試）：換一張圖是使用者要做的事，重送同一張不會成功。
+     */
+    UNSUPPORTED_MEDIA("B0051", "不支援的圖片格式或大小"),
+
     // ---- C：系統/依賴故障 ----
     STOCK_SERVICE_UNAVAILABLE("C0001", "庫存服務暫時不可用"),
     LOCK_ACQUIRE_FAILED("C0002", "取得分散式鎖失敗"),

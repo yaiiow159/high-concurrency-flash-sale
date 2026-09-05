@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { errorMessage } from '~/composables/useApi'
 import type {
-  ActivityView, ApiResponse, CategoryView, ProductPage, ProductRatingView,
+  ActivityView, ApiResponse, CategoryView, ProductImageView, ProductPage, ProductRatingView,
 } from '~/types/api'
 
 /**
@@ -50,6 +50,7 @@ const categoryEntries = computed(() =>
  * 首頁是 ISR 快取的，評分跟著被快取會讓新評價要等快取過期才看得到。
  */
 const ratings = ref<Record<number, ProductRatingView>>({})
+const images = ref<Record<number, ProductImageView>>({})
 
 async function loadRatings() {
   const ids = [...bestSelling.value, ...newest.value].map((product) => product.productId)
@@ -58,12 +59,20 @@ async function loadRatings() {
   }
   try {
     const { request } = useApi()
-    ratings.value = await request<Record<number, ProductRatingView>>(
-      `/api/v1/catalog/products/ratings?productIds=${[...new Set(ids)].join(',')}`)
+    const query = [...new Set(ids)].join(',')
+    const [rating, image] = await Promise.all([
+      request<Record<number, ProductRatingView>>(
+        `/api/v1/catalog/products/ratings?productIds=${query}`),
+      request<Record<number, ProductImageView>>(
+        `/api/v1/catalog/products/images?productIds=${query}`),
+    ])
+    ratings.value = rating
+    images.value = image
   } catch (cause) {
-    // fail-open：評分掛掉不該讓人連首頁都看不到
+    // fail-open：評分或圖片掛掉不該讓人連首頁都看不到
     ratings.value = {}
-    console.warn(errorMessage(cause, '評分載入失敗'))
+    images.value = {}
+    console.warn(errorMessage(cause, '評分與圖片載入失敗'))
   }
 }
 
@@ -165,6 +174,7 @@ useHead({ title: '閃購 — 限時搶購與熱銷商品' })
       description="依實際售出件數排序，退貨會扣回"
       :products="bestSelling"
       :ratings="ratings"
+      :images="images"
       ranked
       :more-to="{ path: '/products', query: { sort: 'BEST_SELLING' } }"
     />
@@ -175,6 +185,7 @@ useHead({ title: '閃購 — 限時搶購與熱銷商品' })
       title="最新上架"
       :products="newest"
       :ratings="ratings"
+      :images="images"
       :more-to="{ path: '/products' }"
     />
 

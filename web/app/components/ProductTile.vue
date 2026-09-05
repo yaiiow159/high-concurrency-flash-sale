@@ -19,7 +19,23 @@ const props = withDefaults(defineProps<{
   seed: number | string
   label?: string
   ratio?: 'square' | 'wide'
-}>(), { ratio: 'square' })
+  /**
+   * 真實圖片網址（ADR-0027）。有圖就顯示圖，沒有才退回色塊——
+   * **色塊是後備而不是預設**：先前是唯一選項，現在它的角色變成
+   * 「這個商品還沒上圖」的誠實表示。
+   */
+  src?: string | null
+}>(), { ratio: 'square', src: null })
+
+/**
+ * 圖片載不出來時退回色塊。
+ *
+ * 物件被誤刪、CDN 出問題、網路中斷都會走到這裡，
+ * 而瀏覽器預設的破圖圖示比一個乾淨的色塊難看得多。
+ */
+const failed = ref(false)
+watch(() => props.src, () => { failed.value = false })
+const showImage = computed(() => Boolean(props.src) && !failed.value)
 
 /**
  * 六個色調，彼此在明度與色相上都拉開距離。
@@ -63,10 +79,20 @@ const initial = computed(() => {
   <div
     class="tile relative flex items-center justify-center overflow-hidden rounded-sm"
     :class="ratio === 'square' ? 'aspect-square' : 'aspect-[16/10]'"
-    :style="style"
-    aria-hidden="true"
+    :style="showImage ? undefined : style"
+    :aria-hidden="showImage ? undefined : 'true'"
   >
+    <img
+      v-if="showImage"
+      :src="src!"
+      :alt="label ?? ''"
+      loading="lazy"
+      decoding="async"
+      class="h-full w-full object-cover"
+      @error="failed = true"
+    >
     <span
+      v-else
       class="flex h-14 w-14 items-center justify-center rounded-full bg-white/45
              text-xl font-semibold tracking-tight text-black/45
              backdrop-blur-[1px] sm:h-16 sm:w-16 sm:text-2xl"

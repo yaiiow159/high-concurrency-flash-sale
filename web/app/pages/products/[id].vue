@@ -6,7 +6,8 @@ import { useCheckout } from '~/composables/useCheckout'
 import { useCartStore } from '~/stores/cart'
 import { useAuthStore } from '~/stores/auth'
 import type {
-  ApiResponse, CategoryView, ProductPage, ProductView, SkuStockView, SkuView,
+  ApiResponse, CategoryView, ProductImageView, ProductPage, ProductView,
+  SkuStockView, SkuView,
 } from '~/types/api'
 
 /**
@@ -59,6 +60,35 @@ const breadcrumb = computed(() => {
     ? []
     : pathTo(categoryData.value?.data ?? [], categoryId)
 })
+
+/**
+ * 商品圖片（ADR-0027）。
+ *
+ * <p>與庫存、評分同一個做法：客戶端另外取，不併進這一頁的 SSR。
+ * 這一頁是 ISR 快取的，而圖片會被換掉——跟著被快取的話，
+ * 換了圖的商家會看到舊圖直到快取過期。
+ *
+ * <p>圖片網址本身是內容雜湊，不可變，所以**瀏覽器與 CDN 可以永久快取**；
+ * 會變的是「這個商品指向哪些網址」，而那正是這裡要重新取的東西。
+ */
+const images = ref<ProductImageView[]>([])
+const activeImage = ref(0)
+
+async function loadImages() {
+  try {
+    const { request } = useApi()
+    images.value = await request<ProductImageView[]>(
+      `/api/v1/catalog/products/${productId}/images`)
+    activeImage.value = 0
+  } catch {
+    // fail-open：圖片載不到就退回色塊，不該讓整頁失敗
+    images.value = []
+  }
+}
+
+onMounted(loadImages)
+
+const heroImage = computed(() => images.value[activeImage.value]?.url ?? null)
 
 const related = ref<ProductView[]>([])
 
@@ -282,9 +312,29 @@ useHead(() => ({ title: product.value?.name ?? '商品' }))
         <ProductTile
           :seed="product.productId"
           :label="product.name"
+          :src="heroImage"
           ratio="wide"
           class="w-full rounded"
         />
+
+        <!--
+          縮圖列。只有多張圖時才出現——一張圖配一個只有一格的縮圖列
+          看起來像壞掉的輪播。
+        -->
+        <ul v-if="images.length > 1" class="mt-3 flex flex-wrap gap-2">
+          <li v-for="(image, index) in images" :key="image.imageId">
+            <button
+              type="button"
+              class="h-16 w-16 overflow-hidden rounded-sm border transition-colors"
+              :class="index === activeImage ? 'border-accent' : 'border-line hover:border-line-strong'"
+              :aria-label="`看第 ${index + 1} 張圖`"
+              :aria-current="index === activeImage"
+              @click="activeImage = index"
+            >
+              <img :src="image.url" alt="" loading="lazy" class="h-full w-full object-cover">
+            </button>
+          </li>
+        </ul>
 
         <div class="mt-6">
           <p v-if="product.brand" class="eyebrow">{{ product.brand }}</p>

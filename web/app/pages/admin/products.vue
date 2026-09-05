@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { errorMessage } from '~/composables/useApi'
 import { useAdmin } from '~/composables/useAdmin'
-import type { ApiResponse, CategoryView, ProductView } from '~/types/api'
+import type { ApiResponse, CategoryView, ProductImageView, ProductView } from '~/types/api'
 
 /**
  * 商品管理。
@@ -68,6 +68,63 @@ async function load() {
     hasNextPage.value = false
   } finally {
     loading.value = false
+  }
+}
+
+/**
+ * 圖片上傳（ADR-0027）。
+ *
+ * 位元組直傳物件儲存，不經過應用伺服器——那條請求執行緒是秒殺熱路徑要用的。
+ */
+const { upload, remove, listImages } = useProductMedia()
+const images = ref<Record<number, ProductImageView[]>>({})
+const uploading = ref<number | null>(null)
+
+async function loadImagesFor(productId: number) {
+  try {
+    images.value = { ...images.value, [productId]: await listImages(productId) }
+  } catch {
+    images.value = { ...images.value, [productId]: [] }
+  }
+}
+
+/** 換頁或換分類之後，把這一頁商品的圖片一次帶回來。 */
+watch(rows, (list) => {
+  list.forEach((product) => void loadImagesFor(product.productId))
+})
+
+async function onPickFile(productId: number, event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  // 清掉 value，否則選同一個檔案第二次不會觸發 change
+  input.value = ''
+  if (!file) {
+    return
+  }
+  uploading.value = productId
+  error.value = null
+  try {
+    await upload(productId, file)
+    await loadImagesFor(productId)
+  } catch (cause) {
+    error.value = errorMessage(cause, '圖片上傳失敗')
+  } finally {
+    uploading.value = null
+  }
+}
+
+async function onRemoveImage(productId: number, imageId: number) {
+  // 只解除掛載，物件保留交由對帳處理（ADR-0027 決策 5）——
+  // 講清楚，否則維運會以為檔案被刪了
+  if (!confirm('取消掛載這張圖？' + String.fromCharCode(10, 10)
+    + '檔案本身會保留，由對帳流程處理。')) {
+    return
+  }
+  try {
+    await remove(productId, imageId)
+    await loadImagesFor(productId)
+  } catch (cause) {
+    error.value = errorMessage(cause, '取消掛載失敗')
   }
 }
 
@@ -160,6 +217,7 @@ useHead({ title: '商品管理' })
         <AppCard class="flex flex-wrap items-center gap-x-5 gap-y-3 p-4">
           <ProductTile
             :seed="product.productId" :label="product.name"
+            :src="images[product.productId]?.[0]?.url ?? null"
             class="h-14 w-14 shrink-0 rounded-sm"
           />
 
@@ -175,7 +233,35 @@ useHead({ title: '商品管理' })
             </p>
           </div>
 
+          <!-- 已掛載的圖片；點縮圖可以取消掛載 -->
+          <ul v-if="images[product.productId]?.length" class="flex shrink-0 gap-1.5">
+            <li v-for="image in images[product.productId]" :key="image.imageId">
+              <button
+                type="button"
+                class="h-10 w-10 overflow-hidden rounded-sm border border-line
+                       transition-colors hover:border-danger"
+                :title="`取消掛載`"
+                @click="onRemoveImage(product.productId, image.imageId)"
+              >
+                <img :src="image.url" alt="" class="h-full w-full object-cover">
+              </button>
+            </li>
+          </ul>
+
           <div class="flex shrink-0 items-center gap-2">
+            <label
+              class="cursor-pointer rounded-sm border border-line-strong bg-surface px-3 py-1.5
+                     text-xs transition-colors hover:border-cta hover:text-cta"
+            >
+              {{ uploading === product.productId ? '上傳中⋯' : '加圖片' }}
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                class="sr-only"
+                :disabled="uploading === product.productId"
+                @change="onPickFile(product.productId, $event)"
+              >
+            </label>
             <NuxtLink
               v-if="product.status === 'ON_SHELF'"
               :to="`/products/${product.productId}`"

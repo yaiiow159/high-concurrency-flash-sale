@@ -15,7 +15,9 @@ const props = withDefaults(defineProps<{
   product: ProductView
   rating?: ProductRatingView | null
   rank?: number | null
-}>(), { rating: null, rank: null })
+  /** 主圖網址；沒有時退回確定性色塊（ADR-0027） */
+  imageUrl?: string | null
+}>(), { rating: null, rank: null, imageUrl: null })
 
 /** 前三名才給顏色。第 4 名開始用一般樣式——不然整排都是重點就沒有重點。 */
 const rankTone = computed(() => {
@@ -32,7 +34,7 @@ const rankTone = computed(() => {
       <div class="relative">
         <!-- 目錄沒有圖片欄位，用 productId 推導的確定性色塊給網格視覺重量 -->
         <ProductTile
-          :seed="product.productId" :label="product.name"
+          :seed="product.productId" :label="product.name" :src="imageUrl"
           class="transition-transform duration-300 group-hover:scale-[1.03]"
         />
         <span

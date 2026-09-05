@@ -1,5 +1,7 @@
 package com.flashsale.infrastructure.config;
 
+import com.flashsale.application.service.MediaReconciliationService;
+import com.flashsale.application.service.ProductMediaService;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -22,7 +24,8 @@ import java.time.Clock;
  */
 @Configuration
 @EnableConfigurationProperties({FlashSaleProperties.class, JwtProperties.class, PaymentProperties.class,
-        AdmissionProperties.class})
+        AdmissionProperties.class,
+        MediaProperties.class})
 public class ApplicationCoreConfig {
 
     /**
@@ -81,4 +84,22 @@ public class ApplicationCoreConfig {
                 .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
                 .setSerializationInclusion(JsonInclude.Include.NON_NULL);
     }
+    /**
+     * 預簽名 URL 的有效期。
+     *
+     * <p>短一點：這個 URL 等於一張寫入許可，外流之後在有效期內都能被拿去用。
+     */
+    @Bean
+    public ProductMediaService.MediaUploadTtl mediaUploadTtl(MediaProperties properties) {
+        return new ProductMediaService.MediaUploadTtl(
+                java.time.Duration.ofSeconds(properties.uploadTtlSeconds()));
+    }
+
+    /** 孤兒物件的寬限期。必須明顯長於任何進行中的上傳流程。 */
+    @Bean
+    public MediaReconciliationService.OrphanGrace mediaOrphanGrace(MediaProperties properties) {
+        return new MediaReconciliationService.OrphanGrace(
+                java.time.Duration.ofHours(properties.orphanGraceHours()));
+    }
+
 }
