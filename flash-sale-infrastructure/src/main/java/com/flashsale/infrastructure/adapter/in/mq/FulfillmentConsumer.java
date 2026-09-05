@@ -1,6 +1,5 @@
 package com.flashsale.infrastructure.adapter.in.mq;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flashsale.application.port.in.FulfillmentUseCase;
 import com.flashsale.domain.order.event.OrderPaidEvent;
 import com.flashsale.infrastructure.adapter.out.mq.KafkaTopics;
@@ -28,11 +27,11 @@ public class FulfillmentConsumer {
     private static final Logger log = LoggerFactory.getLogger(FulfillmentConsumer.class);
 
     private final FulfillmentUseCase fulfillmentUseCase;
-    private final ObjectMapper objectMapper;
+    private final DomainEventRouter router;
 
-    public FulfillmentConsumer(FulfillmentUseCase fulfillmentUseCase, ObjectMapper objectMapper) {
+    public FulfillmentConsumer(FulfillmentUseCase fulfillmentUseCase, DomainEventRouter router) {
         this.fulfillmentUseCase = fulfillmentUseCase;
-        this.objectMapper = objectMapper;
+        this.router = router;
     }
 
     @KafkaListener(
@@ -42,12 +41,10 @@ public class FulfillmentConsumer {
     public void onDomainEvent(@Payload String payload,
                               @Header(name = KafkaTopics.HEADER_EVENT_TYPE, required = false)
                               String eventType) throws Exception {
-        if (!OrderPaidEvent.TYPE.equals(eventType)) {
-            // 同一個 topic 承載多種事件，非本消費組關心的直接 ack
-            return;
-        }
-        OrderPaidEvent event = objectMapper.readValue(payload, OrderPaidEvent.class);
-        fulfillmentUseCase.prepareShipment(event);
-        log.debug("已處理付款事件 orderNo={}", event.orderNo());
+        // 同一個 topic 承載多種事件；型別不符時 router 直接略過，呼叫端正常 ack
+        router.route(payload, eventType, OrderPaidEvent.TYPE, OrderPaidEvent.class, event -> {
+            fulfillmentUseCase.prepareShipment(event);
+            log.debug("已處理付款事件 orderNo={}", event.orderNo());
+        });
     }
 }

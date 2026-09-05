@@ -7,9 +7,12 @@ import com.flashsale.domain.shared.ErrorCode;
 
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * 商品聚合根（SPU）。
@@ -183,4 +186,36 @@ public final class Product {
     public String toString() {
         return "Product{id=%s, name=%s, status=%s, skus=%d}".formatted(id, name, status, skus.size());
     }
+
+    /**
+     * 把一批商品攤平成「SKU ID → 商品」。
+     *
+     * <p>訂單、購物車、銷量都記的是 SKU，而它們需要的往往是商品——
+     * 這段攤平先前在四個地方各寫一次
+     * （{@code flatMap(p -> p.skus().stream().map(...))}），
+     * 而其中兩份是同一個 commit 裡寫的。
+     *
+     * <p>放在聚合根上而不是某個服務裡：它是關於「商品與 SKU 的關係」
+     * 的純函式，不屬於任何一個使用情境。
+     *
+     * <p>重複的 SKU ID 取先出現的那一個。理論上 SKU 不會跨商品重複，
+     * 但 {@code toMap} 碰到重複鍵預設會拋例外，
+     * 而為了一筆髒資料讓整張訂單建立不了並不划算。
+     */
+    public static Map<Long, Product> bySkuId(Collection<Product> products) {
+        return products.stream()
+                .flatMap(product -> product.skus().stream()
+                        .map(sku -> Map.entry(sku.id(), product)))
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue,
+                        (first, second) -> first));
+    }
+
+    /** 同上，但攤平成「SKU ID → SKU」。取重量、價格這類 SKU 自己的屬性時用。 */
+    public static Map<Long, Sku> skusById(Collection<Product> products) {
+        return products.stream()
+                .flatMap(product -> product.skus().stream())
+                .collect(Collectors.toMap(Sku::id, Function.identity(),
+                        (first, second) -> first));
+    }
+
 }

@@ -70,18 +70,14 @@ public class ProductSalesService implements ProductSalesUseCase {
      */
     /** SKU → 件數，換算成商品 → 件數。同一件商品的不同規格要合併。 */
     private Map<Long, Integer> toProductQuantities(Map<Long, Integer> quantityBySku) {
-        Map<Long, Long> productBySku = productRepository
-                .findBySkuIds(List.copyOf(quantityBySku.keySet())).stream()
-                .flatMap(product -> product.skus().stream()
-                        .map(sku -> Map.entry(sku.id(), product.id())))
-                .collect(HashMap::new, (map, entry) -> map.put(entry.getKey(), entry.getValue()),
-                        HashMap::putAll);
+        Map<Long, Product> productBySku = Product.bySkuId(productRepository
+                .findBySkuIds(List.copyOf(quantityBySku.keySet())));
 
         Map<Long, Integer> byProduct = new HashMap<>();
         quantityBySku.forEach((skuId, quantity) -> {
-            Long productId = productBySku.get(skuId);
-            if (productId != null) {
-                byProduct.merge(productId, quantity, Integer::sum);
+            Product product = productBySku.get(skuId);
+            if (product != null) {
+                byProduct.merge(product.id(), quantity, Integer::sum);
             }
         });
         return byProduct;
@@ -95,22 +91,18 @@ public class ProductSalesService implements ProductSalesUseCase {
         }
 
         List<OrderLine> lines = found.get().lines();
-        Map<Long, Long> productBySku = productRepository
-                .findBySkuIds(lines.stream().map(OrderLine::skuId).toList()).stream()
-                .flatMap(product -> product.skus().stream()
-                        .map(sku -> Map.entry(sku.id(), product.id())))
-                .collect(HashMap::new, (map, entry) -> map.put(entry.getKey(), entry.getValue()),
-                        HashMap::putAll);
+        Map<Long, Product> productBySku = Product.bySkuId(productRepository
+                .findBySkuIds(lines.stream().map(OrderLine::skuId).toList()));
 
         Map<Long, Integer> quantities = new HashMap<>();
         for (OrderLine line : lines) {
-            Long productId = productBySku.get(line.skuId());
-            if (productId == null) {
+            Product product = productBySku.get(line.skuId());
+            if (product == null) {
                 // 商品被刪除。略過這一行而不是整筆放棄——
                 // 其他行的銷量仍然是真實發生過的事
                 continue;
             }
-            quantities.merge(productId, line.quantity(), Integer::sum);
+            quantities.merge(product.id(), line.quantity(), Integer::sum);
         }
         return quantities.isEmpty() ? Optional.empty() : Optional.of(quantities);
     }

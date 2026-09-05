@@ -32,10 +32,14 @@ public class SeckillCompensationConsumer {
     private static final Logger log = LoggerFactory.getLogger(SeckillCompensationConsumer.class);
 
     private final StockCompensationUseCase compensationUseCase;
+    private final DomainEventRouter router;
+    /** 死信沒有事件型別可以分派，仍然要自己反序列化。 */
     private final ObjectMapper objectMapper;
 
-    public SeckillCompensationConsumer(StockCompensationUseCase compensationUseCase, ObjectMapper objectMapper) {
+    public SeckillCompensationConsumer(StockCompensationUseCase compensationUseCase, DomainEventRouter router,
+                                       ObjectMapper objectMapper) {
         this.compensationUseCase = compensationUseCase;
+        this.router = router;
         this.objectMapper = objectMapper;
     }
 
@@ -47,11 +51,8 @@ public class SeckillCompensationConsumer {
     public void onDomainEvent(@Payload String payload,
                               @Header(name = KafkaTopics.HEADER_EVENT_TYPE, required = false) String eventType)
             throws Exception {
-        if (!OrderCancelledEvent.TYPE.equals(eventType)) {
-            // 同一個 topic 承載多種事件，非本消費組關心的直接 ack。
-            return;
-        }
-        compensationUseCase.compensate(objectMapper.readValue(payload, OrderCancelledEvent.class));
+        router.route(payload, eventType, OrderCancelledEvent.TYPE,
+                OrderCancelledEvent.class, compensationUseCase::compensate);
     }
 
     /**

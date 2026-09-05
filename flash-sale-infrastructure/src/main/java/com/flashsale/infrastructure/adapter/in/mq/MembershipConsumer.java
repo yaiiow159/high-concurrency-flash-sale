@@ -1,6 +1,5 @@
 package com.flashsale.infrastructure.adapter.in.mq;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flashsale.application.port.in.MembershipUseCase;
 import com.flashsale.application.port.in.OrderQueryUseCase;
 import com.flashsale.application.port.in.dto.OrderView;
@@ -42,14 +41,14 @@ public class MembershipConsumer {
 
     private final MembershipUseCase membershipUseCase;
     private final OrderQueryUseCase orderQueryUseCase;
-    private final ObjectMapper objectMapper;
+    private final DomainEventRouter router;
 
     public MembershipConsumer(MembershipUseCase membershipUseCase,
                               OrderQueryUseCase orderQueryUseCase,
-                              ObjectMapper objectMapper) {
+                              DomainEventRouter router) {
         this.membershipUseCase = membershipUseCase;
         this.orderQueryUseCase = orderQueryUseCase;
-        this.objectMapper = objectMapper;
+        this.router = router;
     }
 
     @KafkaListener(
@@ -59,14 +58,11 @@ public class MembershipConsumer {
     public void onDomainEvent(@Payload String payload,
                               @Header(name = KafkaTopics.HEADER_EVENT_TYPE, required = false)
                               String eventType) throws Exception {
-        if (!OrderCompletedEvent.TYPE.equals(eventType)) {
-            // 其他事件直接 ack。order.created 在尖峰時每秒上萬筆，
-            // 記一行就是一場日誌洪水
-            return;
-        }
+        router.route(payload, eventType, OrderCompletedEvent.TYPE,
+                OrderCompletedEvent.class, this::award);
+    }
 
-        OrderCompletedEvent event = objectMapper.readValue(payload, OrderCompletedEvent.class);
-
+    private void award(OrderCompletedEvent event) {
         OrderView order;
         try {
             order = orderQueryUseCase.findByOrderNo(event.orderNo(), event.userId());
