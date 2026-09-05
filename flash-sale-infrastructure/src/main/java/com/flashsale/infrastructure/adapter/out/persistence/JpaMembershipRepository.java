@@ -11,7 +11,6 @@ import com.flashsale.infrastructure.adapter.out.persistence.jpa.PointTransaction
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -107,7 +106,7 @@ public class JpaMembershipRepository implements MembershipRepository {
     @Transactional(readOnly = true)
     public List<PointTransaction> findTransactions(Long userId, int offset, int limit) {
         return transactionJpaRepository
-                .findByUser(userId, PageRequest.of(offset / Math.max(limit, 1), limit)).stream()
+                .findByUser(userId, Pageables.of(limit, offset)).stream()
                 .map(JpaMembershipRepository::toDomain)
                 .toList();
     }

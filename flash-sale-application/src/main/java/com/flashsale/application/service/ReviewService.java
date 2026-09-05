@@ -18,6 +18,7 @@ import com.flashsale.domain.review.ProductRating;
 import com.flashsale.domain.review.Rating;
 import com.flashsale.domain.review.Review;
 import com.flashsale.domain.shared.BusinessException;
+import com.flashsale.domain.shared.Page;
 import com.flashsale.domain.shared.ErrorCode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -49,6 +50,9 @@ import java.util.Set;
  */
 @Service
 public class ReviewService implements ReviewUseCase {
+
+    /** 列表頁大小上限。對外開放的端點沒有上限，等於讓人用一個參數掃全表。 */
+    private static final int MAX_PAGE_SIZE = 50;
 
     private static final Logger log = LoggerFactory.getLogger(ReviewService.class);
 
@@ -133,7 +137,11 @@ public class ReviewService implements ReviewUseCase {
     @Transactional(readOnly = true)
     public List<ReviewView> byProduct(Long productId, int page, int size) {
         Instant now = clock.instant();
-        return reviewRepository.findByProductId(productId, page * size, size).stream()
+        // 在**服務層**夾，與其他所有列表一致。
+        // 先前只有 Controller 夾，於是任何非 Controller 的呼叫端
+        // 都會把未夾的 size 送進倉庫——接上倉庫的 offset/limit 換算就是除以零
+        Page paging = Page.of(page, size, MAX_PAGE_SIZE);
+        return reviewRepository.findByProductId(productId, paging.offset(), paging.size()).stream()
                 .map(review -> ReviewView.from(review, now))
                 .toList();
     }
@@ -142,7 +150,8 @@ public class ReviewService implements ReviewUseCase {
     @Transactional(readOnly = true)
     public List<ReviewView> mine(Long userId, int page, int size) {
         Instant now = clock.instant();
-        return reviewRepository.findByUserId(userId, page * size, size).stream()
+        Page paging = Page.of(page, size, MAX_PAGE_SIZE);
+        return reviewRepository.findByUserId(userId, paging.offset(), paging.size()).stream()
                 .map(review -> ReviewView.from(review, now))
                 .toList();
     }

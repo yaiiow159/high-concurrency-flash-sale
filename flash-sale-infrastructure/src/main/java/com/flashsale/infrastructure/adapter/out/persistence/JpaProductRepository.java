@@ -18,7 +18,6 @@ import com.flashsale.infrastructure.adapter.out.persistence.entity.SkuEntity;
 import com.flashsale.infrastructure.adapter.out.persistence.jpa.ProductJpaRepository;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
@@ -119,7 +118,7 @@ public class JpaProductRepository implements ProductRepository {
         return jpaRepository
                 .searchByKeyword(keyword == null ? "" : keyword, categoryId,
                         brand == null || brand.isBlank() ? null : brand,
-                        PageRequest.of(offset / Math.max(limit, 1), limit))
+                        Pageables.of(limit, offset))
                 .stream()
                 .map(this::toDomain)
                 .toList();
@@ -132,7 +131,7 @@ public class JpaProductRepository implements ProductRepository {
         // 直接拿去比對會得到零筆——症狀是「後台一片空白」而不是任何錯誤
         String normalized = status == null || status.isBlank() ? null : status;
         return jpaRepository
-                .findAllByStatus(normalized, PageRequest.of(offset / Math.max(limit, 1), limit))
+                .findAllByStatus(normalized, Pageables.of(limit, offset))
                 .stream()
                 .map(this::toDomain)
                 .toList();
@@ -142,7 +141,7 @@ public class JpaProductRepository implements ProductRepository {
     @Transactional(readOnly = true)
     public List<Product> findOnShelf(Long categoryId, int limit, int offset) {
         return jpaRepository
-                .findOnShelf(categoryId, PageRequest.of(offset / Math.max(limit, 1), limit))
+                .findOnShelf(categoryId, Pageables.of(limit, offset))
                 .stream()
                 .map(this::toDomain)
                 .toList();

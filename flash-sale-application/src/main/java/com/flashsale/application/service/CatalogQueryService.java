@@ -16,6 +16,7 @@ import com.flashsale.domain.catalog.ProductSort;
 import com.flashsale.domain.catalog.ProductSummary;
 import com.flashsale.domain.catalog.Sku;
 import com.flashsale.domain.shared.BusinessException;
+import com.flashsale.domain.shared.Page;
 import com.flashsale.domain.shared.ErrorCode;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,7 +40,6 @@ public class CatalogQueryService implements CatalogQueryUseCase {
 
     /** 批次 SKU 查詢的上限，與購物車的品項上限一致。 */
     private static final int MAX_SKU_LOOKUP = 50;
-    private static final int DEFAULT_PAGE_SIZE = 20;
 
     private final ProductRepository productRepository;
     private final CategoryRepository categoryRepository;
@@ -56,16 +56,16 @@ public class CatalogQueryService implements CatalogQueryUseCase {
     @Override
     @Transactional(readOnly = true)
     public ProductPage listProducts(Long categoryId, String sortName, String cursor, int size) {
-        int safeSize = Math.clamp(size <= 0 ? DEFAULT_PAGE_SIZE : size, 1, MAX_PAGE_SIZE);
+        Page paging = Page.of(0, size, MAX_PAGE_SIZE);
         ProductSort sort = ProductSort.parse(sortName);
 
         // 多取一筆來判斷還有沒有下一頁，而不是再打一次 COUNT(*)——
         // 在 5 萬列上那個 count 比查詢本身還貴，而它只是為了決定一個布林值
         List<ProductSummary> rows = productRepository.findOnShelfSummaries(
-                resolveCategoryFilter(categoryId), sort, ProductCursor.decode(cursor), safeSize + 1);
+                resolveCategoryFilter(categoryId), sort, ProductCursor.decode(cursor), paging.sizePlusOne());
 
-        boolean hasMore = rows.size() > safeSize;
-        List<ProductSummary> pageRows = hasMore ? rows.subList(0, safeSize) : rows;
+        boolean hasMore = rows.size() > paging.size();
+        List<ProductSummary> pageRows = hasMore ? rows.subList(0, paging.size()) : rows;
         if (pageRows.isEmpty()) {
             return ProductPage.empty();
         }

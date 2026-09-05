@@ -11,7 +11,6 @@ import com.flashsale.infrastructure.adapter.out.persistence.entity.ReturnLineEnt
 import com.flashsale.infrastructure.adapter.out.persistence.entity.ReturnRequestEntity;
 import com.flashsale.infrastructure.adapter.out.persistence.jpa.ReturnRequestJpaRepository;
 import org.springframework.data.domain.Limit;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -99,7 +98,7 @@ public class JpaReturnRequestRepository implements ReturnRequestRepository {
     @Transactional(readOnly = true)
     public List<ReturnRequest> findByUserId(Long userId, int limit, int offset) {
         return jpaRepository.findByUserIdOrderByCreatedAtDesc(
-                        userId, PageRequest.of(offset / Math.max(limit, 1), limit)).stream()
+                        userId, Pageables.of(limit, offset)).stream()
                 .map(JpaReturnRequestRepository::toDomain)
                 .toList();
     }

@@ -11,7 +11,6 @@ import com.flashsale.infrastructure.adapter.out.persistence.jpa.ReviewJpaReposit
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -76,7 +75,7 @@ public class JpaReviewRepository implements ReviewRepository {
     @Transactional(readOnly = true)
     public List<Review> findByProductId(Long productId, int offset, int limit) {
         return reviewJpaRepository
-                .findByProduct(productId, PageRequest.of(offset / limit, limit)).stream()
+                .findByProduct(productId, Pageables.of(limit, offset)).stream()
                 .map(JpaReviewRepository::toDomain)
                 .toList();
     }
@@ -85,7 +84,7 @@ public class JpaReviewRepository implements ReviewRepository {
     @Transactional(readOnly = true)
     public List<Review> findByUserId(Long userId, int offset, int limit) {
         return reviewJpaRepository
-                .findByUser(userId, PageRequest.of(offset / limit, limit)).stream()
+                .findByUser(userId, Pageables.of(limit, offset)).stream()
                 .map(JpaReviewRepository::toDomain)
                 .toList();
     }

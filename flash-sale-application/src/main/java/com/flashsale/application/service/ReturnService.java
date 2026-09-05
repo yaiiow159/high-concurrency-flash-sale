@@ -22,6 +22,7 @@ import com.flashsale.domain.order.OrderStatus;
 import com.flashsale.domain.payment.Payment;
 import com.flashsale.domain.payment.PaymentStatus;
 import com.flashsale.domain.shared.BusinessException;
+import com.flashsale.domain.shared.Page;
 import com.flashsale.domain.shared.DomainEvent;
 import com.flashsale.domain.shared.ErrorCode;
 import org.slf4j.Logger;
@@ -79,7 +80,6 @@ public class ReturnService implements ReturnUseCase {
     private static final Set<OrderStatus> REQUIRES_GOODS_RETURN =
             Set.of(OrderStatus.SHIPPED, OrderStatus.COMPLETED);
 
-    private static final int DEFAULT_PAGE_SIZE = 20;
     private static final int MAX_PAGE_SIZE = 50;
 
     private final ReturnRequestRepository returnRepository;
@@ -311,9 +311,8 @@ public class ReturnService implements ReturnUseCase {
     @Override
     @Transactional(readOnly = true)
     public List<ReturnRequestView> listForUser(Long userId, int page, int size) {
-        int pageSize = size <= 0 ? DEFAULT_PAGE_SIZE : Math.clamp(size, 1, MAX_PAGE_SIZE);
-        int offset = Math.max(page, 0) * pageSize;
-        return returnRepository.findByUserId(userId, pageSize, offset).stream()
+        Page paging = Page.of(page, size, MAX_PAGE_SIZE);
+        return returnRepository.findByUserId(userId, paging.size(), paging.offset()).stream()
                 .map(ReturnRequestView::from)
                 .toList();
     }

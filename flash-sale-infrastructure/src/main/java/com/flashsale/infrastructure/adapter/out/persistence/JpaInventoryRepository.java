@@ -11,7 +11,6 @@ import com.flashsale.infrastructure.adapter.out.persistence.jpa.InventoryMovemen
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
@@ -128,7 +127,7 @@ public class JpaInventoryRepository implements InventoryRepository {
     @Transactional(readOnly = true)
     public List<Long> findSkuIdsForReconciliation(int limit, int offset) {
         return inventoryJpaRepository.findAllSkuIds(
-                PageRequest.of(offset / Math.max(limit, 1), limit));
+                Pageables.of(limit, offset));
     }
 
     @Override

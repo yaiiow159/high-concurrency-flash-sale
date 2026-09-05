@@ -8,7 +8,6 @@ import com.flashsale.domain.notification.NotificationType;
 import com.flashsale.infrastructure.adapter.out.persistence.entity.NotificationEntity;
 import com.flashsale.infrastructure.adapter.out.persistence.jpa.NotificationJpaRepository;
 import org.springframework.data.domain.Limit;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -80,7 +79,7 @@ public class JpaNotificationRepository implements NotificationRepository {
     public List<Notification> findInAppByUserId(Long userId, int limit, int offset) {
         return jpaRepository.findByUserIdAndChannelOrderByCreatedAtDesc(
                         userId, NotificationChannel.IN_APP.name(),
-                        PageRequest.of(offset / Math.max(limit, 1), limit)).stream()
+                        Pageables.of(limit, offset)).stream()
                 .map(JpaNotificationRepository::toDomain)
                 .toList();
     }

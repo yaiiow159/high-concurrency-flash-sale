@@ -10,6 +10,7 @@ import com.flashsale.application.port.out.SeckillRequestTracker;
 import com.flashsale.domain.order.OrderNo;
 import com.flashsale.domain.order.Order;
 import com.flashsale.domain.shared.BusinessException;
+import com.flashsale.domain.shared.Page;
 import com.flashsale.domain.shared.ErrorCode;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,7 +27,6 @@ import java.util.Optional;
 @Service
 public class OrderQueryService implements OrderQueryUseCase {
 
-    private static final int DEFAULT_PAGE_SIZE = 20;
     private static final int MAX_PAGE_SIZE = 50;
 
     private final OrderRepository orderRepository;
@@ -86,9 +86,8 @@ public class OrderQueryService implements OrderQueryUseCase {
     @Override
     @Transactional(readOnly = true)
     public List<OrderView> listForUser(Long userId, String status, int page, int size) {
-        int safeSize = Math.clamp(size <= 0 ? DEFAULT_PAGE_SIZE : size, 1, MAX_PAGE_SIZE);
-        int safePage = Math.max(page, 0);
-        return orderRepository.findByUserId(userId, status, safeSize, safePage * safeSize).stream()
+        Page paging = Page.of(page, size, MAX_PAGE_SIZE);
+        return orderRepository.findByUserId(userId, status, paging.size(), paging.offset()).stream()
                 .map(OrderView::from)
                 .toList();
     }
