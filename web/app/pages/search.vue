@@ -62,6 +62,57 @@ watch(() => route.query, () => {
   run()
 }, { immediate: true })
 
+/**
+ * 搜尋建議。
+ *
+ * <p>去抖 200ms：每打一個字就查一次，中文輸入法組字期間會送出一串
+ * 沒有意義的請求（ㄕ、ㄕㄡ、手…），而使用者要的只是最後那個字。
+ *
+ * <p>失敗時靜默清空——建議是錦上添花，它掛掉不該讓輸入框跟著壞掉。
+ * 後端在索引故障時本來就回空清單而不是錯誤。
+ */
+const suggestions = ref<string[]>([])
+const suggestOpen = ref(false)
+let suggestTimer: ReturnType<typeof setTimeout> | null = null
+
+function onKeywordInput() {
+  if (suggestTimer) {
+    clearTimeout(suggestTimer)
+  }
+  const term = keyword.value.trim()
+  if (term.length === 0) {
+    suggestions.value = []
+    suggestOpen.value = false
+    return
+  }
+  suggestTimer = setTimeout(async () => {
+    try {
+      suggestions.value = await request<string[]>(
+        `/api/v1/search/suggestions?q=${encodeURIComponent(term)}`)
+      suggestOpen.value = suggestions.value.length > 0
+    } catch {
+      suggestions.value = []
+      suggestOpen.value = false
+    }
+  }, 200)
+}
+
+/**
+ * 延遲關閉建議清單。
+ *
+ * 不延遲的話，滑鼠按下建議的瞬間輸入框先失焦、清單先消失，
+ * 那一下點擊就落到空氣裡。
+ */
+function closeSuggestionsSoon() {
+  setTimeout(() => { suggestOpen.value = false }, 120)
+}
+
+function pick(suggestion: string) {
+  keyword.value = suggestion
+  suggestOpen.value = false
+  submit()
+}
+
 useHead(() => ({ title: keyword.value ? `搜尋「${keyword.value}」` : '搜尋商品' }))
 </script>
 
@@ -70,13 +121,37 @@ useHead(() => ({ title: keyword.value ? `搜尋「${keyword.value}」` : '搜尋
     <PageHeader eyebrow="Search" title="搜尋商品" />
 
     <form class="flex flex-wrap gap-2" @submit.prevent="submit">
-      <input
-        v-model="keyword"
-        type="search"
-        placeholder="搜尋商品名稱或品牌"
-        aria-label="搜尋關鍵字"
-        class="h-11 min-w-0 flex-1 rounded-sm border border-line bg-surface px-4"
-      >
+      <div class="relative min-w-0 flex-1">
+        <input
+          v-model="keyword"
+          type="search"
+          placeholder="搜尋商品名稱或品牌"
+          aria-label="搜尋關鍵字"
+          role="combobox"
+          :aria-expanded="suggestOpen"
+          aria-autocomplete="list"
+          class="h-11 w-full rounded-sm border border-line bg-surface px-4 shadow-rest"
+          @input="onKeywordInput"
+          @keydown.escape="suggestOpen = false"
+          @blur="closeSuggestionsSoon"
+        >
+        <ul
+          v-if="suggestOpen"
+          class="absolute left-0 right-0 top-12 z-10 overflow-hidden rounded-sm border
+                 border-line bg-surface shadow-lift"
+        >
+          <li v-for="suggestion in suggestions" :key="suggestion">
+            <button
+              type="button"
+              class="block w-full truncate px-4 py-2 text-left text-sm
+                     transition-colors hover:bg-sunken"
+              @mousedown.prevent="pick(suggestion)"
+            >
+              {{ suggestion }}
+            </button>
+          </li>
+        </ul>
+      </div>
       <AppButton type="submit" size="lg" :disabled="loading">
         {{ loading ? '搜尋中⋯' : '搜尋' }}
       </AppButton>

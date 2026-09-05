@@ -125,6 +125,18 @@ export interface SkuStockView {
   available?: number
 }
 
+/** 領券中心上的一張券。`claimed` 為 true 時按鈕顯示「已領取」而不是從清單消失。 */
+export interface ClaimableCouponView {
+  promotionId: number
+  name: string
+  rule: string
+  threshold: number
+  value: number
+  maxDiscount: number | null
+  endAt: string
+  claimed: boolean
+}
+
 export interface ProductPage {
   items: ProductView[]
   /** null 代表沒有下一頁。字串——依價格或銷量排序時是 `排序值:id` 的複合值 */

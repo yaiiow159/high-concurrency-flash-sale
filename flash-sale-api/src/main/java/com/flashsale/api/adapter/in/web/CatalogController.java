@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 /**
@@ -46,9 +47,12 @@ public class CatalogController {
             @RequestParam(required = false) Long categoryId,
             @RequestParam(required = false) String sort,
             @RequestParam(required = false) String cursor,
+            @RequestParam(required = false) BigDecimal minPrice,
+            @RequestParam(required = false) BigDecimal maxPrice,
             @RequestParam(defaultValue = "20") int size) {
 
-        return ApiResponse.ok(catalogQueryUseCase.listProducts(categoryId, sort, cursor, size));
+        return ApiResponse.ok(catalogQueryUseCase.listProducts(
+                categoryId, sort, cursor, minPrice, maxPrice, size));
     }
 
     @GetMapping("/products/{productId}")

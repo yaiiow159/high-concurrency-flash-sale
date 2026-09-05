@@ -7,6 +7,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /** 優惠與券的持久化埠（出站）。 */
 public interface PromotionRepository {
@@ -64,4 +65,29 @@ public interface PromotionRepository {
      * @return 券號，前端要顯示給使用者
      */
     String issueCoupon(Long userId, Long promotionId, Instant expiresAt);
+
+    /**
+     * 領券中心上可以領的促銷：進行中、未結束、且是 {@code COUPON} 型。
+     *
+     * <p>與 {@link #findActivePromotions} 分開：後者回的是「下單時會自動套用的」
+     * （滿額折、免運），而那些**不需要領**。混在一起的話，
+     * 領券中心會列出一堆按不下去的東西。
+     */
+    List<Promotion> findClaimablePromotions(Instant now);
+
+    /** 這個人已經自行領過哪些促銷。用來把清單上的按鈕標成「已領取」。 */
+    Set<Long> findClaimedPromotionIds(Long userId);
+
+    /**
+     * 自行領一張券。
+     *
+     * <p><b>靠唯一索引擋重複，不先查再寫。</b> 先查再寫是 read-modify-write，
+     * 兩個並行的領取請求都會通過檢查然後各發一張。
+     *
+     * <p>管理員發放（{@link #issueCoupon}）不受這個限制——
+     * 它寫進去的 {@code claim_key} 是 NULL，而 MySQL 的唯一索引允許多個 NULL。
+     *
+     * @return 這次真的領到了才回 {@code true}；已經領過回 {@code false}
+     */
+    boolean claimCoupon(Long userId, Long promotionId, Instant expiresAt);
 }

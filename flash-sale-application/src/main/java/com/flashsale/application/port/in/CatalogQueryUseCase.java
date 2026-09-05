@@ -5,6 +5,7 @@ import com.flashsale.application.port.in.dto.ProductPage;
 import com.flashsale.application.port.in.dto.ProductView;
 import com.flashsale.application.port.in.dto.SkuStockView;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 /** 商品目錄查詢入站埠。 */
@@ -26,8 +27,11 @@ public interface CatalogQueryUseCase {
      *                   悄悄改成最新上架的話，使用者選了「價格由低到高」
      *                   卻看到別的順序，而選單仍停在他選的那一項
      * @param cursor     上一頁最後一筆的游標；{@code null} 代表第一頁
+     * @param minPrice   價格下限；{@code null} 為不限。比對的是最低價，
+     *                   與列表顯示的「NT$ x 起」同一個數字
      */
-    ProductPage listProducts(Long categoryId, String sortName, String cursor, int size);
+    ProductPage listProducts(Long categoryId, String sortName, String cursor,
+                             BigDecimal minPrice, BigDecimal maxPrice, int size);
 
     /**
      * 批次查庫存。

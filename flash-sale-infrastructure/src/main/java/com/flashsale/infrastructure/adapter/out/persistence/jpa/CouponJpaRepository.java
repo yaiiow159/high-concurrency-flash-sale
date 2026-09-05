@@ -47,4 +47,8 @@ public interface CouponJpaRepository extends JpaRepository<CouponEntity, Long> {
     int redeem(@Param("couponId") Long couponId,
                @Param("orderNo") String orderNo,
                @Param("now") Instant now);
+    /** 這個人自行領過哪些促銷。管理員發放的 claim_key 是 NULL，不算在內。 */
+    @Query("select c.promotionId from CouponEntity c where c.userId = :userId and c.claimKey is not null")
+    List<Long> findClaimedPromotionIds(@Param("userId") Long userId);
+
 }

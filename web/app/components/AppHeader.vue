@@ -43,6 +43,7 @@ const links = [
   { to: '/', label: '限時搶購' },
   { to: '/products', label: '全部商品' },
   { to: '/search', label: '搜尋' },
+  { to: '/coupons', label: '領券' },
 ]
 
 function isActive(to: string): boolean {

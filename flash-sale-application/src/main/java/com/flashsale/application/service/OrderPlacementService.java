@@ -1,9 +1,7 @@
 package com.flashsale.application.service;
 
-import com.flashsale.application.port.in.CouponQueryUseCase;
 import com.flashsale.application.port.in.PlaceOrderUseCase;
 import com.flashsale.application.port.in.dto.CheckoutPreview;
-import com.flashsale.application.port.in.dto.CouponView;
 import com.flashsale.application.port.in.dto.OrderView;
 import com.flashsale.application.port.out.AddressRepository;
 import com.flashsale.application.port.out.EventOutbox;
@@ -63,7 +61,7 @@ import java.util.Optional;
  * 單價與商品快照都從 {@link Product} 取。前端若能決定價格，那就不叫價格了。
  */
 @Service
-public class OrderPlacementService implements PlaceOrderUseCase, CouponQueryUseCase {
+public class OrderPlacementService implements PlaceOrderUseCase {
 
     private static final Logger log = LoggerFactory.getLogger(OrderPlacementService.class);
 
@@ -178,32 +176,6 @@ public class OrderPlacementService implements PlaceOrderUseCase, CouponQueryUseC
                 priced.zone() != null,
                 priced.zone() == null ? null : priced.zone().displayName(),
                 priced.total(), previewLines);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public List<CouponView> myUsableCoupons(Long userId) {
-        Instant now = clock.instant();
-        List<Coupon> coupons = promotionRepository.findUsableCoupons(userId, now);
-        if (coupons.isEmpty()) {
-            return List.of();
-        }
-
-        // **一次批次查完規則。** 先前是逐張券呼叫 findPromotionById，
-        // 而這支在結帳頁載入時就會被打——手上有 20 張券就是 20 次往返。
-        // 多張券共用同一個規則是常態（同一檔活動發給很多人），
-        // 批次查連重複的部分都省掉了。
-        Map<Long, Promotion> rules = promotionRepository.findPromotionsByIds(
-                coupons.stream().map(Coupon::promotionId).distinct().toList());
-
-        return coupons.stream()
-                .flatMap(coupon -> java.util.Optional.ofNullable(rules.get(coupon.promotionId()))
-                        // 規則被硬刪時券就沒有意義了。跳過而不是拋例外——
-                        // 一張壞掉的券不該讓使用者連結帳頁都打不開
-                        .filter(promotion -> promotion.isApplicableAt(now))
-                        .map(promotion -> CouponView.of(coupon, promotion))
-                        .stream())
-                .toList();
     }
 
     /**

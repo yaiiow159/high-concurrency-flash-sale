@@ -1,6 +1,7 @@
 package com.flashsale.application.port.out;
 
 import com.flashsale.domain.catalog.Product;
+import com.flashsale.domain.catalog.PriceRange;
 import com.flashsale.domain.catalog.ProductCursor;
 import com.flashsale.domain.catalog.ProductSort;
 import com.flashsale.domain.catalog.ProductSummary;
@@ -53,10 +54,13 @@ public interface ProductRepository {
      *                    非唯一的排序鍵要配 {@code (排序值, id)} 的複合游標，
      *                    否則同值的商品會被整批跳過或整批重複
      * @param cursor      上一頁最後一筆的游標；{@code null} 代表第一頁
+     * @param priceRange  價格區間；比對的是<b>最低價</b>，
+     *                    與列表顯示的「NT$ x 起」同一個數字
      * @param limit       最多取幾筆。呼叫端會多要一筆來判斷還有沒有下一頁
      */
     List<ProductSummary> findOnShelfSummaries(Collection<Long> categoryIds,
-                                              ProductSort sort, ProductCursor cursor, int limit);
+                                              ProductSort sort, ProductCursor cursor,
+                                              PriceRange priceRange, int limit);
 
     /**
      * 後台用：列出<b>所有狀態</b>的商品。

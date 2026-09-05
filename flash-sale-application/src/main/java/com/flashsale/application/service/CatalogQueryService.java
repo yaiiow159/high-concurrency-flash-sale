@@ -11,6 +11,7 @@ import com.flashsale.domain.inventory.Inventory;
 import com.flashsale.application.port.out.ProductRepository;
 import com.flashsale.domain.catalog.CategoryTree;
 import com.flashsale.domain.catalog.Product;
+import com.flashsale.domain.catalog.PriceRange;
 import com.flashsale.domain.catalog.ProductCursor;
 import com.flashsale.domain.catalog.ProductSort;
 import com.flashsale.domain.catalog.ProductSummary;
@@ -22,6 +23,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.Map;
@@ -55,14 +57,16 @@ public class CatalogQueryService implements CatalogQueryUseCase {
 
     @Override
     @Transactional(readOnly = true)
-    public ProductPage listProducts(Long categoryId, String sortName, String cursor, int size) {
+    public ProductPage listProducts(Long categoryId, String sortName, String cursor,
+                                    BigDecimal minPrice, BigDecimal maxPrice, int size) {
         Page paging = Page.of(0, size, MAX_PAGE_SIZE);
         ProductSort sort = ProductSort.parse(sortName);
 
         // 多取一筆來判斷還有沒有下一頁，而不是再打一次 COUNT(*)——
         // 在 5 萬列上那個 count 比查詢本身還貴，而它只是為了決定一個布林值
         List<ProductSummary> rows = productRepository.findOnShelfSummaries(
-                resolveCategoryFilter(categoryId), sort, ProductCursor.decode(cursor), paging.sizePlusOne());
+                resolveCategoryFilter(categoryId), sort, ProductCursor.decode(cursor),
+                PriceRange.of(minPrice, maxPrice), paging.sizePlusOne());
 
         boolean hasMore = rows.size() > paging.size();
         List<ProductSummary> pageRows = hasMore ? rows.subList(0, paging.size()) : rows;
