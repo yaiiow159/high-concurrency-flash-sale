@@ -1,6 +1,5 @@
 package com.flashsale.infrastructure.adapter.in.mq;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flashsale.application.port.in.ProductSearchUseCase;
 import com.flashsale.domain.catalog.event.ProductIndexChangedEvent;
 import com.flashsale.infrastructure.adapter.out.mq.KafkaTopics;
@@ -27,12 +26,12 @@ public class ProductIndexConsumer {
     private static final Logger log = LoggerFactory.getLogger(ProductIndexConsumer.class);
 
     private final ProductSearchUseCase productSearchUseCase;
-    private final ObjectMapper objectMapper;
+    private final DomainEventRouter router;
 
     public ProductIndexConsumer(ProductSearchUseCase productSearchUseCase,
-                                ObjectMapper objectMapper) {
+                                DomainEventRouter router) {
         this.productSearchUseCase = productSearchUseCase;
-        this.objectMapper = objectMapper;
+        this.router = router;
     }
 
     @KafkaListener(
@@ -42,14 +41,10 @@ public class ProductIndexConsumer {
     public void onDomainEvent(@Payload String payload,
                               @Header(name = KafkaTopics.HEADER_EVENT_TYPE, required = false)
                               String eventType) throws Exception {
-        if (!ProductIndexChangedEvent.TYPE.equals(eventType)) {
-            // 同一個 topic 承載多種事件，非本消費組關心的直接 ack。
-            // 尖峰時流量最大的 order.created 在這裡是零成本
-            return;
-        }
-        ProductIndexChangedEvent event =
-                objectMapper.readValue(payload, ProductIndexChangedEvent.class);
-        productSearchUseCase.applyIndexChange(event);
-        log.debug("已同步商品 {} 到搜尋索引", event.productId());
+        router.route(payload, eventType, ProductIndexChangedEvent.TYPE,
+                ProductIndexChangedEvent.class, event -> {
+                    productSearchUseCase.applyIndexChange(event);
+                    log.debug("已同步商品 {} 到搜尋索引", event.productId());
+                });
     }
 }

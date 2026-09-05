@@ -1,6 +1,5 @@
 package com.flashsale.infrastructure.adapter.in.mq;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flashsale.application.port.in.ProductSalesUseCase;
 import com.flashsale.domain.order.event.OrderPaidEvent;
 import com.flashsale.infrastructure.adapter.out.mq.KafkaTopics;
@@ -37,12 +36,12 @@ public class ProductSalesConsumer {
     private static final Logger log = LoggerFactory.getLogger(ProductSalesConsumer.class);
 
     private final ProductSalesUseCase productSalesUseCase;
-    private final ObjectMapper objectMapper;
+    private final DomainEventRouter router;
 
     public ProductSalesConsumer(ProductSalesUseCase productSalesUseCase,
-                                ObjectMapper objectMapper) {
+                                DomainEventRouter router) {
         this.productSalesUseCase = productSalesUseCase;
-        this.objectMapper = objectMapper;
+        this.router = router;
     }
 
     @KafkaListener(
@@ -52,15 +51,10 @@ public class ProductSalesConsumer {
     public void onDomainEvent(@Payload String payload,
                               @Header(name = KafkaTopics.HEADER_EVENT_TYPE, required = false)
                               String eventType) throws Exception {
-        if (!OrderPaidEvent.TYPE.equals(eventType)) {
-            // 其他事件直接 ack。order.created 在尖峰時每秒上萬筆，
-            // 記一行就是一場日誌洪水
-            return;
-        }
-
-        OrderPaidEvent event = objectMapper.readValue(payload, OrderPaidEvent.class);
-        if (productSalesUseCase.recordSale(event.orderNo(), event.userId())) {
-            log.debug("訂單 {} 已計入銷量", event.orderNo());
-        }
+        router.route(payload, eventType, OrderPaidEvent.TYPE, OrderPaidEvent.class, event -> {
+            if (productSalesUseCase.recordSale(event.orderNo(), event.userId())) {
+                log.debug("訂單 {} 已計入銷量", event.orderNo());
+            }
+        });
     }
 }

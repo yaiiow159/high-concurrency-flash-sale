@@ -1,6 +1,5 @@
 package com.flashsale.infrastructure.adapter.in.mq;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flashsale.application.port.in.RefundExecutionUseCase;
 import com.flashsale.domain.aftersales.event.RefundRequestedEvent;
 import com.flashsale.infrastructure.adapter.out.mq.KafkaTopics;
@@ -28,12 +27,12 @@ public class RefundConsumer {
     private static final Logger log = LoggerFactory.getLogger(RefundConsumer.class);
 
     private final RefundExecutionUseCase refundExecutionUseCase;
-    private final ObjectMapper objectMapper;
+    private final DomainEventRouter router;
 
     public RefundConsumer(RefundExecutionUseCase refundExecutionUseCase,
-                          ObjectMapper objectMapper) {
+                          DomainEventRouter router) {
         this.refundExecutionUseCase = refundExecutionUseCase;
-        this.objectMapper = objectMapper;
+        this.router = router;
     }
 
     @KafkaListener(
@@ -43,12 +42,10 @@ public class RefundConsumer {
     public void onDomainEvent(@Payload String payload,
                               @Header(name = KafkaTopics.HEADER_EVENT_TYPE, required = false)
                               String eventType) throws Exception {
-        if (!RefundRequestedEvent.TYPE.equals(eventType)) {
-            // 同一個 topic 承載多種事件，非本消費組關心的直接 ack
-            return;
-        }
-        RefundRequestedEvent event = objectMapper.readValue(payload, RefundRequestedEvent.class);
-        refundExecutionUseCase.execute(event);
-        log.debug("已處理退款事件 returnNo={}", event.returnNo());
+        router.route(payload, eventType, RefundRequestedEvent.TYPE,
+                RefundRequestedEvent.class, event -> {
+                    refundExecutionUseCase.execute(event);
+                    log.debug("已處理退款事件 returnNo={}", event.returnNo());
+                });
     }
 }

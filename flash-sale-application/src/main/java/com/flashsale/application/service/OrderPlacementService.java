@@ -294,14 +294,13 @@ public class OrderPlacementService implements PlaceOrderUseCase, CouponQueryUseC
      * 下一單就該用新的重量算。
      */
     private int totalWeightOf(List<OrderLine> lines) {
-        Map<Long, Integer> weightBySku = productRepository
-                .findBySkuIds(lines.stream().map(OrderLine::skuId).toList()).stream()
-                .flatMap(product -> product.skus().stream())
-                .collect(Collectors.toMap(Sku::id, Sku::weightGrams, (first, second) -> first));
+        Map<Long, Sku> skusById = Product.skusById(productRepository
+                .findBySkuIds(lines.stream().map(OrderLine::skuId).toList()));
 
         int total = 0;
         for (OrderLine line : lines) {
-            int unitWeight = weightBySku.getOrDefault(line.skuId(), Sku.DEFAULT_WEIGHT_GRAMS);
+            Sku sku = skusById.get(line.skuId());
+            int unitWeight = sku == null ? Sku.DEFAULT_WEIGHT_GRAMS : sku.weightGrams();
             total += unitWeight * line.quantity();
         }
         return total;
@@ -410,12 +409,8 @@ public class OrderPlacementService implements PlaceOrderUseCase, CouponQueryUseC
         // 而它們彼此不相依，本來就該一次問完。
         //
         // 批次方法本來就存在（findBySkuIds），先前只是沒有用它。
-        Map<Long, Product> bySkuId = productRepository
-                .findBySkuIds(items.stream().map(OrderItem::skuId).toList()).stream()
-                .flatMap(product -> product.skus().stream()
-                        .map(sku -> Map.entry(sku.id(), product)))
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue,
-                        (first, second) -> first));
+        Map<Long, Product> bySkuId = Product.bySkuId(productRepository
+                .findBySkuIds(items.stream().map(OrderItem::skuId).toList()));
 
         List<OrderLine> lines = new ArrayList<>(items.size());
         for (OrderItem item : items) {
