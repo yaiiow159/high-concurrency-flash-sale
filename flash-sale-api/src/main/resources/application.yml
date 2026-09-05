@@ -193,6 +193,21 @@ flash-sale:
     # 那是「熱路徑零額外往返」換來的
     sample-interval-millis: 5000
 
+  # 物件儲存（ADR-0027）。本機 MinIO，正式環境換 endpoint 即可。
+  media:
+    endpoint: ${MEDIA_ENDPOINT:http://localhost:9000}
+    # 讀取與寫入刻意分開：正式環境前面會擺 CDN，
+    # 寫入走儲存端點、讀取走 CDN，兩者不是同一個網域
+    public-base-url: ${MEDIA_PUBLIC_BASE_URL:http://localhost:9000/product-media}
+    bucket: product-media
+    access-key: ${MEDIA_ACCESS_KEY:minioadmin}
+    secret-key: ${MEDIA_SECRET_KEY:minioadmin}
+    # 預簽名 URL 等於一張寫入許可，外流之後在有效期內都能被拿去用——設短一點
+    upload-ttl-seconds: 300
+    # 孤兒寬限期。必須明顯長於任何進行中的上傳流程，
+    # 否則正在上傳的檔案會被報成待刪除
+    orphan-grace-hours: 24
+
   rate-limit:
     # 單一使用者：桶容量 5、每秒補 1 個。容許手滑連點，擋得住腳本刷單。
     capacity: 5

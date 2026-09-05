@@ -9,3 +9,9 @@ DELETE FROM category WHERE id > 3;
 
 DELETE FROM seckill_activity WHERE id >= 9000;
 DELETE FROM app_user WHERE email LIKE 'loadtest%@perf.test' OR email = 'perfadmin@test.com';
+
+-- 圖片（ADR-0027）。**只清資料庫的關聯，不動物件儲存**——
+-- 與正式的刪除路徑同一個立場：寧可留孤兒，不可有破圖。
+-- 桶裡的物件由圖片對帳報出來，再由維運決定要不要刪。
+DELETE FROM product_image WHERE product_id > 4;
+DELETE FROM media_upload WHERE created_at < NOW() - INTERVAL 1 DAY;

@@ -54,6 +54,23 @@
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-pool2</artifactId>
         </dependency>
+        <!--
+            物件儲存（ADR-0027）。用 AWS SDK 的 S3 客戶端而不是 MinIO 專用客戶端：
+            介面是 S3 相容的，綁 MinIO 的客戶端等於把本機開發用的東西
+            帶進正式環境的相依裡。
+        -->
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>s3</artifactId>
+            <version>${awssdk.version}</version>
+        </dependency>
+        <!-- 預簽名 URL 需要它；與 s3 分開的獨立模組 -->
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>netty-nio-client</artifactId>
+            <version>${awssdk.version}</version>
+        </dependency>
+
         <dependency>
             <groupId>com.mysql</groupId>
             <artifactId>mysql-connector-j</artifactId>

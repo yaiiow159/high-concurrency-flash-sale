@@ -137,6 +137,21 @@ export interface ClaimableCouponView {
   claimed: boolean
 }
 
+/** 商品圖片。`url` 是完整網址（資料庫只存物件鍵，網域由後端設定組出來）。 */
+export interface ProductImageView {
+  imageId: number
+  url: string
+  sortOrder: number
+}
+
+/** 上傳授權。`alreadyUploaded` 為 true 時可以跳過上傳直接掛載。 */
+export interface UploadAuthorization {
+  objectKey: string
+  /** 已經上傳過時**整個欄位不會出現**（後端省略 null），因此是選填 */
+  uploadUrl?: string
+  alreadyUploaded: boolean
+}
+
 export interface ProductPage {
   items: ProductView[]
   /** null 代表沒有下一頁。字串——依價格或銷量排序時是 `排序值:id` 的複合值 */

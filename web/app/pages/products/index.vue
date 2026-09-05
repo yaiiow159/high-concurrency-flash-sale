@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { useApi } from '~/composables/useApi'
-import type { ApiResponse, CategoryView, ProductPage, ProductRatingView, ProductView, SkuStockView } from '~/types/api'
+import type {
+  ApiResponse, CategoryView, ProductImageView, ProductPage, ProductRatingView, ProductView, SkuStockView,
+} from '~/types/api'
 
 /**
  * 商品列表。
@@ -217,6 +219,8 @@ const activeCategoryName = computed(() =>
  * 失敗時整份留空，卡片就不顯示星等。fail-open：評分掛掉不該讓人逛不了商品。
  */
 const ratings = ref<Record<number, ProductRatingView>>({})
+/** 主圖。與評分同一個做法：客戶端批次取，不併進 ISR 快取的 SSR。 */
+const images = ref<Record<number, ProductImageView>>({})
 
 async function loadRatings() {
   const ids = products.value.map((product) => product.productId)
@@ -225,10 +229,19 @@ async function loadRatings() {
   }
   try {
     const { request } = useApi()
-    ratings.value = await request<Record<number, ProductRatingView>>(
-      `/api/v1/catalog/products/ratings?productIds=${ids.join(',')}`)
+    const query = ids.join(',')
+    // 兩支一起發，不要一支等一支——它們互不相依
+    const [rating, image] = await Promise.all([
+      request<Record<number, ProductRatingView>>(
+        `/api/v1/catalog/products/ratings?productIds=${query}`),
+      request<Record<number, ProductImageView>>(
+        `/api/v1/catalog/products/images?productIds=${query}`),
+    ])
+    ratings.value = rating
+    images.value = image
   } catch {
     ratings.value = {}
+    images.value = {}
   }
 }
 
@@ -338,7 +351,11 @@ useHead({ title: '全部商品' })
       class="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4"
     >
       <li v-for="product in products" :key="product.productId">
-        <ProductCard :product="product" :rating="ratings[product.productId] ?? null" />
+        <ProductCard
+          :product="product"
+          :rating="ratings[product.productId] ?? null"
+          :image-url="images[product.productId]?.url ?? null"
+        />
       </li>
     </ul>
 
