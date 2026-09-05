@@ -33,6 +33,16 @@ public class CouponEntity {
     @Column(name = "code", nullable = false, length = 32, updatable = false)
     private String code;
 
+    /**
+     * 自行領取的憑據 {@code {userId}:{promotionId}}；管理員發放為 {@code null}。
+     *
+     * <p>唯一索引建在這一欄而不是 {@code (user_id, promotion_id)}——
+     * 既有資料裡已經有人持有同一促銷的兩張券（補發、補償），
+     * 而 MySQL 的唯一索引允許多個 NULL，剛好只約束自行領取的那些。
+     */
+    @Column(name = "claim_key", length = 64, updatable = false)
+    private String claimKey;
+
     @Column(name = "status", nullable = false, length = 16)
     private String status;
 

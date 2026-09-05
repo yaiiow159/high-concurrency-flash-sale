@@ -1,5 +1,6 @@
 package com.flashsale.application.port.out;
 
+import java.util.List;
 import com.flashsale.application.port.in.dto.ProductSearchResult;
 import com.flashsale.domain.catalog.Product;
 
@@ -57,6 +58,18 @@ public interface ProductSearchIndex {
      * @param categoryId 類目篩選，{@code null} 為不限
      * @param brand      品牌篩選，{@code null} 為不限
      */
+    /**
+     * 搜尋建議：依前綴比對商品名與品牌，回傳去重後的候選字。
+     *
+     * <p><b>回字串而不是商品</b>：建議列表的作用是幫使用者「把字打完」，
+     * 不是提前給結果。回商品的話，使用者會以為那就是全部的結果，
+     * 然後不再按下搜尋——而建議只取前幾筆。
+     *
+     * <p>索引故障時回空清單，不拋例外。建議是錦上添花，
+     * 它掛掉不該讓輸入框跟著壞掉——搜尋本身已經有降級路徑了。
+     */
+    List<String> suggest(String prefix, int limit);
+
     record SearchQuery(String keyword, Long categoryId, String brand, int page, int size) {
     }
 }

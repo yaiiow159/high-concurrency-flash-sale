@@ -43,7 +43,8 @@ final class ProductListingQuery {
         };
     }
 
-    static String build(ProductSort sort, Collection<Long> categoryIds, ProductCursor cursor) {
+    static String build(ProductSort sort, Collection<Long> categoryIds, ProductCursor cursor,
+                        boolean hasMinPrice, boolean hasMaxPrice) {
         String sortValue = sortExpression(sort);
         // 排序值要跟著回來——下一頁的游標需要它。
         // 少了這一欄，非唯一排序鍵的游標就組不出來，而那要翻到第二頁才會發現
@@ -68,6 +69,14 @@ final class ProductListingQuery {
         // 而 NULL 在排序裡的位置是一個沒有正確答案的問題
         if (sort == ProductSort.PRICE_ASC || sort == ProductSort.PRICE_DESC) {
             sql.append("  and p.lowest_price is not null\n");
+        }
+        // 價格區間比對的是**最低價**，與列表顯示的「NT$ x 起」同一個數字。
+        // 用別的欄位比的話，使用者篩了 1000 以下卻看到標價 1200 的商品
+        if (hasMinPrice) {
+            sql.append("  and p.lowest_price >= :minPrice\n");
+        }
+        if (hasMaxPrice) {
+            sql.append("  and p.lowest_price <= :maxPrice\n");
         }
         if (cursor != null) {
             sql.append("  and ").append(keysetPredicate(sort)).append('\n');

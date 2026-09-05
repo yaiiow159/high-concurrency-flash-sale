@@ -5,6 +5,7 @@ import co.elastic.clients.elasticsearch._types.FieldValue;
 import co.elastic.clients.elasticsearch._types.SortOrder;
 import co.elastic.clients.elasticsearch._types.query_dsl.Query;
 import co.elastic.clients.elasticsearch.core.SearchResponse;
+import co.elastic.clients.elasticsearch.core.search.Hit;
 import co.elastic.clients.elasticsearch.core.bulk.BulkOperation;
 import com.flashsale.application.port.in.dto.ProductSearchResult;
 import com.flashsale.application.port.out.ProductRepository;
@@ -20,6 +21,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.stream.Stream;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -256,6 +258,56 @@ public class ElasticsearchProductSearchIndex implements ProductSearchIndex {
             // 空集合會被解讀成「索引整份不見了」而觸發全量修復，
             // 那是把一次連線失敗放大成一次全量重寫
             throw searchUnavailable("讀取搜尋索引的文件 ID 失敗", e);
+        }
+    }
+
+    /**
+     * 搜尋建議。
+     *
+     * <p>用 {@code match_phrase_prefix} 而不是 completion suggester：
+     * 後者要另外維護一個 completion 型別的欄位與它的重建流程，
+     * 而這裡要的只是「把使用者正在打的字補完」——
+     * 現有的 name/brand 欄位已經夠用。
+     * 真的需要打錯字容錯與權重調校時再換，那是一個獨立的決定。
+     *
+     * <p><b>回商品名與品牌的原字串，去重後截斷。</b>
+     *
+     * <p>索引故障時回空清單而不是拋例外：建議是錦上添花，
+     * 它掛掉不該讓輸入框跟著壞掉。
+     */
+    @Override
+    public List<String> suggest(String prefix, int limit) {
+        String trimmed = prefix == null ? "" : prefix.trim();
+        if (trimmed.isEmpty()) {
+            return List.of();
+        }
+        try {
+            SearchResponse<ProductDocument> response = client.search(request -> request
+                            .index(ALIAS)
+                            // 多取一些再去重——同一個品牌會有很多商品，
+                            // 只取 limit 筆的話去重後可能只剩一兩個
+                            .size(limit * 5)
+                            .query(query -> query.bool(bool -> bool
+                                    .should(should -> should.matchPhrasePrefix(
+                                            match -> match.field("name").query(trimmed)))
+                                    .should(should -> should.matchPhrasePrefix(
+                                            match -> match.field("brand").query(trimmed)))
+                                    .minimumShouldMatch("1"))),
+                    ProductDocument.class);
+
+            return response.hits().hits().stream()
+                    .map(Hit::source)
+                    .filter(java.util.Objects::nonNull)
+                    .flatMap(doc -> Stream.of(doc.name(), doc.brand()))
+                    .filter(java.util.Objects::nonNull)
+                    .filter(candidate -> candidate.toLowerCase()
+                            .contains(trimmed.toLowerCase()))
+                    .distinct()
+                    .limit(limit)
+                    .toList();
+        } catch (Exception unavailable) {
+            log.warn("搜尋建議失敗，回空清單 prefix={}", trimmed, unavailable);
+            return List.of();
         }
     }
 

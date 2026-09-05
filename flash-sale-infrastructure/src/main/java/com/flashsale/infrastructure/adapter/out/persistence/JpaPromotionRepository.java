@@ -1,5 +1,7 @@
 package com.flashsale.infrastructure.adapter.out.persistence;
 
+import jakarta.persistence.PersistenceContext;
+import jakarta.persistence.EntityManager;
 import com.flashsale.application.port.out.PromotionRepository;
 import com.flashsale.domain.promotion.Coupon;
 import com.flashsale.domain.promotion.CouponStatus;
@@ -10,12 +12,14 @@ import com.flashsale.infrastructure.adapter.out.persistence.entity.CouponEntity;
 import com.flashsale.infrastructure.adapter.out.persistence.entity.PromotionEntity;
 import com.flashsale.infrastructure.adapter.out.persistence.jpa.CouponJpaRepository;
 import com.flashsale.infrastructure.adapter.out.persistence.jpa.PromotionJpaRepository;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.Optional;
@@ -24,6 +28,10 @@ import java.util.UUID;
 /** 優惠與券持久化埠的 JPA 實作。 */
 @Repository
 public class JpaPromotionRepository implements PromotionRepository {
+
+    /** 領券用原生 upsert，走不了具名查詢。 */
+    @PersistenceContext
+    private EntityManager entityManager;
 
     private final PromotionJpaRepository promotionJpaRepository;
     private final CouponJpaRepository couponJpaRepository;
@@ -115,6 +123,72 @@ public class JpaPromotionRepository implements PromotionRepository {
         couponJpaRepository.saveAndFlush(new CouponEntity(
                 userId, promotionId, code, CouponStatus.ISSUED.name(), expiresAt));
         return code;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Promotion> findClaimablePromotions(Instant now) {
+        return promotionJpaRepository
+                .findByTypeAndEnabledTrueAndStartAtBeforeAndEndAtAfterOrderByEndAtAsc(
+                        DiscountType.COUPON.name(), now, now)
+                .stream()
+                .map(JpaPromotionRepository::toDomain)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Set<Long> findClaimedPromotionIds(Long userId) {
+        return Set.copyOf(couponJpaRepository.findClaimedPromotionIds(userId));
+    }
+
+    /**
+     * 自行領一張券。
+     *
+     * <h2>不靠例外，也不靠受影響列數</h2>
+     *
+     * <p>兩個都試過，兩個都是錯的：
+     *
+     * <ul>
+     *   <li><b>攔 {@code DataIntegrityViolationException}</b>——唯一索引一衝突，
+     *       當下的交易就已經被標記為只能回滾，攔下例外也救不回來：
+     *       提交時改拋 {@code UnexpectedRollbackException}，
+     *       使用者看到「系統異常」而不是「你已經領過了」</li>
+     *   <li><b>看 {@code executeUpdate()} 的回傳值</b>——MySQL Connector/J
+     *       預設 {@code useAffectedRows=false}，回報的是<b>找到</b>的列數而不是
+     *       <b>變更</b>的列數，所以沒有變更的重複也會回 1。
+     *       實測第二次領取因此仍然回報成功</li>
+     * </ul>
+     *
+     * <p>改成回讀憑證比對：insert 用 {@code on duplicate key update} 保證不拋例外，
+     * 然後讀回這個 claim_key 上的 code——是我們這次產生的那組，才代表真的插進去了。
+     * 這與連線參數無關，也不會像 {@code INSERT IGNORE} 那樣連真正的錯誤一起吞掉。
+     */
+    @Override
+    @Transactional
+    public boolean claimCoupon(Long userId, Long promotionId, Instant expiresAt) {
+        String code = "CL-" + UUID.randomUUID().toString().substring(0, 12).toUpperCase();
+        String claimKey = userId + ":" + promotionId;
+
+        entityManager.createNativeQuery("""
+                        insert into coupon
+                            (user_id, promotion_id, code, claim_key, status, expires_at, created_at)
+                        values (:userId, :promotionId, :code, :claimKey, :status, :expiresAt, now(3))
+                        on duplicate key update claim_key = claim_key
+                        """)
+                .setParameter("userId", userId)
+                .setParameter("promotionId", promotionId)
+                .setParameter("code", code)
+                .setParameter("claimKey", claimKey)
+                .setParameter("status", CouponStatus.ISSUED.name())
+                .setParameter("expiresAt", java.sql.Timestamp.from(expiresAt))
+                .executeUpdate();
+
+        Object stored = entityManager.createNativeQuery(
+                        "select code from coupon where claim_key = :claimKey")
+                .setParameter("claimKey", claimKey)
+                .getSingleResult();
+        return code.equals(stored);
     }
 
     private static Promotion toDomain(PromotionEntity entity) {

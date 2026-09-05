@@ -43,4 +43,16 @@ public interface PromotionJpaRepository extends JpaRepository<PromotionEntity, L
              order by p.pointCost
             """)
     List<PromotionEntity> findExchangeable(@Param("now") Instant now);
+    /**
+     * 領券中心可以領的促銷。
+     *
+     * <p>與「進行中的促銷」分開：後者包含滿額折與免運，
+     * 那些是下單時自動套用的，<b>不需要領</b>——混在一起會讓
+     * 領券中心列出一堆按不下去的東西。
+     *
+     * <p>依結束時間排序：快到期的排前面，那是使用者最該先領的。
+     */
+    List<PromotionEntity> findByTypeAndEnabledTrueAndStartAtBeforeAndEndAtAfterOrderByEndAtAsc(
+            String type, Instant startBefore, Instant endAfter);
+
 }

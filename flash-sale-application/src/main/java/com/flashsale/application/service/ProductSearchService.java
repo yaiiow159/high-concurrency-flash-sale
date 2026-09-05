@@ -1,16 +1,17 @@
 package com.flashsale.application.service;
 
-import com.flashsale.domain.shared.Page;
 import com.flashsale.application.port.in.ProductSearchUseCase;
 import com.flashsale.application.port.in.dto.ProductSearchResult;
 import com.flashsale.application.port.out.ProductRepository;
 import com.flashsale.application.port.out.ProductSearchIndex;
 import com.flashsale.domain.catalog.Product;
 import com.flashsale.domain.catalog.event.ProductIndexChangedEvent;
+import com.flashsale.domain.shared.Page;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -80,4 +81,12 @@ public class ProductSearchService implements ProductSearchUseCase {
         log.info("搜尋索引重建完成，共 {} 筆", indexed);
         return indexed;
     }
+    /** 建議最多幾筆。太多會讓下拉選單蓋住整個畫面，而使用者只會看前幾個。 */
+    private static final int MAX_SUGGESTIONS = 8;
+
+    @Override
+    public List<String> suggest(String keyword) {
+        return searchIndex.suggest(keyword, MAX_SUGGESTIONS);
+    }
+
 }

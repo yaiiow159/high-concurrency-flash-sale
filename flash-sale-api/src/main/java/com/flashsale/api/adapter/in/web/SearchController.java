@@ -63,6 +63,14 @@ public class SearchController {
         return ApiResponse.ok(productSearchUseCase.search(q, categoryId, brand, page, size));
     }
 
+    @GetMapping("/api/v1/search/suggestions")
+    @Operation(summary = "搜尋建議",
+            description = "依前綴比對商品名與品牌；索引故障時回空清單而不是錯誤")
+    public ApiResponse<List<String>> suggest(
+            @RequestParam(required = false, defaultValue = "") String q) {
+        return ApiResponse.ok(productSearchUseCase.suggest(q));
+    }
+
     @PostMapping("/api/v1/admin/search/reindex")
     @Operation(summary = "重建搜尋索引",
             description = "寫入新版本索引後原子切換 alias；失敗時舊索引仍在服務")

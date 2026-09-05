@@ -30,6 +30,47 @@ const sort = computed(() => {
   return SORT_OPTIONS.some((option) => option.value === value) ? value : 'NEWEST'
 })
 
+/** 價格區間。放在網址上，讓「1000 以下的耳機」這種連結貼得出去。 */
+const priceQuery = computed(() => {
+  const read = (key: string) => {
+    const raw = route.query[key]
+    const value = typeof raw === 'string' ? Number(raw) : Number.NaN
+    return Number.isFinite(value) && value >= 0 ? value : null
+  }
+  return { min: read('minPrice'), max: read('maxPrice') }
+})
+
+const minInput = ref<string>('')
+const maxInput = ref<string>('')
+
+watchEffect(() => {
+  minInput.value = priceQuery.value.min === null ? '' : String(priceQuery.value.min)
+  maxInput.value = priceQuery.value.max === null ? '' : String(priceQuery.value.max)
+})
+
+function applyPrice() {
+  const query: Record<string, string> = {}
+  if (categoryId.value !== null) {
+    query.category = String(categoryId.value)
+  }
+  if (sort.value !== 'NEWEST') {
+    query.sort = sort.value
+  }
+  if (minInput.value.trim() !== '') {
+    query.minPrice = minInput.value.trim()
+  }
+  if (maxInput.value.trim() !== '') {
+    query.maxPrice = maxInput.value.trim()
+  }
+  void navigateTo({ path: '/products', query })
+}
+
+function clearPrice() {
+  minInput.value = ''
+  maxInput.value = ''
+  applyPrice()
+}
+
 const { data: categoryData } = await useFetch<ApiResponse<CategoryView[]>>(
   '/api/v1/catalog/categories',
 )
@@ -37,9 +78,16 @@ const { data: productData } = await useFetch<ApiResponse<ProductPage>>(
   '/api/v1/catalog/products',
   // key 帶上類目，否則切換類目時 Nuxt 會沿用同一份快取結果
   {
-    query: { categoryId, sort },
+    query: {
+      categoryId,
+      sort,
+      minPrice: computed(() => priceQuery.value.min),
+      maxPrice: computed(() => priceQuery.value.max),
+    },
     // key 要帶上類目**與排序**，否則換排序時 Nuxt 會沿用同一份快取結果
-    key: () => `products-${categoryId.value ?? 'all'}-${sort.value}`,
+    // key 要帶上每一個會改變結果的條件，否則換條件時 Nuxt 會沿用舊快取
+    key: () => `products-${categoryId.value ?? 'all'}-${sort.value}`
+      + `-${priceQuery.value.min ?? ''}-${priceQuery.value.max ?? ''}`,
   },
 )
 
@@ -63,7 +111,7 @@ const hasMore = ref(false)
 const loadingMore = ref(false)
 
 // 換類目時已載入的第二頁以後全部作廢——它們屬於上一個類目
-watch([categoryId, sort], () => {
+watch([categoryId, sort, priceQuery], () => {
   loadedMore.value = []
   cursor.value = productData.value?.data?.nextCursor ?? null
   hasMore.value = productData.value?.data?.hasMore ?? false
@@ -85,6 +133,12 @@ async function loadMore() {
     const query = new URLSearchParams({ cursor: cursor.value, sort: sort.value })
     if (categoryId.value !== null) {
       query.set('categoryId', String(categoryId.value))
+    }
+    if (priceQuery.value.min !== null) {
+      query.set('minPrice', String(priceQuery.value.min))
+    }
+    if (priceQuery.value.max !== null) {
+      query.set('maxPrice', String(priceQuery.value.max))
     }
     const page = await request<ProductPage>(`/api/v1/catalog/products?${query}`)
     loadedMore.value = [...loadedMore.value, ...page.items]
@@ -244,10 +298,40 @@ useHead({ title: '全部商品' })
           {{ option.label }}
         </NuxtLink>
       </div>
-      <p v-if="products.length > 0" class="figure text-xs text-ink-faint">
-        已顯示 {{ products.length.toLocaleString() }} 件
-      </p>
+      <div class="flex items-center gap-2">
+        <!--
+          價格區間。上下限顛倒時後端會自動對調而不是報錯——
+          把 1000 打在「最低」是很常見的手滑，而回一個「參數錯誤」
+          只會讓人盯著兩個看起來都沒問題的數字
+        -->
+        <label class="sr-only" for="min-price">最低價</label>
+        <input
+          id="min-price" v-model="minInput" type="number" min="0" inputmode="numeric"
+          placeholder="最低" class="figure w-20 rounded-sm border border-line bg-surface
+                 px-2 py-1.5 text-xs shadow-rest placeholder:text-ink-faint"
+          @keyup.enter="applyPrice"
+        >
+        <span class="text-xs text-ink-faint">–</span>
+        <label class="sr-only" for="max-price">最高價</label>
+        <input
+          id="max-price" v-model="maxInput" type="number" min="0" inputmode="numeric"
+          placeholder="最高" class="figure w-20 rounded-sm border border-line bg-surface
+                 px-2 py-1.5 text-xs shadow-rest placeholder:text-ink-faint"
+          @keyup.enter="applyPrice"
+        >
+        <AppButton variant="secondary" size="sm" @click="applyPrice">篩選</AppButton>
+        <AppButton
+          v-if="priceQuery.min !== null || priceQuery.max !== null"
+          variant="ghost" size="sm" @click="clearPrice"
+        >
+          清除
+        </AppButton>
+      </div>
     </div>
+
+    <p v-if="products.length > 0" class="mb-4 figure text-xs text-ink-faint">
+      已顯示 {{ products.length.toLocaleString() }} 件
+    </p>
 
     <ul
       v-if="products.length > 0"

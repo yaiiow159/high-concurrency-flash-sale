@@ -5,6 +5,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.flashsale.application.port.out.ProductRepository;
 import com.flashsale.domain.catalog.Product;
+import com.flashsale.domain.catalog.PriceRange;
 import com.flashsale.domain.catalog.ProductCursor;
 import com.flashsale.domain.catalog.ProductSort;
 import com.flashsale.domain.catalog.ProductStatus;
@@ -161,11 +162,19 @@ public class JpaProductRepository implements ProductRepository {
     @Transactional(readOnly = true)
     public List<ProductSummary> findOnShelfSummaries(Collection<Long> categoryIds,
                                                      ProductSort sort, ProductCursor cursor,
-                                                     int limit) {
-        String sql = ProductListingQuery.build(sort, categoryIds, cursor);
+                                                     PriceRange priceRange, int limit) {
+        PriceRange range = priceRange == null ? PriceRange.UNBOUNDED : priceRange;
+        String sql = ProductListingQuery.build(sort, categoryIds, cursor,
+                range.hasMin(), range.hasMax());
         var query = entityManager.createNativeQuery(sql).setParameter("limit", Math.max(limit, 1));
         if (categoryIds != null && !categoryIds.isEmpty()) {
             query.setParameter("categoryIds", categoryIds);
+        }
+        if (range.hasMin()) {
+            query.setParameter("minPrice", range.min());
+        }
+        if (range.hasMax()) {
+            query.setParameter("maxPrice", range.max());
         }
         if (cursor != null) {
             query.setParameter("cursorId", cursor.id());
