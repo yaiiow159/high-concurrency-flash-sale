@@ -12,7 +12,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Limit;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -104,7 +103,7 @@ public class JpaOrderRepository implements OrderRepository {
         return jpaRepository
                 .findByUserIdAndStatus(userId,
                         status == null || status.isBlank() ? null : status,
-                        PageRequest.of(offset / Math.max(limit, 1), limit))
+                        Pageables.of(limit, offset))
                 .stream()
                 .map(OrderMapper::toDomain)
                 .toList();

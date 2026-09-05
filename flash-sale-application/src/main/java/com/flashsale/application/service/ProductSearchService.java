@@ -1,5 +1,6 @@
 package com.flashsale.application.service;
 
+import com.flashsale.domain.shared.Page;
 import com.flashsale.application.port.in.ProductSearchUseCase;
 import com.flashsale.application.port.in.dto.ProductSearchResult;
 import com.flashsale.application.port.out.ProductRepository;
@@ -31,7 +32,6 @@ public class ProductSearchService implements ProductSearchUseCase {
 
     private static final Logger log = LoggerFactory.getLogger(ProductSearchService.class);
 
-    private static final int DEFAULT_PAGE_SIZE = 20;
     private static final int MAX_PAGE_SIZE = 50;
 
     private final ProductSearchIndex searchIndex;
@@ -46,10 +46,10 @@ public class ProductSearchService implements ProductSearchUseCase {
     @Override
     public ProductSearchResult search(String keyword, Long categoryId, String brand,
                                       int page, int size) {
-        int pageSize = size <= 0 ? DEFAULT_PAGE_SIZE : Math.clamp(size, 1, MAX_PAGE_SIZE);
+        Page paging = Page.of(page, size, MAX_PAGE_SIZE);
         return searchIndex.search(new ProductSearchIndex.SearchQuery(
                 keyword == null ? "" : keyword.trim(),
-                categoryId, brand, Math.max(page, 0), pageSize));
+                categoryId, brand, paging.number(), paging.size()));
     }
 
     /**
