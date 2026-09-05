@@ -1,4 +1,4 @@
-import { useApi } from '~/composables/useApi'
+import { errorMessage, useApi } from '~/composables/useApi'
 import type { NotificationView } from '~/types/api'
 
 /**
@@ -24,7 +24,7 @@ export function useNotifications() {
         authenticated: true,
       })
     } catch (cause) {
-      error.value = (cause as { message?: string }).message ?? '無法載入通知'
+      error.value = errorMessage(cause, '無法載入通知')
     } finally {
       loading.value = false
     }

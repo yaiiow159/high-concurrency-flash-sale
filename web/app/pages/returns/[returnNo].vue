@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { errorMessage } from '~/composables/useApi'
 import { useReturns } from '~/composables/useReturns'
 import { useAuthStore } from '~/stores/auth'
 import type { ReturnRequestView } from '~/types/api'
@@ -33,7 +34,7 @@ async function load() {
   try {
     request.value = await findOne(returnNo)
   } catch (cause) {
-    loadError.value = (cause as { message?: string }).message ?? '無法載入退貨單'
+    loadError.value = errorMessage(cause, '無法載入退貨單')
   } finally {
     loading.value = false
   }
@@ -46,7 +47,7 @@ async function withdraw() {
     await cancel(returnNo)
     await load()
   } catch (cause) {
-    actionError.value = (cause as { message?: string }).message ?? '撤回失敗'
+    actionError.value = errorMessage(cause, '撤回失敗')
   } finally {
     cancelling.value = false
   }

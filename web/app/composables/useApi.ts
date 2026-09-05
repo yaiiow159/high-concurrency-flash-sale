@@ -22,6 +22,43 @@ export class ApiError extends Error {
 }
 
 /**
+ * 從一個 catch 到的東西取出可以顯示給使用者的訊息。
+ *
+ * <h2>為什麼不是就地寫 `(cause as { message?: string }).message`</h2>
+ *
+ * 那個寫法在專案裡出現過 30 次，而它有兩個問題：
+ *
+ * 1. **型別斷言是宣稱，不是檢查。** catch 到的不保證是 Error——
+ *    網路層可能丟字串、丟 DOMException。此時 `.message` 是 undefined，
+ *    畫面安靜地顯示 fallback，而真正的原因就消失了，
+ *    連 console 都不會留下線索。
+ * 2. **拿不到錯誤碼。** `ApiError` 帶著 code 與 retryable，
+ *    而斷言成 `{ message }` 等於把它們丟掉——
+ *    於是「可重試」與「業務錯誤」在 UI 上長得一模一樣。
+ *
+ * 這個函式只做取訊息這件事；要分流的地方仍然應該用
+ * `error instanceof ApiError` 去看 code，那是有意義的分支。
+ *
+ * @param fallback 取不到訊息時顯示的字。**必填**——
+ *                 沒有預設值是刻意的：一個泛用的「操作失敗」
+ *                 對使用者毫無幫助，每個呼叫端都該說清楚是什麼失敗了
+ */
+export function errorMessage(cause: unknown, fallback: string): string {
+  if (cause instanceof ApiError) {
+    return cause.message || fallback
+  }
+  // 非 ApiError 的 Error（TypeError、AbortError…）也有 message，
+  // 但它們是技術訊息，不適合直接給使用者看——記進 console 供排查，
+  // 畫面顯示呼叫端寫的那句話
+  if (cause instanceof Error) {
+    console.error(fallback, cause)
+    return fallback
+  }
+  console.error(fallback, cause)
+  return fallback
+}
+
+/**
  * 後端 API 的呼叫封裝。
  *
  * 集中處理三件事：帶令牌、401 時自動續期並重送、錯誤轉譯。

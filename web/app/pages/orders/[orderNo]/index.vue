@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useApi } from '~/composables/useApi'
+import { errorMessage, useApi } from '~/composables/useApi'
 import { useReturns } from '~/composables/useReturns'
 import { useReviews } from '~/composables/useReviews'
 import type { OrderView, PaymentIntentView, ShipmentView } from '~/types/api'
@@ -83,7 +83,7 @@ async function pay() {
     // 導向模擬金流頁；真實金流同樣是離站，回來時靠回調而非這個導向
     window.location.href = intent.paymentUrl
   } catch (error) {
-    loadError.value = (error as { message?: string }).message ?? '無法發起付款'
+    loadError.value = errorMessage(error, '無法發起付款')
     paying.value = false
   }
 }

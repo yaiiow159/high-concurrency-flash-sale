@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useApi } from '~/composables/useApi'
+import { errorMessage, useApi } from '~/composables/useApi'
 import type { ProductSearchResult } from '~/types/api'
 
 /**
@@ -33,7 +33,7 @@ async function run() {
     }
     result.value = await request<ProductSearchResult>(`/api/v1/search/products?${params}`)
   } catch (cause) {
-    error.value = (cause as { message?: string }).message ?? '搜尋失敗'
+    error.value = errorMessage(cause, '搜尋失敗')
   } finally {
     loading.value = false
   }

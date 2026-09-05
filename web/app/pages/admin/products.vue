@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { errorMessage } from '~/composables/useApi'
 import { useAdmin } from '~/composables/useAdmin'
 import type { ApiResponse, CategoryView, ProductView } from '~/types/api'
 
@@ -62,7 +63,7 @@ async function load() {
     hasNextPage.value = batch.length > PAGE_SIZE
     rows.value = hasNextPage.value ? batch.slice(0, PAGE_SIZE) : batch
   } catch (cause) {
-    error.value = (cause as { message?: string }).message ?? '無法載入商品清單'
+    error.value = errorMessage(cause, '無法載入商品清單')
     rows.value = []
     hasNextPage.value = false
   } finally {
@@ -91,7 +92,7 @@ async function toggleShelf(product: ProductView) {
     await (goingOnline ? putOnShelf(product.productId) : takeOffShelf(product.productId))
     await load()
   } catch (cause) {
-    error.value = (cause as { message?: string }).message ?? '操作失敗'
+    error.value = errorMessage(cause, '操作失敗')
   } finally {
     busy.value = null
   }
@@ -106,7 +107,7 @@ async function onCreated(payload: unknown) {
     tab.value = 'DRAFT'
     await load()
   } catch (cause) {
-    error.value = (cause as { message?: string }).message ?? '建立商品失敗'
+    error.value = errorMessage(cause, '建立商品失敗')
   }
 }
 

@@ -1,4 +1,4 @@
-import { useApi } from '~/composables/useApi'
+import { errorMessage, useApi } from '~/composables/useApi'
 import type { AddressPayload, AddressView } from '~/types/api'
 
 /**
@@ -26,7 +26,7 @@ export function useAddresses() {
         authenticated: true,
       })
     } catch (cause) {
-      error.value = (cause as { message?: string }).message ?? '無法載入地址'
+      error.value = errorMessage(cause, '無法載入地址')
     } finally {
       loading.value = false
     }

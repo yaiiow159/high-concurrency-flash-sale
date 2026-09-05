@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { errorMessage } from '~/composables/useApi'
 import { useMembership } from '~/composables/useMembership'
 import { useAuthStore } from '~/stores/auth'
 import type {
@@ -59,7 +60,7 @@ async function redeem(coupon: ExchangeableCouponView) {
     // 而前端自己算的餘額會在兌換失敗重試後與實際值分岔
     await load()
   } catch (cause) {
-    error.value = (cause as { message?: string }).message ?? '兌換失敗'
+    error.value = errorMessage(cause, '兌換失敗')
   } finally {
     exchanging.value = null
   }
