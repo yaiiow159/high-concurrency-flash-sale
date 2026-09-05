@@ -137,10 +137,21 @@ export interface ClaimableCouponView {
   claimed: boolean
 }
 
-/** 商品圖片。`url` 是完整網址（資料庫只存物件鍵，網域由後端設定組出來）。 */
+/**
+ * 商品圖片。
+ *
+ * **每個用途各有一個網址，由後端挑好**——前端不要自己拼變體名稱，
+ * 那是後端的實作細節。變體還沒產生（或永遠不會，例如 WebP）時
+ * 這三個欄位會是同一個原圖網址。
+ */
 export interface ProductImageView {
   imageId: number
+  /** 商品頁主視覺 */
   url: string
+  /** 列表卡片 */
+  listUrl: string
+  /** 縮圖列與後台 */
+  thumbUrl: string
   sortOrder: number
 }
 

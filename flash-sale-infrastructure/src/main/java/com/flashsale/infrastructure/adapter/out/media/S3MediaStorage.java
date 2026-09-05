@@ -6,6 +6,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
@@ -63,6 +65,29 @@ public class S3MediaStorage implements MediaStorage {
                         .build())
                 .url()
                 .toString();
+    }
+
+    @Override
+    public byte[] download(String objectKey) {
+        try {
+            return client.getObjectAsBytes(GetObjectRequest.builder()
+                    .bucket(properties.bucket())
+                    .key(objectKey)
+                    .build()).asByteArray();
+        } catch (NoSuchKeyException absent) {
+            return null;
+        }
+    }
+
+    @Override
+    public void put(String objectKey, byte[] content, String contentType) {
+        client.putObject(PutObjectRequest.builder()
+                        .bucket(properties.bucket())
+                        .key(objectKey)
+                        .contentType(contentType)
+                        .contentLength((long) content.length)
+                        .build(),
+                RequestBody.fromBytes(content));
     }
 
     @Override

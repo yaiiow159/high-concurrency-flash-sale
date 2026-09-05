@@ -11,10 +11,13 @@ import java.util.Set;
  * <p>存的是<b>物件鍵</b>而不是完整 URL：換 CDN 網域、換儲存端點
  * 都不該需要改資料。完整 URL 由應用層用設定裡的 base 組出來。
  *
- * @param sortOrder 0 為主圖。列表只顯示主圖，商品頁顯示全部
+ * @param sortOrder      0 為主圖。列表只顯示主圖，商品頁顯示全部
+ * @param variantsReady  尺寸變體是否已產生。縮圖走慢車道，
+ *                       所以剛掛上的圖會是 false；WebP 與過小的圖永遠是 false
  */
 public record ProductImage(Long id, Long productId, String objectKey,
-                           String contentType, long byteSize, int sortOrder) {
+                           String contentType, long byteSize, int sortOrder,
+                           boolean variantsReady) {
 
     /**
      * 允許的格式。
@@ -37,6 +40,17 @@ public record ProductImage(Long id, Long productId, String objectKey,
         if (byteSize <= 0) {
             throw new BusinessException(ErrorCode.INVALID_PARAMETER, "檔案大小必須大於 0");
         }
+    }
+
+    /**
+     * 取這個用途下最合適的物件鍵。
+     *
+     * <p>變體還沒產生（或永遠不會產生）時退回原圖——
+     * <b>由後端決定，不讓前端猜</b>：前端猜的話得知道變體的命名規則，
+     * 而那是後端的實作細節，改了就會全站破圖。
+     */
+    public String keyFor(ImageVariant variant) {
+        return variantsReady ? variant.keyOf(objectKey) : objectKey;
     }
 
     public static void requireSupported(String contentType, long byteSize) {

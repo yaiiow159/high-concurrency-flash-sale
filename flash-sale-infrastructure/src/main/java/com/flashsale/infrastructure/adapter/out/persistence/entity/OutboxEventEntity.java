@@ -44,7 +44,14 @@ public class OutboxEventEntity {
     private String eventType;
 
     /** 聚合根 id，投遞時作為 MQ 分區鍵，保證同一訂單的事件不會亂序。 */
-    @Column(name = "aggregate_id", nullable = false, length = 64, updatable = false)
+    /**
+     * 聚合識別，同時是 MQ 的分區鍵。
+     *
+     * <p>寬度對齊 {@code product_image.object_key}（V23）：訂單事件放訂單號，
+     * 圖片事件放物件鍵，而後者是 68 個字元。
+     * 這裡與 DDL 不一致的話 Hibernate 不會抱怨，只會在 insert 時被資料庫截斷。
+     */
+    @Column(name = "aggregate_id", nullable = false, length = 128, updatable = false)
     private String aggregateId;
 
     @Lob

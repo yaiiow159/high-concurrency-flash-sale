@@ -17,7 +17,7 @@ withDefaults(defineProps<{
   eyebrow?: string
   description?: string
   ratings?: Record<number, ProductRatingView>
-  images?: Record<number, { url: string }>
+  images?: Record<number, { listUrl: string }>
   ranked?: boolean
   moreTo?: RouteLocationRaw | null
 }>(), { eyebrow: undefined, description: undefined, ranked: false, moreTo: null })
@@ -45,7 +45,7 @@ withDefaults(defineProps<{
         <ProductCard
           :product="product"
           :rating="ratings?.[product.productId] ?? null"
-          :image-url="images?.[product.productId]?.url ?? null"
+          :image-url="images?.[product.productId]?.listUrl ?? null"
           :rank="ranked ? index + 1 : null"
         />
       </li>

@@ -27,6 +27,14 @@ public interface ProductImageRepository {
     /** 批次取主圖（sortOrder 最小的那一張），供列表一次帶整頁。 */
     Map<Long, ProductImage> findPrimaryByProductIds(List<Long> productIds);
 
+    /**
+     * 標記某個物件的變體已產生。
+     *
+     * <p>依<b>物件鍵</b>更新而不是圖片 ID：同一張圖可能掛在多個商品上，
+     * 而變體是物件的屬性，產生一次就對所有掛載都成立。
+     */
+    void markVariantsReady(String objectKey);
+
     /** 記下一張已簽發的上傳授權，供孤兒對帳判斷寬限期。 */
     void recordUpload(String objectKey, Long userId);
 

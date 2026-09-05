@@ -331,7 +331,7 @@ useHead(() => ({ title: product.value?.name ?? '商品' }))
               :aria-current="index === activeImage"
               @click="activeImage = index"
             >
-              <img :src="image.url" alt="" loading="lazy" class="h-full w-full object-cover">
+              <img :src="image.thumbUrl" alt="" loading="lazy" class="h-full w-full object-cover">
             </button>
           </li>
         </ul>
