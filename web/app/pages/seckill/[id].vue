@@ -82,9 +82,17 @@ const queueHint = computed(() => {
     : `${ahead}，約 ${minutes} 分鐘`
 })
 
-useHead(() => ({
-  title: activity.value ? `${activity.value.productName} — 限時搶購` : '限時搶購',
-}))
+const { seo } = useSeo()
+watchEffect(() => {
+  const current = activity.value
+  seo({
+    title: current ? `${current.productName} — 限時搶購` : '限時搶購',
+    description: current
+      ? `${current.productName} 限時特價 NT$ ${current.seckillPrice}，每人限購 ${current.perUserLimit} 件。`
+      : undefined,
+    path: `/seckill/${route.params.id}`,
+  })
+})
 </script>
 
 <template>

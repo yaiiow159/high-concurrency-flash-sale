@@ -148,6 +148,28 @@ public class JpaProductRepository implements ProductRepository {
                 .toList();
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    @SuppressWarnings("unchecked")
+    public List<Long> findOnShelfIdsPage(int size, int offset) {
+        List<Number> ids = entityManager.createNativeQuery("""
+                        select id from product where status = 'ON_SHELF'
+                        order by id asc limit :size offset :offset
+                        """)
+                .setParameter("size", size)
+                .setParameter("offset", offset)
+                .getResultList();
+        return ids.stream().map(Number::longValue).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long countOnShelf() {
+        return ((Number) entityManager.createNativeQuery(
+                "select count(*) from product where status = 'ON_SHELF'")
+                .getSingleResult()).longValue();
+    }
+
     /** 依 id 批次取上架商品。首頁人工選品用，已下架的不會回來。 */
     @Override
     @Transactional(readOnly = true)

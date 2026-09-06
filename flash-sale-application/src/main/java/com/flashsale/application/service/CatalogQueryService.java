@@ -74,6 +74,18 @@ public class CatalogQueryService implements CatalogQueryUseCase {
         return ProductPage.of(pageRows.stream().map(ProductView::fromSummary).toList(), nextCursor);
     }
 
+    /** sitemap 一頁最多這麼多。協定上限是 5 萬，抓一萬是為了讓單一檔案不要太大。 */
+    private static final int SITEMAP_PAGE_SIZE = 10_000;
+
+    @Override
+    @Transactional(readOnly = true)
+    public SitemapPage sitemapProductIds(int page, int size) {
+        int capped = Math.min(Math.max(size, 1), SITEMAP_PAGE_SIZE);
+        int offset = Math.max(page, 0) * capped;
+        return new SitemapPage(productRepository.findOnShelfIdsPage(capped, offset),
+                productRepository.countOnShelf());
+    }
+
     @Override
     @Transactional(readOnly = true)
     public List<ProductView> findProductsByIds(List<Long> productIds) {

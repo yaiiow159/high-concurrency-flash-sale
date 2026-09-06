@@ -70,7 +70,12 @@ function moreLink(section: HomeSectionView) {
 
 onMounted(loadDecorations)
 
-useHead({ title: '閃購 — 限時搶購與熱銷商品' })
+const { seo } = useSeo()
+seo({
+  title: '閃購 — 限時搶購與熱銷商品',
+  description: '限時搶購、熱門商品與當季選品，線上下單快速到貨。',
+  path: '/',
+})
 </script>
 
 <template>

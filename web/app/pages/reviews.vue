@@ -77,7 +77,9 @@ watch(() => auth.isAuthenticated, (authenticated) => {
   }
 })
 
-useHead({ title: '我的評價' })
+const { seo } = useSeo()
+// 個人化頁面：被搜尋引擎收錄等於把這種路徑公開在搜尋結果上
+seo({ title: '我的評價', noindex: true })
 </script>
 
 <template>

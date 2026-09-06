@@ -60,7 +60,9 @@ watch(() => auth.isAuthenticated, (loggedIn) => {
   }
 })
 
-useHead({ title: '收貨地址' })
+const { seo } = useSeo()
+// 個人化頁面：被搜尋引擎收錄等於把這種路徑公開在搜尋結果上
+seo({ title: '收貨地址', noindex: true })
 </script>
 
 <template>

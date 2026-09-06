@@ -101,7 +101,9 @@ async function remove(skuId: number) {
 onMounted(refresh)
 watch(() => auth.isAuthenticated, refresh)
 
-useHead({ title: '購物車' })
+const { seo } = useSeo()
+// 個人化頁面：被搜尋引擎收錄等於把這種路徑公開在搜尋結果上
+seo({ title: '購物車', noindex: true })
 </script>
 
 <template>

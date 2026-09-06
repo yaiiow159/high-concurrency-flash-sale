@@ -90,7 +90,15 @@ function pick(suggestion: string) {
   submit()
 }
 
-useHead(() => ({ title: keyword.value ? `搜尋「${keyword.value}」` : '搜尋商品' }))
+const { seo } = useSeo()
+// 搜尋結果頁 noindex：每一組關鍵字都是一個網址，收錄它們只會產生大量
+// 內容重複的低品質頁面，而那會拖累整站的評價
+watchEffect(() => {
+  seo({
+    title: keyword.value ? `搜尋「${keyword.value}」` : '搜尋商品',
+    noindex: true,
+  })
+})
 </script>
 
 <template>

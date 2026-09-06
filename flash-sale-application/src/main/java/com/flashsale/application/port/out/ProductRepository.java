@@ -25,6 +25,17 @@ public interface ProductRepository {
     /** 所有已上架商品的 ID。 */
     java.util.Set<Long> findOnShelfIds();
 
+    /**
+     * 上架商品的 id，依 id 遞增分頁。供 sitemap 產生。
+     *
+     * <p>只取主鍵、走覆蓋索引，深分頁在這裡不是問題——而且它是爬蟲一天打幾次的路徑，
+     * 不是使用者翻頁。
+     */
+    List<Long> findOnShelfIdsPage(int size, int offset);
+
+    /** 上架商品總數。sitemap 索引要據此算出有幾個分片。 */
+    long countOnShelf();
+
     /** 依 id 批次取上架商品。首頁的人工選品用，已下架的不會回來。 */
     List<ProductSummary> findOnShelfSummariesByIds(List<Long> productIds);
 

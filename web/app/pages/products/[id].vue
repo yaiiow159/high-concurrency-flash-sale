@@ -6,7 +6,7 @@ import { useCheckout } from '~/composables/useCheckout'
 import { useCartStore } from '~/stores/cart'
 import { useAuthStore } from '~/stores/auth'
 import type {
-  ApiResponse, CategoryView, ProductImageView, ProductPage, ProductView,
+  ApiResponse, CategoryView, ProductImageView, ProductPage, ProductRatingView, ProductView,
   SkuStockView, SkuView,
 } from '~/types/api'
 
@@ -46,23 +46,19 @@ const breadcrumb = computed(() => {
     : pathTo(categoryData.value?.data ?? [], categoryId)
 })
 
-/** 商品圖片（ADR-0027）。 */
-const images = ref<ProductImageView[]>([])
+/**
+ * 商品圖片（ADR-0027）。
+ *
+ * <b>在 SSR 就取</b>，不是等 onMounted——`og:image` 必須出現在原始 HTML 裡。
+ * LINE 與 FB 的爬蟲完全不執行 JS，客戶端才填的話分享出去永遠沒有預覽圖。
+ * 圖片本身匿名可讀且變動極慢，併進 SSR 不影響這一頁的快取策略。
+ */
+const { data: imageData } = await useFetch<ApiResponse<ProductImageView[]>>(
+  `/api/v1/catalog/products/${productId}/images`,
+  { key: `product-images-${productId}`, default: () => null })
+
+const images = computed<ProductImageView[]>(() => imageData.value?.data ?? [])
 const activeImage = ref(0)
-
-async function loadImages() {
-  try {
-    const { request } = useApi()
-    images.value = await request<ProductImageView[]>(
-      `/api/v1/catalog/products/${productId}/images`)
-    activeImage.value = 0
-  } catch {
-    // fail-open：圖片載不到就退回色塊，不該讓整頁失敗
-    images.value = []
-  }
-}
-
-onMounted(loadImages)
 
 const heroImage = computed(() => images.value[activeImage.value]?.url ?? null)
 
@@ -126,6 +122,19 @@ const {
   rating, reviews, loading: reviewsLoading, hasMore: hasMoreReviews,
   load: loadReviews, loadMore: loadMoreReviews,
 } = useReviews()
+
+/**
+ * 評分聚合另外在 SSR 取一份，只給結構化資料用。
+ *
+ * 評價清單仍然留在客戶端（它變動快，跟著 ISR 快取會讓新評價看不到），
+ * 但 `aggregateRating` 是 rich snippet 的星等來源，不在原始 HTML 裡就等於沒有。
+ * 聚合值本來就是快取得起的——它只是一個平均分。
+ */
+const { data: ratingData } = await useFetch<ApiResponse<ProductRatingView>>(
+  `/api/v1/catalog/products/${productId}/rating`,
+  { key: `product-rating-${productId}`, default: () => null })
+
+const seoRating = computed(() => rating.value ?? ratingData.value?.data ?? null)
 
 onMounted(() => {
   void loadReviews(productId)
@@ -226,7 +235,35 @@ watch(selectedSkuId, () => {
   }
 })
 
-useHead(() => ({ title: product.value?.name ?? '商品' }))
+const { seo, productJsonLd, breadcrumbJsonLd } = useSeo()
+
+/**
+ * SEO。描述沒有商品簡介時退回一句由品名組出來的話——
+ * 空的 description 會讓分享卡片只剩一個標題。
+ */
+watchEffect(() => {
+  const current = product.value
+  if (!current) {
+    return
+  }
+  seo({
+    title: `${current.name}${current.brand ? ` | ${current.brand}` : ''}`,
+    description: current.description
+      || `${current.name} 現正販售中，多種規格可選，線上下單快速到貨。`,
+    image: heroImage.value,
+    path: `/products/${current.productId}`,
+  })
+  productJsonLd(current, seoRating.value, heroImage.value)
+  breadcrumbJsonLd([
+    { name: '首頁', path: '/' },
+    { name: '全部商品', path: '/products' },
+    ...breadcrumb.value.map((node) => ({
+      name: node.name,
+      path: `/products?category=${node.categoryId}`,
+    })),
+    { name: current.name, path: `/products/${current.productId}` },
+  ])
+})
 </script>
 
 <template>
