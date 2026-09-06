@@ -30,7 +30,8 @@ public final class OrderMapper {
                 order.paidAt(),
                 order.closeReason(),
                 order.shippingFee(),
-                order.shippingMethod().name());
+                order.shippingMethod().name(),
+                order.buyerNote());
 
         ShippingInfo shipping = order.shippingInfo();
         if (shipping != null) {
@@ -72,7 +73,8 @@ public final class OrderMapper {
                         .toList(),
                 entity.getVersion(),
                 entity.getShippingFee(),
-                ShippingMethod.valueOf(entity.getShippingMethod()));
+                ShippingMethod.valueOf(entity.getShippingMethod()),
+                entity.buyerNote());
     }
 
     /** 秒殺訂單與 V8 之前建立的訂單都沒有收貨資訊。 */

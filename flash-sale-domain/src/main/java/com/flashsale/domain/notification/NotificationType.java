@@ -16,5 +16,8 @@ public enum NotificationType {
     ORDER_CANCELLED,
 
     /** 退款已送出。錢什麼時候會回到帳上是退貨流程裡最常被問的一件事。 */
-    REFUND_SENT
+    REFUND_SENT,
+
+    /** 訂閱的商品補貨了。 */
+    RESTOCKED
 }

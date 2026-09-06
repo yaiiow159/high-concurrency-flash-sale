@@ -33,7 +33,11 @@ public record PlaceOrderRequest(
         Long couponId,
 
         /** 配送方式；省略為宅配。 */
-        ShippingMethod shippingMethod
+        ShippingMethod shippingMethod,
+
+        /** 買家備註。建立後不可改——它是出貨依據。 */
+        @Size(max = 200, message = "備註不可超過 200 字")
+        String buyerNote
 ) {
 
     public PlaceOrderUseCase.PlaceOrderCommand toCommand(Long userId) {
@@ -41,7 +45,7 @@ public record PlaceOrderRequest(
                 items.stream()
                         .map(item -> new PlaceOrderUseCase.OrderItem(item.skuId(), item.quantity()))
                         .toList(),
-                couponId, shippingMethod);
+                couponId, shippingMethod, buyerNote);
     }
 
     /** 買哪個規格、幾件。 */

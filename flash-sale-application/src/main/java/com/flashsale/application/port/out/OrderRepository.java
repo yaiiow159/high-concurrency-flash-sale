@@ -20,6 +20,16 @@ public interface OrderRepository {
 
     Optional<Order> findByOrderNo(OrderNo orderNo);
 
+    /**
+     * 讀寫內部註記。
+     *
+     * <p><b>刻意不走 {@link Order} 聚合</b>：它是營運的工作筆記，
+     * 不是訂單事實的一部分——訂單建立後不可變那條規則不該因為它被打破。
+     */
+    Optional<String> findStaffNote(OrderNo orderNo);
+
+    void updateStaffNote(OrderNo orderNo, String note);
+
     /** 取出訂單並鎖住那一列，直到當前交易結束。 */
     Optional<Order> findByOrderNoForUpdate(OrderNo orderNo);
 

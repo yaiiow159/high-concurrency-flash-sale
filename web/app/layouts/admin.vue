@@ -21,6 +21,7 @@ const SECTIONS: Array<{ title: string, items: NavItem[] }> = [
       { to: '/admin', label: '總覽', exact: true },
       { to: '/admin/shipments', label: '出貨處理' },
       { to: '/admin/returns', label: '退貨審核' },
+      { to: '/admin/questions', label: '問答管理' },
     ],
   },
   {
@@ -34,6 +35,7 @@ const SECTIONS: Array<{ title: string, items: NavItem[] }> = [
   {
     title: '系統',
     items: [
+      { to: '/admin/reports', label: '銷售報表' },
       { to: '/admin/ops', label: '維運工具' },
     ],
   },

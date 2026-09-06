@@ -108,7 +108,7 @@ public class OrderPlacementService implements PlaceOrderUseCase {
 
         Order order = Order.place(orderNo, command.userId(), command.requestId(),
                 priced.lines(), shippingInfo, priced.discounts(), priced.payable(),
-                priced.shippingFee(), command.shippingMethod(), now);
+                priced.shippingFee(), command.shippingMethod(), command.buyerNote(), now);
         Order saved = orderRepository.saveIfAbsent(order)
                 // 走到這裡代表兩個並行請求帶著同一個 requestId，
                 // 而資料庫的唯一索引擋下了第二個。這是冪等的最後一道，不是錯誤。

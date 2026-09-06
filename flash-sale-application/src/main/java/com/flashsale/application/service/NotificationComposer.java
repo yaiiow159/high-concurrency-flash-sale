@@ -7,7 +7,12 @@ import java.math.BigDecimal;
 import java.text.NumberFormat;
 import java.util.Locale;
 
-/** 把事件變成使用者讀得懂的文字。 */
+/**
+ * 把<b>訂單事件</b>變成使用者讀得懂的文字。
+ *
+ * <p>刻意用窮盡的 switch：新增通知類型時這裡會編譯失敗，
+ * 逼人回答「這一種要說什麼」，而不是安靜地寄出一封空白的信。
+ */
 @Component
 public class NotificationComposer {
 
@@ -39,6 +44,11 @@ public class NotificationComposer {
                     // 不承諾具體天數：那取決於發卡行，寫死會變成做不到的承諾
                     "退貨單 %s 的退款 NT$ %s 已送出，將依原付款方式退回。"
                             .formatted(referenceNo, money(amount)));
+            // 到貨通知不經過這裡：它要帶商品名稱，而這個方法只拿得到單號與金額。
+            // 文字在 RestockNotificationService 組。留這個 case 是為了讓
+            // switch 保持窮盡——下一個新增的類型仍然會在這裡編譯失敗
+            case RESTOCKED -> throw new IllegalArgumentException(
+                    "到貨通知的文字由 RestockNotificationService 組，不走這裡");
         };
     }
 
