@@ -22,18 +22,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * 購物車。
- *
- * <p><b>價格在每次讀取時從 Catalog 重新取，不存進購物車。</b>
- * 這是購物車與訂單最重要的差異：訂單存快照（當初成交多少錢），
- * 購物車用引用（現在買多少錢）。存錯邊的後果是使用者看到一個價格、
- * 結帳時被收另一個價格。
- *
- * <p><b>購物車完全不碰庫存。</b>加入購物車不預扣也不預留——
- * 否則任何人都能靠一個迴圈塞滿購物車，把全站庫存凍結。
- * 庫存只在結帳當下檢查與扣減。
- */
+/** 購物車。 */
 @Service
 public class CartService implements CartUseCase {
 
@@ -94,13 +83,7 @@ public class CartService implements CartUseCase {
         cartRepository.clear(userId);
     }
 
-    /**
-     * 合併未登入期間的本地購物車。
-     *
-     * <p>不存在的 SKU 直接略過而不是報錯：本地購物車可能放了好幾天，
-     * 期間商品被下架是完全正常的。讓登入這個動作因為購物車裡有一件下架商品
-     * 而失敗，是把系統的內部狀態變成使用者的問題。
-     */
+    /** 合併未登入期間的本地購物車。 */
     @Override
     @Transactional
     public CartView merge(Long userId, List<LocalItem> localItems) {
@@ -136,8 +119,8 @@ public class CartService implements CartUseCase {
      * 補上 Catalog 的資料，並處理已下架的品項。
      *
      * @param persistUnavailableRemoval 是否把「移除已下架品項」的結果寫回資料庫。
-     *                                  只有單純讀取時才寫回——寫入操作已經有自己的 save，
-     *                                  在那裡再存一次只是多一次往返
+     * 只有單純讀取時才寫回——寫入操作已經有自己的 save，
+     * 在那裡再存一次只是多一次往返
      */
     private CartView enrich(Cart cart, boolean persistUnavailableRemoval) {
         if (cart.isEmpty()) {
@@ -182,12 +165,7 @@ public class CartService implements CartUseCase {
         return new CartView(items, total, cart.totalQuantity(), removed);
     }
 
-    /**
-     * 批次載入購物車裡所有 SKU 的商品資料。
-     *
-     * <p><b>刻意批次而非逐筆。</b>購物車最多 50 個品項，
-     * 逐筆查就是 50 次資料庫往返，而購物車頁是使用者反覆重整的頁面。
-     */
+    /** 批次載入購物車裡所有 SKU 的商品資料。 */
     private Map<Long, Priced> loadCatalog(List<Long> skuIds) {
         Map<Long, Priced> result = new HashMap<>();
         for (Product product : productRepository.findBySkuIds(skuIds)) {

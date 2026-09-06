@@ -18,15 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.math.BigDecimal;
 import java.util.List;
 
-/**
- * 商品目錄 API。
- *
- * <p>全部開放匿名——商品頁不該逼使用者先登入才能看。
- * 這也是這些端點能被 CDN 快取的前提：帶 {@code Authorization} 的請求無法共用快取。
- *
- * <p>回應<b>不含庫存</b>：庫存變動極快，混進商品資料會讓整個商品頁失去快取價值。
- * 前端另外請求庫存（與秒殺頁同一個手法）。
- */
+/** 商品目錄 API。 */
 @RestController
 @RequestMapping("/api/v1/catalog")
 @Tag(name = "商品目錄", description = "類目、商品與 SKU 查詢")

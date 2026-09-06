@@ -25,21 +25,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/**
- * 一張券只能用一次——對著<b>真實的 MySQL</b> 執行。
- *
- * <h2>為什麼非得用真的資料庫</h2>
- *
- * <p>券的核銷寫成一句條件式 UPDATE（{@code WHERE status = 'ISSUED'}），
- * 它的正確性完全來自資料庫在同一個語句內完成檢查與寫入。
- * mock 測不到這件事：mock 的 {@code redeem} 回什麼就是什麼，
- * 換成「先 SELECT 再 UPDATE」的錯誤實作，mock 測試照樣全綠。
- *
- * <p>這與退貨額度那次（{@code ReturnConcurrencyIntegrationTest}）是同一類
- * read-modify-write，但解法刻意不同：退貨的臨界區跨多個語句、只能用悲觀鎖；
- * 券可以壓成一句，就不該加鎖。<b>能原子化的東西不要用鎖保護</b>——
- * 鎖是多一個會失敗的東西。
- */
+/** 一張券只能用一次——對著<b>真實的 MySQL</b> 執行。 */
 @SpringBootTest
 @Testcontainers
 @DisplayName("優惠券核銷併發")
@@ -85,17 +71,7 @@ class CouponConcurrencyIntegrationTest {
     /** {@code redeem} 是 MANDATORY 傳播——沒有外層交易會直接拋例外，那也是它該有的行為。 */
     @Autowired private TransactionTemplate transactionTemplate;
 
-    /**
-     * 發一張 {@code expiresInSeconds} 秒後到期的券，回傳 ID。
-     * 規則沿用 V15 種下的那筆示範優惠。
-     *
-     * <p><b>到期時間用 {@code UTC_TIMESTAMP()} 由資料庫自己算，不從 Java 傳。</b>
-     * Spring Boot 3 預設 {@code hibernate.timezone.default_storage=NORMALIZE_UTC}，
-     * 應用程式寫進 DATETIME 欄位的是 UTC；而 {@code Timestamp.from(instant)}
-     * 經由裸 JDBC 走的是 JVM 預設時區。兩者差一個時區偏移，
-     * 而那個差距足以讓「已過期」的券看起來還有八小時可用——
-     * 第一版的這個測試就是這樣誤報成產品缺陷的。
-     */
+    /** 發一張 {@code expiresInSeconds} 秒後到期的券，回傳 ID。 規則沿用 V15 種下的那筆示範優惠。 */
     private long issueCoupon(int expiresInSeconds) {
         Long promotionId = jdbcTemplate.queryForObject(
                 "select id from promotion order by id limit 1", Long.class);

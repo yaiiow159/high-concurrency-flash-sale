@@ -20,12 +20,7 @@ public interface OutboxEventJpaRepository extends JpaRepository<OutboxEventEntit
             """)
     List<OutboxEventEntity> findPending(Limit limit);
 
-    /**
-     * 清理已投遞的舊紀錄。
-     *
-     * <p>Outbox 表寫入量等同訂單量，不清理會在幾次大促後變成效能瓶頸——
-     * 每次 {@code findPending} 都得掃過越來越大的表。
-     */
+    /** 清理已投遞的舊紀錄。 */
     @Modifying
     @Query("delete from OutboxEventEntity e where e.status = 'PUBLISHED' and e.publishedAt < :before")
     int deletePublishedBefore(@Param("before") Instant before);

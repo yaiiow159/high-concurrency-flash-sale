@@ -14,26 +14,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 
-/**
- * 圖片對帳（ADR-0027 決策 5）。
- *
- * <h2>系統的第六條對帳，也是第一條與外部儲存比對的</h2>
- *
- * <p>物件儲存<b>不能參與資料庫的交易</b>，所以兩種失敗必有其一：
- * 先刪物件會破圖，先刪資料庫列會留孤兒。這個系統選了孤兒——
- * 孤兒只花錢，破圖直接砸在客人臉上。
- *
- * <p>因此孤兒是<b>預期會累積的</b>，需要有人定期看。
- *
- * <h2>只報告，不刪除</h2>
- *
- * <p>與庫存對帳同一個立場（CLAUDE.md 規則 8）：
- * 「沒有人指向這個物件」這個判斷一旦有 bug，代價是<b>永久性的資料遺失</b>，
- * 而那沒有補償路徑。庫存算錯還能退回來，圖片刪掉就沒了。
- *
- * <p>因此這裡<b>沒有自動修復的開關</b>——不是預設關閉，是根本不提供。
- * 要刪的話由維運看過報告之後手動處置。
- */
+/** 圖片對帳（ADR-0027 決策 5）。 */
 @Service
 public class MediaReconciliationService {
 
@@ -63,9 +44,9 @@ public class MediaReconciliationService {
     /**
      * @param orphanKeys   桶裡有、但沒有人指向、且已過寬限期的物件
      * @param missingKeys  資料庫指向、但桶裡找不到的物件。<b>這一種比孤兒嚴重</b>——
-     *                     它就是破圖，而且已經發生在使用者眼前
+     * 它就是破圖，而且已經發生在使用者眼前
      * @param inFlight     還在寬限期內的物件。它們看起來像孤兒但不是，
-     *                     列出來是為了讓報告的數字對得起來
+     * 列出來是為了讓報告的數字對得起來
      */
     public record MediaReconciliation(int orphanCount, int missingCount, int inFlightCount,
                                       List<String> orphanKeys, List<String> missingKeys,

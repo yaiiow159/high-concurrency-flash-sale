@@ -35,13 +35,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * 會員積分。
- *
- * <p>這裡盯的是<b>三條套利路徑</b>——那是這個功能與其他功能的差別：
- * 庫存與訂單的錯誤是「系統做錯了」，積分的錯誤是
- * 「使用者發現了一個可以重複做的動作」。
- */
+/** 會員積分。 */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 @DisplayName("會員積分")

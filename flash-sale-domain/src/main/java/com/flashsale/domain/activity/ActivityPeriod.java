@@ -6,11 +6,7 @@ import com.flashsale.domain.shared.ErrorCode;
 import java.time.Instant;
 import java.util.Objects;
 
-/**
- * 活動時間窗口值物件（左閉右開區間 [startAt, endAt)）。
- *
- * <p>採左閉右開可避免「結束當下毫秒」的邊界爭議，也讓連續檔期不會重疊。
- */
+/** 活動時間窗口值物件（左閉右開區間 [startAt, endAt)）。 */
 public record ActivityPeriod(Instant startAt, Instant endAt) {
 
     public ActivityPeriod {

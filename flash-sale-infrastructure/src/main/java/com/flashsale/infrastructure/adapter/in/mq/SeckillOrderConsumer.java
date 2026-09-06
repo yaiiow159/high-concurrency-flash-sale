@@ -8,17 +8,7 @@ import org.slf4j.MDC;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
-/**
- * 建單訊息消費端——削峰後的實際執行者。
- *
- * <p><b>這個類別刻意保持極薄</b>：只做反序列化、日誌脈絡與委派三件事。
- * 業務邏輯全在 {@link OrderCreationUseCase}，因此測試建單邏輯完全不需要 Kafka。
- * 這正是入站配接器該有的樣子——它是協定的翻譯官，不是業務的執行者。
- *
- * <p>錯誤處理由 {@code DefaultErrorHandler} 統一負責：這裡拋出的例外會觸發
- * 指數退避重試，耗盡後自動轉投 DLQ。所以此處<b>不寫 try-catch</b>——
- * 吞掉例外等於讓失敗訊息被靜默 ack 掉，那筆庫存就永遠回不來了。
- */
+/** 建單訊息消費端——削峰後的實際執行者。 */
 @Component
 public class SeckillOrderConsumer {
 

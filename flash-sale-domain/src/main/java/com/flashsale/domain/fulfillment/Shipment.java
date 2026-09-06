@@ -6,26 +6,7 @@ import com.flashsale.domain.shared.ErrorCode;
 import java.time.Instant;
 import java.util.Objects;
 
-/**
- * 出貨單聚合根。
- *
- * <h2>它<b>不</b>持有收貨地址</h2>
- *
- * <p>地址快照已經在訂單上了（見 {@code ShippingInfo}）。出貨單再存一份，
- * 就會出現「訂單寫著寄台北、出貨單寫著寄高雄」這種沒有人能仲裁的狀態——
- * 而那兩份資料理論上永遠應該相同。
- *
- * <p>需要地址時由應用層從訂單取。多一次查詢，換掉一整類對不起來的資料。
- *
- * <h2>物流細節在這裡，不在訂單上</h2>
- *
- * <p>承運商、物流單號、配送失敗原因、重新派送次數——這些是 Fulfillment 的內部狀態。
- * 訂單只記「已出貨」這個里程碑，因為那才是<b>改變買家能做什麼</b>的轉折。
- *
- * <p>一張訂單目前只有一張出貨單。分批出貨（一張訂單拆多個包裹）需要
- * 訂單行與出貨單的多對多關係，那是另一個決策，不在這一步的範圍內；
- * 但 {@code orderNo} 沒有唯一約束，正是為了讓那一步不必改表。
- */
+/** 出貨單聚合根。 */
 public final class Shipment {
 
     private static final int MAX_TRACKING_LENGTH = 64;
@@ -79,13 +60,7 @@ public final class Shipment {
                 dispatchCount, createdAt, shippedAt, deliveredAt);
     }
 
-    /**
-     * 交付承運商。
-     *
-     * <p>物流單號<b>必填</b>：沒有單號的出貨等於沒辦法追蹤，
-     * 而使用者問「我的東西到哪了」時只能回答「不知道」。
-     * 這種狀態在系統裡不該存在得下去。
-     */
+    /** 交付承運商。 */
     public void dispatch(Carrier carrier, String trackingNumber, Instant now) {
         transitionTo(ShipmentStatus.IN_TRANSIT);
         this.carrier = Objects.requireNonNull(carrier, "承運商不可為 null");
@@ -105,11 +80,7 @@ public final class Shipment {
         this.failureReason = null;
     }
 
-    /**
-     * 配送失敗。
-     *
-     * <p>不是終態——後續幾乎都是重新派送而非取消。理由見 {@link ShipmentStatus}。
-     */
+    /** 配送失敗。 */
     public void markFailed(String reason) {
         transitionTo(ShipmentStatus.FAILED);
         this.failureReason = requireReason(reason);
@@ -121,12 +92,7 @@ public final class Shipment {
         this.failureReason = requireReason(reason);
     }
 
-    /**
-     * 這張出貨單是否還能被訂單端直接取消。
-     *
-     * <p>貨一旦離開倉庫就不行了——那時要退錢必須走退貨流程，
-     * 因為庫存不能直接退回可售池（東西還在路上）。
-     */
+    /** 這張出貨單是否還能被訂單端直接取消。 */
     public boolean isCancellable() {
         return !status.hasLeftWarehouse() && !status.isFinal();
     }

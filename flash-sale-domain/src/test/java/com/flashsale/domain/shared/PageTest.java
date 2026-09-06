@@ -7,13 +7,7 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 
-/**
- * 分頁值物件。
- *
- * <p>這裡每一條測的都是<b>某一處真實存在過的分歧</b>：
- * 12 處各自夾取、11 處各自換算 offset，而其中兩處漏了除零守衛。
- * 值物件存在的意義就是讓這些情況只有一份定義。
- */
+/** 分頁值物件。 */
 @DisplayName("分頁")
 class PageTest {
 

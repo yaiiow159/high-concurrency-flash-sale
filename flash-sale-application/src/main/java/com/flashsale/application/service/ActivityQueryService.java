@@ -13,13 +13,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 
-/**
- * 活動查詢服務。
- *
- * <p>活動靜態資訊走多級快取（由 {@link ActivityRepository} 的 Decorator 實作提供），
- * 庫存餘量則每次讀 Redis——餘量變動極快，快取它只會讓前端看到過期數字。
- * 「什麼該快取、什麼不該」是這裡最重要的判斷。
- */
+/** 活動查詢服務。 */
 @Service
 public class ActivityQueryService implements ActivityQueryUseCase {
 
@@ -43,15 +37,7 @@ public class ActivityQueryService implements ActivityQueryUseCase {
     }
 
     @Override
-    /**
-     * {@inheritDoc}
-     *
-     * <p><b>每一檔都會問一次 Redis 餘量，這是刻意的。</b>
-     * 專案禁止「在迴圈中呼叫 Redis」那條規則講的是秒殺熱路徑
-     * （每秒數萬次、單一熱點）；後台清單一天被呼叫幾十次，
-     * 而維運真正想知道的正是「現在還剩多少」——
-     * 為了省下 20 次 Redis 往返而顯示一個過時的數字，換錯了東西。
-     */
+    /** {@inheritDoc} */
     public List<ActivityView> listAllForAdmin(int page, int size) {
         Instant now = clock.instant();
         return activityRepository.findAllForAdmin(size, page * size).stream()

@@ -5,14 +5,7 @@ import com.flashsale.domain.shared.ErrorCode;
 
 import java.util.regex.Pattern;
 
-/**
- * 退貨單號值物件。
- *
- * <p>前綴 {@code RMA-}（Return Merchandise Authorization）。
- * 理由與 {@link com.flashsale.domain.payment.PaymentNo} 相同——
- * 客服工單裡訂單號、付款單號、退貨單號會同時出現，
- * 沒有前綴時三串裸數字沒有人分得出誰是誰。
- */
+/** 退貨單號值物件。 */
 public record ReturnNo(String value) {
 
     public static final String PREFIX = "RMA-";

@@ -4,13 +4,7 @@ import { useReturns } from '~/composables/useReturns'
 import { useAuthStore } from '~/stores/auth'
 import type { ReturnRequestView } from '~/types/api'
 
-/**
- * 退貨單詳情與進度。
- *
- * <p><b>驗收結果誠實顯示，包含「不可再售」。</b>
- * 那一項的錢照退，但商品不會回到可售庫存——
- * 藏起來不說，日後客服被問到時就得臨時解釋一個畫面上從沒出現過的概念。
- */
+/** 退貨單詳情與進度。 */
 const route = useRoute()
 const returnNo = route.params.returnNo as string
 

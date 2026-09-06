@@ -8,17 +8,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
-/**
- * 訂單關閉事件（取消或失敗）。
- *
- * <p>此事件是 Saga 補償鏈的觸發點：消費端據此把預扣的 Redis 庫存退回。
- *
- * <p>攜帶 {@code requestId} 是為了讓補償腳本能做冪等判斷——重複消費不會把庫存退兩次。
- *
- * <p>多品項後改為攜帶 {@code restorations} 清單：一張訂單可能佔用多個活動的庫存，
- * 每一筆都要各自退回。單品項時代那個扁平的 {@code activityId + quantity}
- * 在多品項下會漏退。
- */
+/** 訂單關閉事件（取消或失敗）。 */
 public record OrderCancelledEvent(
         String eventId,
         int schemaVersion,

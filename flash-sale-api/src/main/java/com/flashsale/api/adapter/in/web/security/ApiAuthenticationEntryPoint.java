@@ -14,14 +14,7 @@ import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 
-/**
- * 未認證（401）的回應。
- *
- * <p><b>為什麼需要自訂？</b> Security 過濾鏈在 DispatcherServlet <b>之前</b>執行，
- * 因此 {@code @RestControllerAdvice} 完全攔不到認證失敗——
- * 不處理的話，401 會回 Spring 的預設格式，與其他端點的 {@code ApiResponse} 結構不一致，
- * 前端就得為認證錯誤寫一套特殊解析。
- */
+/** 未認證（401）的回應。 */
 @Component
 public class ApiAuthenticationEntryPoint implements AuthenticationEntryPoint {
 

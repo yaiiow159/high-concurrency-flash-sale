@@ -5,29 +5,7 @@ import java.util.EnumSet;
 import java.util.Map;
 import java.util.Set;
 
-/**
- * 出貨狀態機。
- *
- * <pre>
- *   READY ──dispatch()──▶ IN_TRANSIT ──deliver()───▶ DELIVERED  (終態)
- *     │                       │
- *     │                       └──markFailed()────▶ FAILED      (可重新派送)
- *     └──cancel()──────────────────────────────▶ CANCELLED  (終態)
- *
- *   FAILED ──redispatch()──▶ IN_TRANSIT
- * </pre>
- *
- * <h2>為什麼 FAILED 不是終態</h2>
- *
- * <p>配送失敗在現實中極常見（收件人不在、地址寫錯、超商滿櫃），
- * 而後續幾乎都是<b>重新派送</b>而非取消訂單。若把 FAILED 設成終態，
- * 每一次「明天再送一次」都得先取消再建一張新的出貨單——
- * 那會讓同一批貨在系統裡留下兩筆紀錄，物流單號也對不起來。
- *
- * <p>這與訂單狀態機刻意把終態鎖死是不同的取捨：訂單的終態牽涉金流與庫存，
- * 回頭一次就可能多退一次錢；出貨失敗只是「東西還在路上」，
- * 重試不會產生任何不可逆的副作用。
- */
+/** 出貨狀態機。 */
 public enum ShipmentStatus {
 
     /** 已建立、等待揀貨出庫。 */

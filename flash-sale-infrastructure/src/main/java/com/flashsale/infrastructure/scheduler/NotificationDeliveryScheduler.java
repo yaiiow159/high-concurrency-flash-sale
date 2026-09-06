@@ -19,61 +19,20 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 
-/**
- * 寄送待發的 Email 通知。
- *
- * <p>與 {@code PaymentRefundScheduler} 同一個形狀：MQ 消費端只把通知寫成
- * {@code PENDING}，真正的遠端呼叫留給排程。這樣消費端不會因為某個人的
- * 信箱掛掉而拖住整個分區。
- *
- * <p><b>單筆失敗不中斷整批。</b>一個信箱寄不出去，不該讓其他人的通知也卡著。
- *
- * <h2>跨節點互斥不是可選的</h2>
- *
- * <p>撈取與標記已寄之間隔著一次<b>真正的遠端呼叫</b>，中間沒有任何搶佔或租約。
- * 兩個節點同時跑這個排程就會撈到同一批 {@code PENDING}，
- * 各自寄一次——<b>使用者收到兩封一模一樣的信</b>，而系統這邊完全看不出異常：
- * 兩邊都會把它標記成已寄，紀錄上只有一筆。
- *
- * <p>這是 CLAUDE.md 鐵則 4 點名的那一類動作：寄信、扣款、呼叫外部 API，
- * 「重跑一次會怎樣」的答案不是「沒事」。冪等做不到的時候，就得靠互斥。
- *
- * <p><b>鎖要持有到整批寄完才釋放</b>，不是只包住撈取那一下。
- * 提前釋放的話，另一個節點會接手撈到同一批還沒標記完成的通知，
- * 於是又寄一次——那正是這把鎖要防的事。
- * 因此 {@code tryExecuteWithLock} 包的是整個迴圈，不是 {@code findAwaitingDelivery}。
- *
- * <p>互斥的是<b>同時執行</b>，不是「每輪只有一個節點跑」。
- * 節點 A 跑完釋放後節點 B 才開始，此時該寄的都已標記完成，B 會撈到空的——
- * 對這個場景來說這樣就夠了。
- */
+/** 寄送待發的 Email 通知。 */
 @Component
 public class NotificationDeliveryScheduler {
 
     private static final Logger log = LoggerFactory.getLogger(NotificationDeliveryScheduler.class);
 
-    /**
-     * 暫時性失敗的重試上限。
-     *
-     * <p>超過就不再撈取，但紀錄與失敗原因都留著——
-     * 刪掉會讓「為什麼這個人沒收到信」變成無解的問題。
-     *
-     * <p>永久性失敗（信箱不存在、使用者已刪除）不受這個數字管：
-     * 它們直接轉入 {@code UNDELIVERABLE} 終態，第一次就不再被撈取。
-     * 混在一起的話排程每一輪都會白撈那些永遠寄不出去的。
-     */
+    /** 暫時性失敗的重試上限。 */
     private static final int MAX_ATTEMPTS = 5;
 
     private static final int BATCH_SIZE = 50;
 
     private static final String LOCK_KEY = "seckill:lock:notification-delivery";
 
-    /**
-     * 租期上限。
-     *
-     * <p><b>目前的 Redisson 實作其實不看這個值</b>——它用看門狗自動續期到動作結束。
-     * 仍然照埠的簽章傳一個合理的值，與其他排程一致。
-     */
+    /** 租期上限。 */
     private static final Duration LOCK_LEASE = Duration.ofMinutes(5);
 
     private final NotificationRepository notificationRepository;
@@ -96,10 +55,7 @@ public class NotificationDeliveryScheduler {
         distributedLock.tryExecuteWithLock(LOCK_KEY, LOCK_LEASE, this::runSafely);
     }
 
-    /**
-     * 吞掉例外：排程拋出未捕捉例外會被 Spring 取消後續排程，
-     * 而通知靜默停擺不會有任何告警。與其他排程一致。
-     */
+    /** 吞掉例外：排程拋出未捕捉例外會被 Spring 取消後續排程， 而通知靜默停擺不會有任何告警。與其他排程一致。 */
     private void runSafely() {
         try {
             deliverBatch();
@@ -126,14 +82,7 @@ public class NotificationDeliveryScheduler {
         log.info("通知寄送完成：撈取 {} 筆，成功 {} 筆", pending.size(), sent);
     }
 
-    /**
-     * 寄送單筆的交易邊界。
-     *
-     * <p><b>拆成獨立 Bean 是為了讓 {@code @Transactional} 真的生效。</b>
-     * Spring 的交易是動態代理，同一個 Bean 內部呼叫 {@code this.deliverOne()}
-     * 不會經過代理，註解會安靜失效且沒有任何錯誤訊息。
-     * 與 {@code OutboxRelayScheduler} / {@code OutboxRelayer} 的拆分同理。
-     */
+    /** 寄送單筆的交易邊界。 */
     @Component
     public static class Deliverer {
 
@@ -151,17 +100,7 @@ public class NotificationDeliveryScheduler {
             this.clock = clock;
         }
 
-        /**
-         * 寄一封信。
-         *
-         * <p><b>收件地址在這一刻才取</b>，不是在建立通知時就固定——
-         * 使用者在排隊期間改了信箱，該寄到新的那個。
-         * 但寄出之後 {@code recipient} 就固定成實際寄達的地址，
-         * 那是寄送紀錄而不是「這個人現在的信箱」。
-         *
-         * <p>REQUIRES_NEW 而非 REQUIRED：呼叫端是迴圈，
-         * 若沿用外層交易，任何一筆失敗都會把整批標成 rollback-only。
-         */
+        /** 寄一封信。 */
         @Transactional(propagation = Propagation.REQUIRES_NEW)
         public boolean deliverOne(Notification notification, MailSender mailSender) {
             Optional<User> user = userRepository.findById(notification.userId());

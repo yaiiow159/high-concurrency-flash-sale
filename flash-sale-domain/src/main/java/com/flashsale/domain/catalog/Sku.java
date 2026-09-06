@@ -6,19 +6,7 @@ import com.flashsale.domain.shared.ErrorCode;
 import java.math.BigDecimal;
 import java.util.Objects;
 
-/**
- * SKU（最小庫存單位）。
- *
- * <p><b>價格掛在 SKU 而非 Product，這是 SPU/SKU 分離的核心。</b>
- * 「iPhone 16 Pro」是 SPU，「iPhone 16 Pro 256G 黑」才是實際被買賣的東西——
- * 256G 與 512G 價格不同、庫存也各自獨立。
- *
- * <p>把價格放在 SPU 上，等於假設一個商品只有一個價格；
- * 那個假設在有規格的商品上立刻破裂，而破裂時要改的是整個資料模型。
- *
- * <p>庫存同理，掛在 SKU（見 ADR-0008），因此本聚合<b>不</b>持有庫存欄位——
- * 庫存是高頻變動的資料，與商品的靜態描述放在一起會讓快取策略無法區分。
- */
+/** SKU（最小庫存單位）。 */
 public final class Sku {
 
     private final Long id;
@@ -28,13 +16,7 @@ public final class Sku {
     private final String barcode;
     private final ProductStatus status;
 
-    /**
-     * 單件重量（克），用於運費計費。
-     *
-     * <p><b>預設 1000 克而不是 0。</b> 0 會讓運費計算報錯（那是刻意的：
-     * 重量 0 不可當成免運），而那會讓一個沒填重量的商品直接結不了帳。
-     * 給一個保守的中間值，讓它結得了帳但落在最低級距裡。
-     */
+    /** 單件重量（克），用於運費計費。 */
     private final int weightGrams;
 
     /** 沒有指定重量時的預設值。落在最低運費級距內。 */
@@ -53,18 +35,7 @@ public final class Sku {
         this.status = Objects.requireNonNull(status, "status 不可為 null");
     }
 
-    /**
-     * 建立一個新規格。
-     *
-     * <p><b>{@code productId} 允許為 {@code null}</b>，而且新建商品時本來就是 null：
-     * SKU 是 Product 聚合的一部分，兩者一起被建立，
-     * 而商品的 ID 要等持久化之後才存在。要求它非空等於要求
-     * 「先存商品、再存規格」——那會讓一個聚合分兩次寫入，
-     * 中間出錯就留下一個沒有規格的商品，而那正是我們不允許存在的東西。
-     *
-     * <p>持久化層本來就不讀這個欄位（SKU 的歸屬由 JPA 的關聯維護），
-     * 它只在<b>重建</b>之後才有值——因此 {@link #restore} 仍然要求它非空。
-     */
+    /** 建立一個新規格。 */
     public static Sku create(Long productId, SkuSpec spec, BigDecimal price, String barcode) {
         return create(productId, spec, price, barcode, DEFAULT_WEIGHT_GRAMS);
     }
@@ -86,12 +57,7 @@ public final class Sku {
                 spec, price, barcode, status, weightGrams);
     }
 
-    /**
-     * 供訂單行使用的商品快照。
-     *
-     * <p>訂單存的是這個字串而非 SKU 的引用——商家改名或調價後，
-     * 歷史訂單不能跟著變。那是財務問題，不是顯示問題。
-     */
+    /** 供訂單行使用的商品快照。 */
     public String snapshotFor(String productName) {
         return "%s（%s）".formatted(productName, spec.display());
     }

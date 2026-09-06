@@ -10,16 +10,7 @@ import jakarta.persistence.Table;
 
 import java.time.Instant;
 
-/**
- * 收貨地址簿條目的持久化模型。
- *
- * <p>與 {@code OrderEntity} 的收貨欄位<b>刻意重複</b>，而不是讓訂單以外鍵指過來。
- * 那份重複正是快照的全部意義：地址簿會變，訂單不能跟著變。
- *
- * <p>沒有 {@code UNIQUE(user_id, is_default)}：那個索引會連
- * 「同一個使用者有多筆非預設地址」都一起擋掉。MySQL 沒有部分唯一索引，
- * 因此「每人最多一筆預設」只能由應用層在交易內維持。
- */
+/** 收貨地址簿條目的持久化模型。 */
 @Entity
 @Table(name = "address", indexes = {
         @Index(name = "idx_address_user", columnList = "user_id, is_default")

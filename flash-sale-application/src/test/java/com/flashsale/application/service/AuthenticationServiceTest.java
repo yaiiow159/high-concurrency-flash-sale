@@ -41,14 +41,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * 認證流程的單元測試。
- *
- * <p>這裡驗證的多數規則<b>放寬了系統反而更順暢</b>——
- * 不做假比對更快、不輪替更簡單、重用不撤銷體驗更好。
- * 正因如此，它們特別容易在某次「順手優化」中被拿掉，
- * 所以每一條都必須有一支測試明確擋著。
- */
+/** 認證流程的單元測試。 */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 @DisplayName("認證")

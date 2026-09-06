@@ -11,15 +11,7 @@ import java.time.Duration;
 import java.util.Map;
 import java.util.Optional;
 
-/**
- * 搶購受理狀態的 Redis 實作。
- *
- * <p>以 Hash 儲存，欄位刻意保持精簡——這些鍵在秒殺尖峰會瞬間產生數十萬個，
- * 每個欄位的位元組成本都會乘上訂單量。
- *
- * <p>TTL 設得比付款期限略長：狀態只需存活到「訂單確定落庫或確定失敗」為止，
- * 之後查詢一律走資料庫。這不是永久儲存，只是填補非同步空窗的臨時看板。
- */
+/** 搶購受理狀態的 Redis 實作。 */
 @Component
 public class RedisSeckillRequestTracker implements SeckillRequestTracker {
 

@@ -12,12 +12,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.Optional;
 
-/**
- * 產生圖片的尺寸變體（ADR-0027 決策 4）。
- *
- * <p>在<b>慢車道</b>跑：原圖掛上就能用，變體晚幾秒到——
- * 那幾秒商品多半還沒上架，沒有人看得到。
- */
+/** 產生圖片的尺寸變體（ADR-0027 決策 4）。 */
 @Service
 public class ImageVariantService implements ImageVariantUseCase {
 

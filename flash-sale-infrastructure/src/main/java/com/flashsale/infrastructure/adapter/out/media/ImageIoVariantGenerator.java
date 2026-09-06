@@ -14,38 +14,13 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.util.Optional;
 
-/**
- * 用 JDK 內建的 ImageIO 產生尺寸變體。
- *
- * <h2>為什麼不加影像處理函式庫</h2>
- *
- * <p>ImageIO 是 JDK 的一部分，處理 JPEG 與 PNG 綽綽有餘，
- * 而這裡要做的只是等比縮小。引入 Thumbnailator 或 ImageMagick
- * 換來的是更好的品質與更多格式，代價是一個新的相依
- * （ImageMagick 甚至是一個系統層的二進位）。
- * 真的需要那些能力時再換，那是一個獨立的決定。
- *
- * <h2>WebP 產不出變體，而這是刻意接受的</h2>
- *
- * <p><b>JDK 的 ImageIO 不支援 WebP 解碼。</b> 上傳白名單仍然收 WebP——
- * 瀏覽器支援得很好，而原圖本來就能直接用。
- * 產不出變體時回 empty，呼叫端會把那張圖標記成「沒有變體」，
- * 前端就退回原圖。
- *
- * <p>這比「不准上傳 WebP」好：後者為了一個內部限制去限縮使用者，
- * 而那個限制是可以被無感吸收的。
- */
+/** 用 JDK 內建的 ImageIO 產生尺寸變體。 */
 @Component
 public class ImageIoVariantGenerator implements ImageVariantGenerator {
 
     private static final Logger log = LoggerFactory.getLogger(ImageIoVariantGenerator.class);
 
-    /**
-     * 產生一個尺寸。
-     *
-     * <p>原圖比目標還小時<b>不放大</b>——放大只會得到一張模糊的大圖，
-     * 而且檔案比原圖還大。此時回 empty，讓呼叫端沿用原圖。
-     */
+    /** 產生一個尺寸。 */
     @Override
     public Optional<byte[]> generate(byte[] original, String contentType, ImageVariant variant) {
         try {

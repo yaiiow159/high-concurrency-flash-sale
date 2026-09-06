@@ -28,19 +28,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * 多級活動快取的失效行為。
- *
- * <h2>這支測試守的是什麼</h2>
- *
- * <p>先前這個裝飾器<b>沒有任何失效路徑</b>——全檔唯一的 delete 只發生在
- * 反序列化失敗時。而活動狀態也沒有寫入埠，只能直接改資料庫，
- * 於是緊急下架一個有問題的活動之後，L1 過期後讀到的是 TTL 5~6 分鐘的 L2，
- * 最壞 6 分鐘內請求還是進得來、庫存照樣扣。
- *
- * <p>因此這裡驗的不是「有沒有呼叫 delete」，而是<b>行為</b>：
- * 下架之後再讀，讀到的必須是新狀態，不能是快取裡那份舊的。
- */
+/** 多級活動快取的失效行為。 */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 @DisplayName("活動多級快取")

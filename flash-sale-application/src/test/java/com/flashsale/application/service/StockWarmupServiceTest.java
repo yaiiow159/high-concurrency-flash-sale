@@ -40,16 +40,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * 庫存預熱 —— 劃撥與 Redis 初始化的先後順序。
- *
- * <p>這裡守的是雙模型最容易安靜出錯的兩個地方：
- * <ol>
- *   <li><b>順序</b>：先動 MySQL 再寫 Redis。反過來的失敗模式是超賣，不可逆</li>
- *   <li><b>已釋放的活動不可再預熱</b>：劃撥流水會擋下重複劃撥，
- *       但擋不住 Redis 初始化，結果就是 Redis 有一批沒人付過帳的貨</li>
- * </ol>
- */
+/** 庫存預熱 —— 劃撥與 Redis 初始化的先後順序。 */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 @DisplayName("庫存預熱")

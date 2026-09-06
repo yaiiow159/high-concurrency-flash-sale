@@ -35,27 +35,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * 退貨額度的併發正確性——對著<b>真實的 MySQL</b> 執行。
- *
- * <h2>為什麼非得用真的資料庫</h2>
- *
- * <p>「可退數量」的檢查是
- * <b>讀既有退貨單 → 比對餘額 → 寫入新退貨單</b> 這個 read-modify-write。
- * 它的正確性完全取決於資料庫的隔離與鎖，而那正是 mock 結構上看不到的東西：
- * 用 mock 寫的循序測試（{@code ReturnServiceTest} 那幾條）永遠會通過，
- * 因為 mock 不會讓兩個交易交錯。
- *
- * <p>這個漏洞實際存在過並被實機重現：一張只買了 2 件的訂單，
- * 兩個併發請求各申請退 2 件，<b>兩張都成立</b>，累計申請 4 件。
- * 資料庫層擋不住——一張訂單本來就能有多張退貨單，
- * 所以 {@code return_request} 上沒有、也不該有 {@code order_no} 的唯一鍵。
- *
- * <p>修法是在 {@code open()} 一開始對訂單列取悲觀鎖，把同一張訂單的
- * 額度計算序列化。這與 ADR-0003「不要用鎖包住庫存扣減」不衝突：
- * 那條講的是所有請求搶同一行的秒殺熱路徑；退貨是冷路徑，
- * 而且臨界區裡全是資料庫操作，沒有遠端呼叫會把鎖撐住。
- */
+/** 退貨額度的併發正確性——對著<b>真實的 MySQL</b> 執行。 */
 @SpringBootTest
 @Testcontainers
 @DisplayName("退貨額度併發")

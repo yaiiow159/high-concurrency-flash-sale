@@ -22,21 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
-/**
- * 退貨退款 API（ADR-0011）。
- *
- * <p>與履約 API 同樣<b>拆成兩段路徑</b>，因為讀者不同：
- *
- * <ul>
- *   <li>{@code /api/v1/orders/{orderNo}/returns} 與 {@code /api/v1/returns/**}
- *       —— 買家申請、查詢、撤回自己的退貨單，以令牌的身分為界</li>
- *   <li>{@code /api/v1/admin/returns/**} —— 客服審核、驗收、送出退款，
- *       需要 {@code seckill:admin} scope</li>
- * </ul>
- *
- * <p>把兩者混在同一段路徑靠參數區分權限，少一個判斷買家就能自己核准退款
- * 並把錢退給自己。這條路徑上那不是漏洞，是提款機。
- */
+/** 退貨退款 API（ADR-0011）。 */
 @RestController
 @Tag(name = "退貨退款", description = "退貨申請、審核、驗收與退款")
 public class ReturnController {

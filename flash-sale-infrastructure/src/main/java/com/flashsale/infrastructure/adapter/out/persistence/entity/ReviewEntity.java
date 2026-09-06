@@ -9,14 +9,7 @@ import jakarta.persistence.Table;
 
 import java.time.Instant;
 
-/**
- * 商品評價。
- *
- * <p>{@code orderNo}、{@code skuId}、{@code authorName} 都是
- * {@code updatable = false}：修改評價只能改星等與內容。
- * 作者名稱不可變的理由與訂單行的快照一樣——
- * 那是別人看過並據以決定要不要買的內容。
- */
+/** 商品評價。 */
 @Entity
 @Table(name = "review")
 public class ReviewEntity {

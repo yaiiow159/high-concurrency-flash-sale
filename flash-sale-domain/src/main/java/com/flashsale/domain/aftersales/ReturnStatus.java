@@ -5,27 +5,7 @@ import java.util.EnumSet;
 import java.util.Map;
 import java.util.Set;
 
-/**
- * 退貨單狀態機（ADR-0011）。
- *
- * <pre>
- *   REQUESTED ──approve()──▶ APPROVED ──receive()──▶ RECEIVED ──refund()──▶ REFUNDED (終態)
- *       │                        │                                             ▲
- *       │                        └────────── 免寄回時直接退款 ─────────────────┘
- *       │
- *       ├──reject()──▶ REJECTED  (終態)
- *       └──cancel()──▶ CANCELLED (終態，買家自行撤回)
- * </pre>
- *
- * <h2>為什麼 {@code APPROVED} 有兩條出路</h2>
- *
- * <p>未出貨的訂單根本沒有貨要寄回——商品還在倉庫裡。
- * 強迫它經過 {@code RECEIVED}，就得憑空捏造一次「收到退回品」，
- * 那個時間戳記會是假的，而假資料遲早會被某份報表當真。
- *
- * <p>是否需要寄回由退貨單建立時的訂單狀態決定，寫死在聚合根裡；
- * 呼叫端不能自己選，否則「已出貨卻宣稱免寄回」就成了免費拿貨的漏洞。
- */
+/** 退貨單狀態機（ADR-0011）。 */
 public enum ReturnStatus {
 
     /** 買家已申請，等待審核。 */
@@ -67,16 +47,7 @@ public enum ReturnStatus {
         return ALLOWED_TRANSITIONS.get(this).isEmpty();
     }
 
-    /**
-     * 此狀態是否仍佔用著訂單行的可退數量。
-     *
-     * <p>用於「累計已退數量」的計算——這是防重複退款的第二層。
-     * <b>進行中的退貨單也要算進去</b>：若只算 {@code REFUNDED}，
-     * 買家可以在第一張單還在審核時開第二張，兩張都退。
-     *
-     * <p>反過來，{@code REJECTED} 與 {@code CANCELLED} 必須釋放額度，
-     * 否則被駁回一次的商品就永遠不能再申請了。
-     */
+    /** 此狀態是否仍佔用著訂單行的可退數量。 */
     public boolean holdsReturnQuota() {
         return this == REQUESTED || this == APPROVED
                 || this == RECEIVED || this == REFUNDED;

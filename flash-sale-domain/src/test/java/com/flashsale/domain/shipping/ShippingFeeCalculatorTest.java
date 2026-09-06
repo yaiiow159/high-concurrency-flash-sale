@@ -12,16 +12,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/**
- * 運費計算。
- *
- * <p>運費是使用者在結帳頁<b>盯著看</b>的數字，算錯會直接變成客訴。
- * 而它錯的方式都很安靜：級距挑錯只是多收 30 元、
- * 離島判斷錯只是少收 100 元——兩者都不會拋任何例外。
- *
- * <p>因此這裡窮舉的是<b>邊界</b>：級距的上下緣、離島郵遞區號的頭尾、
- * 以及「查不到費率」這種必須報錯而不能猜的情況。
- */
+/** 運費計算。 */
 @DisplayName("運費計算")
 class ShippingFeeCalculatorTest {
 

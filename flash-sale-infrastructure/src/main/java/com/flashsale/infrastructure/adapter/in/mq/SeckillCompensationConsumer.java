@@ -13,19 +13,7 @@ import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Component;
 
-/**
- * 庫存補償消費端——Saga 補償鏈的入口。
- *
- * <p>兩條補償路徑：
- * <ul>
- *   <li><b>訂單已建立後被關閉</b>：Outbox 投遞 {@code order.cancelled} 事件到領域事件 topic</li>
- *   <li><b>訂單根本沒建成</b>：建單訊息重試耗盡進入 DLQ，直接依訊息內容退庫</li>
- * </ul>
- *
- * <p>第二條路徑常被忽略，但它才是最危險的：訂單不存在，
- * 沒有任何資料庫紀錄會提醒你「這裡有一筆庫存被鎖住了」，
- * 若不主動退回，那些庫存就會永遠消失。
- */
+/** 庫存補償消費端——Saga 補償鏈的入口。 */
 @Component
 public class SeckillCompensationConsumer {
 
@@ -55,12 +43,7 @@ public class SeckillCompensationConsumer {
                 OrderCancelledEvent.class, compensationUseCase::compensate);
     }
 
-    /**
-     * 建單死信：訂單未建立，只能依訊息本身退庫。
-     *
-     * <p>此處若拋例外會再次進入重試，最終仍留在 DLQ——這是刻意的：
-     * 退庫失敗必須留下痕跡等待人工處理，絕不能靜默放過。
-     */
+    /** 建單死信：訂單未建立，只能依訊息本身退庫。 */
     @KafkaListener(
             topics = KafkaTopics.ORDER_CREATE_DLT,
             groupId = "${flash-sale.mq.dlt-compensation-group:seckill-dlt-compensator}")

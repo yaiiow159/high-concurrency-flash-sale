@@ -35,19 +35,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * 商品上下架。
- *
- * <h2>要守的是「狀態變更與索引事件同生共死」</h2>
- *
- * <p>直接呼叫 Elasticsearch 是最直覺也最錯的做法：兩個資源無法原子提交，
- * ES 那一半失敗時資料庫已經 commit，<b>兩邊從此分岔且沒有任何東西會發現</b>。
- * 因此事件必須寫進 outbox 而不是直接發出去。
- *
- * <p>另一條容易寫錯的是取事件的時機：{@code updateStatus} 回傳的是從 entity
- * 重建的新聚合根，身上沒有剛剛註冊的事件。先 update 再 pull 會拿到空清單，
- * 而症狀是「商品下架了但搜尋還找得到」——沒有任何錯誤訊息。
- */
+/** 商品上下架。 */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 @DisplayName("商品上下架")

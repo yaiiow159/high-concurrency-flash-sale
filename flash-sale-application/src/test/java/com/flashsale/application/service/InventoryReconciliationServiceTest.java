@@ -25,17 +25,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * 一般庫存對帳。
- *
- * <p>核對的是「數字」與「流水」：庫存欄位上的每個數字，
- * 都必須有一連串異動紀錄能解釋它是怎麼來的。
- *
- * <p><b>這裡的測試同時鎖住「絕不自動修」這條規則。</b>
- * 一旦有人為了「讓告警安靜」而加上自動修復，這幾條測試就會失敗——
- * 那正是它們存在的理由。這個方向的偏差代表有東西繞過了正規路徑，
- * 既然連正規路徑都沒被遵守，對帳也就無從判斷哪一邊才是對的。
- */
+/** 一般庫存對帳。 */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 @DisplayName("一般庫存對帳")

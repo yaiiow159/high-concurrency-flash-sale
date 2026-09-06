@@ -20,16 +20,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/**
- * 訂單聚合根的狀態機與事件蒐集測試。
- *
- * <p><b>本檔由 {@code SeckillOrderTest} 遷移而來，斷言逐條保留未改</b>——
- * 只換了建構方式（{@code SeckillOrder.create} → {@code Order.forSeckill}）。
- *
- * <p>這是 ADR-0007 定的等價性檢查點：若新舊模型語意相同，
- * 這些斷言就該原封不動地繼續成立。任何一條需要放寬才能通過，
- * 都代表重構改變了行為，必須先解決那件事，而不是順手改測試讓它變綠。
- */
+/** 訂單聚合根的狀態機與事件蒐集測試。 */
 class OrderTest {
 
     private static final Instant NOW = Instant.parse("2025-06-01T10:30:00Z");

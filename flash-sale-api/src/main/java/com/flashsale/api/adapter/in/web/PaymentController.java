@@ -31,13 +31,7 @@ public class PaymentController {
         this.paymentUseCase = paymentUseCase;
     }
 
-    /**
-     * 為訂單發起付款。
-     *
-     * <p>回傳的 {@code paymentUrl} 供前端導向金流頁面。
-     * <b>前端不可把這個回應當成「已付款」</b>——真正的結果由閘道回調決定，
-     * 前端應輪詢訂單狀態。
-     */
+    /** 為訂單發起付款。 */
     @PostMapping("/orders/{orderNo}/payments")
     @Operation(summary = "發起付款", description = "回傳金流付款頁網址；結果由閘道回調決定")
     public ResponseEntity<ApiResponse<PaymentIntentView>> initiate(
@@ -57,16 +51,7 @@ public class PaymentController {
         return ApiResponse.ok(paymentUseCase.findByOrderNo(orderNo, userId));
     }
 
-    /**
-     * 金流閘道回調。
-     *
-     * <p><b>這是整個系統唯一對外開放的寫入端點。</b> 它必須匿名——
-     * 金流閘道不會帶著使用者的令牌打過來——因此安全性完全建立在<b>簽章驗證</b>上。
-     * 少了那一步，任何人送一個「付款成功」就能免費下單。
-     *
-     * <p>回 200 即代表「已收到並處理」。閘道通常以此判斷是否要重送；
-     * 回非 2xx 會觸發重送，而重送是安全的（處理邏輯冪等）。
-     */
+    /** 金流閘道回調。 */
     @PostMapping("/payments/callback")
     @SecurityRequirements
     @Operation(summary = "金流回調", description = "由金流閘道呼叫；以簽章驗證來源，處理邏輯冪等")

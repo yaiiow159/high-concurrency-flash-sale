@@ -6,16 +6,7 @@ import com.flashsale.domain.shared.ErrorCode;
 import java.time.Instant;
 import java.util.Objects;
 
-/**
- * 使用者聚合根。
- *
- * <p><b>密碼比對刻意不在這裡。</b> 聚合根只持有雜湊，比對需要演算法知識
- * （BCrypt 的 salt 藏在雜湊字串裡），那是基礎設施的職責。
- * 若把比對放進聚合根，領域層就得認得 BCrypt——正是 CLAUDE.md 禁止的事。
- *
- * <p>聚合根負責的是<b>「這個帳號現在能不能登入」</b>這個業務判斷，
- * 而非「這串密碼對不對」這個技術問題。兩者要分開。
- */
+/** 使用者聚合根。 */
 public final class User {
 
     /** 尚未持久化時為 {@code null}——由資料庫自增產生。 */
@@ -53,13 +44,7 @@ public final class User {
                 email, passwordHash, displayName, role, status, createdAt, version);
     }
 
-    /**
-     * 確認此帳號當下可以通過認證。
-     *
-     * <p>刻意與密碼是否正確分開判斷，但<b>呼叫端必須先驗密碼再問這個問題</b>——
-     * 反過來的話，攻擊者用任意密碼就能從錯誤訊息的差異推斷出
-     * 「這個信箱存在且已被停權」，那是帳號枚舉漏洞。
-     */
+    /** 確認此帳號當下可以通過認證。 */
     public void ensureCanAuthenticate() {
         if (!status.canAuthenticate()) {
             throw new BusinessException(ErrorCode.ACCOUNT_SUSPENDED);
@@ -74,13 +59,7 @@ public final class User {
         this.displayName = requireValidDisplayName(displayName);
     }
 
-    /**
-     * 停權。
-     *
-     * <p><b>呼叫端有義務同時撤銷此使用者所有的 refresh token</b>，
-     * 否則停權會有最長一個 access token 生命週期的空窗。
-     * 這件事無法由聚合根自己完成——它碰不到 token 儲存區。
-     */
+    /** 停權。 */
     public void suspend() {
         this.status = UserStatus.SUSPENDED;
     }

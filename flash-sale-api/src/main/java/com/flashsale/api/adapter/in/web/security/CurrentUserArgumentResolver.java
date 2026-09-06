@@ -9,12 +9,7 @@ import org.springframework.web.context.request.NativeWebRequest;
 import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.method.support.ModelAndViewContainer;
 
-/**
- * 把令牌中的使用者身分解析成 Controller 參數。
- *
- * <p>集中在這一處轉換，好處是 Controller 完全不必認得 Spring Security 的型別——
- * 若日後從 JWT 換成別種認證機制，只要改這個類別，所有 Controller 都不用動。
- */
+/** 把令牌中的使用者身分解析成 Controller 參數。 */
 @Component
 public class CurrentUserArgumentResolver implements HandlerMethodArgumentResolver {
 

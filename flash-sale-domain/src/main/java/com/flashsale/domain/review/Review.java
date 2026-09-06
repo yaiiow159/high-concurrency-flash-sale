@@ -7,33 +7,10 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
 
-/**
- * 一則商品評價。
- *
- * <h2>身分是「哪一筆訂單行」，不是「哪個使用者」</h2>
- *
- * <p>同一個人可以買同一件商品兩次，那是兩次獨立的購買經驗，
- * 本來就該能各評一次。以 {@code (userId, skuId)} 為鍵會讓
- * 「買兩次只能評一次」，那是憑空的限制。
- *
- * <p>而「這筆訂單行是否已評價」的最後一道防線是資料庫的唯一索引，
- * 不是這裡——兩個並行請求會同時通過任何 Java 端的檢查。
- *
- * <h2>作者名稱是遮蔽過的快照</h2>
- *
- * <p>存的是「王＊＊」而不是完整姓名，而且是<b>建立當下</b>就遮好存進來的。
- * 在畫面上遮蔽等於完整姓名仍然出現在 API 回應裡；
- * 而存引用則會讓使用者改暱稱之後，三個月前的評價跟著變——
- * 那是別人看過並據以決定要不要買的內容（同 {@code OrderLine} 的快照）。
- */
+/** 一則商品評價。 */
 public final class Review {
 
-    /**
-     * 可修改的窗口。
-     *
-     * <p>收到貨當下的情緒與一週後的使用感受本來就不同。
-     * 不給改只會逼使用者刪掉重寫，而刪除要處理的併發問題比修改更多。
-     */
+    /** 可修改的窗口。 */
     public static final Duration EDIT_WINDOW = Duration.ofDays(7);
 
     /** 評價內容長度上限。沒有上限的話，一則評價就能塞爆商品頁。 */
@@ -78,14 +55,7 @@ public final class Review {
                 authorName, rating, content, createdAt, updatedAt);
     }
 
-    /**
-     * 改評分與內容。
-     *
-     * <p>回傳新的實例而不是就地修改：呼叫端因此同時握有新舊兩個版本，
-     * 而聚合的更新<b>需要舊評分</b>（{@code rating_sum += new - old}）。
-     * 就地修改會讓舊值消失，接著就會有人想到「那就讓呼叫端把舊評分傳進來」——
-     * 而呼叫端若能宣告舊評分是多少，它就能把商品的平均分改成任何值。
-     */
+    /** 改評分與內容。 */
     public Review edit(Rating newRating, String newContent, Instant now) {
         if (!isEditableAt(now)) {
             throw new BusinessException(ErrorCode.REVIEW_EDIT_WINDOW_CLOSED,

@@ -9,13 +9,7 @@ import jakarta.persistence.Table;
 
 import java.time.Instant;
 
-/**
- * 發給使用者的券。
- *
- * <p><b>沒有狀態變更方法。</b> 核銷走的是一句條件式 UPDATE
- * （見 {@code CouponJpaRepository.redeem}）——透過實體改狀態的話，
- * 「讀出來、判斷、改、寫回」中間有窗口，兩個併發請求會讓同一張券用兩次。
- */
+/** 發給使用者的券。 */
 @Entity
 @Table(name = "coupon")
 public class CouponEntity {
@@ -33,13 +27,7 @@ public class CouponEntity {
     @Column(name = "code", nullable = false, length = 32, updatable = false)
     private String code;
 
-    /**
-     * 自行領取的憑據 {@code {userId}:{promotionId}}；管理員發放為 {@code null}。
-     *
-     * <p>唯一索引建在這一欄而不是 {@code (user_id, promotion_id)}——
-     * 既有資料裡已經有人持有同一促銷的兩張券（補發、補償），
-     * 而 MySQL 的唯一索引允許多個 NULL，剛好只約束自行領取的那些。
-     */
+    /** 自行領取的憑據 {@code {userId}:{promotionId}}；管理員發放為 {@code null}。 */
     @Column(name = "claim_key", length = 64, updatable = false)
     private String claimKey;
 

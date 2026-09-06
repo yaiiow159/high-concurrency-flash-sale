@@ -10,7 +10,7 @@ import com.flashsale.domain.stock.ReconciliationVerdict;
  * @param orphanBindings    已扣庫存但查無訂單、且已超過寬限期的紀錄數
  * @param repairedBindings  本次實際退回的孤兒扣減數（未啟用自動修復時恆為 0）
  * @param stockUnbacked     Redis 有庫存，但 MySQL 沒有對應的劃撥額度撐著。
- *                          這批貨沒有人付過帳，等於可以被賣兩次
+ * 這批貨沒有人付過帳，等於可以被賣兩次
  */
 public record ActivityReconciliation(
         Long activityId,
@@ -32,10 +32,10 @@ public record ActivityReconciliation(
 
     /**
      * @param stockUnbacked Redis 有這場活動的庫存，但 MySQL 那邊沒有對應的劃撥額度。
-     *                      <b>一律判為超賣風險</b>，即使 Redis 餘量與訂單數完全對得上——
-     *                      這兩件事檢查的不是同一回事：前者問「賣掉的有沒有記錄」，
-     *                      後者問「這批貨到底是不是我們的」。
-     *                      沒有劃撥撐著的庫存，一般通道也會把同一批貨賣一次
+     * <b>一律判為超賣風險</b>，即使 Redis 餘量與訂單數完全對得上——
+     * 這兩件事檢查的不是同一回事：前者問「賣掉的有沒有記錄」，
+     * 後者問「這批貨到底是不是我們的」。
+     * 沒有劃撥撐著的庫存，一般通道也會把同一批貨賣一次
      */
     public static ActivityReconciliation of(Long activityId, int totalStock, long activeOrderQuantity,
                                             long actualAvailable, int orphanBindings,

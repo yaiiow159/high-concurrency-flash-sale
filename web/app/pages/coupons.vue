@@ -3,15 +3,7 @@ import { errorMessage } from '~/composables/useApi'
 import { useAuthStore } from '~/stores/auth'
 import type { ClaimableCouponView } from '~/types/api'
 
-/**
- * 領券中心。
- *
- * <p>促銷引擎（ADR-0013）本來就完整，但券只能由管理員發放——
- * 使用者沒有任何地方可以拿到券，於是整套機制在前台是看不見的。
- *
- * <p><b>不做 SSR</b>：「我領過哪些」是個人資料，進了被快取的 HTML
- * 就等於發給下一個訪客。
- */
+/** 領券中心。 */
 const auth = useAuthStore()
 const { request } = useApi()
 
@@ -38,11 +30,7 @@ async function load() {
 }
 
 /**
- * 領一張。
- *
- * 後端對重複領取回 `claimed: false` 而不是錯誤——使用者連點兩下、
- * 兩個分頁各按一次都是正常操作，而他要的答案兩種情況都一樣：
- * 「這張券在你手上了」。因此這裡兩種結果都走同一條路：重新載入。
+ * 領一張。 後端對重複領取回 `claimed: false` 而不是錯誤——使用者連點兩下、 兩個分頁各按一次都是正常操作，而他要的答案兩種情況都一樣： 「這張券在你手上了」。因此這裡兩種結果都走同一條路：重新載入。
  */
 async function claim(promotionId: number) {
   claiming.value = promotionId

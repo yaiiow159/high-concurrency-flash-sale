@@ -39,21 +39,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * Elasticsearch 商品索引。
- *
- * <h2>兩件實際壞過的事</h2>
- *
- * <p><b>一、重建索引的分頁。</b> {@code findOnShelf} 的簽章收 offset，
- * 實作卻是 {@code offset / limit} 換算頁碼。原本用「上一批實際拿到幾筆」
- * 累加 offset，三筆商品時 offset 從 0 加到 3、換算回去還是第 0 頁，
- * 於是同一批被重寫了 167 次——實機回報 indexed=501 而 ES 裡只有 3 筆。
- *
- * <p><b>二、搜尋失敗必須降級而不是往上拋</b>（ADR-0012 決策 4）：
- * 搜不準不會產生任何錯誤資料，讓整頁壞掉換不到任何東西。
- * 而索引<b>寫入</b>失敗方向相反——必須往上拋讓 MQ 重試，
- * 漏索引會累積成「商品搜不到而沒有人發現」。
- */
+/** Elasticsearch 商品索引。 */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 @DisplayName("Elasticsearch 商品索引")

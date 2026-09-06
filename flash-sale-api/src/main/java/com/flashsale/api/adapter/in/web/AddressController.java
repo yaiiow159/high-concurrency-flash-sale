@@ -21,16 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
-/**
- * 收貨地址簿 API。
- *
- * <p>全部需要登入，且<b>每個操作都以令牌的 userId 為界</b>——
- * 路徑上的 addressId 只是「哪一筆」，不是「誰的」。
- * 擁有者檢查在聚合根裡，不在這裡：Controller 只負責把身分傳下去。
- *
- * <p>查不到與無權限都回 404。回 403 等於告訴攻擊者這個 ID 是有效的，
- * 讓他能靠窮舉列舉出系統裡有多少地址。
- */
+/** 收貨地址簿 API。 */
 @RestController
 @RequestMapping("/api/v1/addresses")
 @Tag(name = "收貨地址", description = "地址簿管理")
@@ -58,12 +49,7 @@ public class AddressController {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(created));
     }
 
-    /**
-     * 修改地址。
-     *
-     * <p>已成立的訂單完全不受影響——它們存的是快照而非引用。
-     * 這正是快照設計換來的自由。
-     */
+    /** 修改地址。 */
     @PutMapping("/{addressId}")
     @Operation(summary = "修改地址", description = "不影響已成立的訂單")
     public ApiResponse<AddressView> update(@PathVariable Long addressId,

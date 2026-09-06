@@ -15,32 +15,7 @@ import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.util.backoff.ExponentialBackOff;
 import org.springframework.util.backoff.FixedBackOff;
 
-/**
- * Kafka 消費端的重試與死信策略。
- *
- * <p><b>重試策略的核心判斷：哪些錯誤該重試，哪些不該。</b>
- * <ul>
- *   <li><b>可重試</b>：資料庫連線中斷、鎖等待逾時等暫時性故障——等一下再試就會好</li>
- *   <li><b>不可重試</b>：業務規則拒絕（活動不存在、資料格式錯誤）——
- *       重試一萬次結果都一樣，只會拖住整個分區的消費進度</li>
- * </ul>
- * 把不可重試的錯誤直接送進 DLQ，是保護消費吞吐的關鍵；
- * 一則毒藥訊息（poison message）足以讓整個分區停擺。
- *
- * <p>退避採指數增長而非固定間隔：故障通常需要時間恢復，
- * 固定 1 秒重試 5 次只會在 5 秒內把下游再打 5 次，往往讓故障更難恢復。
- *
- * <h2>分類的依據是 {@code ErrorCode}，不是例外型別</h2>
- *
- * <p>先前是「{@code BusinessException} 一律不重試」。那個規則對大多數情況成立，
- * 但 {@code ErrorCode} 本身就分了 C 系列（系統故障，可重試）與 A/B 系列
- * （呼叫端或業務規則錯誤，不可重試）——用型別分類等於把這個既有的區分丟掉。
- *
- * <p>代價是真實的：退款消費端在閘道暫時故障時丟出例外，
- * 原意是「讓 Kafka 重試」，但因為型別落在不可重試清單裡，
- * <b>第一次就直接進死信</b>，而那筆退款的付款紀錄早已 commit 成「已退」。
- * 帳上退了、錢沒退，且沒有任何東西會再提醒。
- */
+/** Kafka 消費端的重試與死信策略。 */
 @Configuration
 public class KafkaConsumerConfig {
 
@@ -54,26 +29,7 @@ public class KafkaConsumerConfig {
     /** 不重試：第一次失敗就交給死信處理。 */
     private static final FixedBackOff NO_RETRY = new FixedBackOff(0L, 0L);
 
-    /**
-     * 建單主題。
-     *
-     * <p>分區數決定消費端的最大並行度。12 能被 1/2/3/4/6 整除，
-     * 讓消費者副本數在擴縮容時都能均勻分配分區。
-     *
-     * <h2>分區數同時是水平擴展的天花板</h2>
-     *
-     * <p>這是一個很容易漏掉的乘法：{@code SeckillOrderConsumer} 的
-     * {@code order-create-concurrency} 預設 6，代表<b>每個節點</b>開 6 條消費執行緒。
-     * 12 ÷ 6 = <b>2 個節點就用滿全部分區</b>；第 3 個節點加進來，
-     * 多出來的 6 條執行緒完全分不到分區，只是閒著。
-     *
-     * <p>也就是說「加機器就能加建單吞吐」這句話只在前兩台成立。
-     * 要再往上，得<b>先</b>把分區數調高——而 Kafka 的分區<b>只能增不能減</b>，
-     * 且增加分區會改變既有鍵的分區歸屬，順序保證在那個瞬間斷開一次。
-     * 因此這個數字是要規劃的，不是要調的。
-     *
-     * <p>單節點時這個限制看不出來：6 條執行緒各拿 2 個分區，一切正常。
-     */
+    /** 建單主題。 */
     @Bean
     public NewTopic orderCreateTopic() {
         return TopicBuilder.name(KafkaTopics.ORDER_CREATE).partitions(12).replicas(1).build();
@@ -122,14 +78,7 @@ public class KafkaConsumerConfig {
         return handler;
     }
 
-    /**
-     * 這個例外該不該重試。
-     *
-     * <p>Kafka 會把消費端的例外包在 {@code ListenerExecutionFailedException} 裡，
-     * 因此要往下找根因；找不到 {@link BusinessException} 就當作暫時性故障重試——
-     * <b>預設重試而不是預設放棄</b>，因為放棄的代價（訊息靜默消失）
-     * 遠大於多試幾次。
-     */
+    /** 這個例外該不該重試。 */
     private static boolean isRetryable(Throwable exception) {
         for (Throwable cause = exception; cause != null; cause = cause.getCause()) {
             if (cause instanceof BusinessException business) {

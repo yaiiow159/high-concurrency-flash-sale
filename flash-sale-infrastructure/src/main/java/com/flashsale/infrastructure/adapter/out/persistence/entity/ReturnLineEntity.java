@@ -12,14 +12,7 @@ import jakarta.persistence.Table;
 
 import java.math.BigDecimal;
 
-/**
- * 退貨行。
- *
- * <p>{@code skuSnapshot} 與 {@code unitPrice} 是 {@code updatable = false}——
- * 理由與訂單行相同：退款金額由它們算出，事後可改就等於退款金額可改。
- *
- * <p>{@code restockable} 則<b>必須可寫</b>，它是驗收當下才產生的資訊。
- */
+/** 退貨行。 */
 @Entity
 @Table(name = "return_line")
 public class ReturnLineEntity {
@@ -44,12 +37,7 @@ public class ReturnLineEntity {
     @Column(name = "quantity", nullable = false, updatable = false)
     private int quantity;
 
-    /**
-     * 這一次實際退多少。
-     *
-     * <p>不由 {@code unitPrice × quantity} 推導：有整單折扣時，
-     * 那個乘積是使用者<b>沒有付過</b>的錢。
-     */
+    /** 這一次實際退多少。 */
     @Column(name = "refund_amount", nullable = false, precision = 12, scale = 2,
             updatable = false)
     private BigDecimal refundAmount;

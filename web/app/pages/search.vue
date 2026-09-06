@@ -2,17 +2,7 @@
 import { errorMessage, useApi } from '~/composables/useApi'
 import type { ProductSearchResult } from '~/types/api'
 
-/**
- * 商品搜尋（ADR-0012）。
- *
- * <p><b>不做 SSR 也不做 ISR。</b> 搜尋結果隨關鍵字而異，
- * 快取它等於為每一種關鍵字組合各存一份，命中率趨近於零；
- * 而搜尋是使用者進站後才做的動作，首屏速度本來就不由它決定。
- *
- * <p>關鍵字放在網址上而不是只放在元件狀態裡——搜尋結果是會被分享、
- * 被加書籤、被上一頁回來的東西。只存在記憶體裡的話，
- * 使用者按上一頁會回到一個空的搜尋框。
- */
+/** 商品搜尋（ADR-0012）。 */
 const route = useRoute()
 const router = useRouter()
 const { request } = useApi()
@@ -62,15 +52,7 @@ watch(() => route.query, () => {
   run()
 }, { immediate: true })
 
-/**
- * 搜尋建議。
- *
- * <p>去抖 200ms：每打一個字就查一次，中文輸入法組字期間會送出一串
- * 沒有意義的請求（ㄕ、ㄕㄡ、手…），而使用者要的只是最後那個字。
- *
- * <p>失敗時靜默清空——建議是錦上添花，它掛掉不該讓輸入框跟著壞掉。
- * 後端在索引故障時本來就回空清單而不是錯誤。
- */
+/** 搜尋建議。 */
 const suggestions = ref<string[]>([])
 const suggestOpen = ref(false)
 let suggestTimer: ReturnType<typeof setTimeout> | null = null
@@ -97,12 +79,7 @@ function onKeywordInput() {
   }, 200)
 }
 
-/**
- * 延遲關閉建議清單。
- *
- * 不延遲的話，滑鼠按下建議的瞬間輸入框先失焦、清單先消失，
- * 那一下點擊就落到空氣裡。
- */
+/** 延遲關閉建議清單。 不延遲的話，滑鼠按下建議的瞬間輸入框先失焦、清單先消失， 那一下點擊就落到空氣裡。 */
 function closeSuggestionsSoon() {
   setTimeout(() => { suggestOpen.value = false }, 120)
 }

@@ -32,25 +32,8 @@ import java.util.Optional;
 /**
  * 付款服務。
  *
- * <p>整個流程中最需要想清楚的是<b>「錢收了但訂單入不了帳」</b>這個競態：
- * 使用者完成付款的同時，逾時關單排程正好把訂單取消。
- *
- * <pre>
- *   t0  使用者按下付款，跳轉金流頁面
- *   t1  逾時關單排程執行 → 訂單 CANCELLED、庫存退回
- *   t2  使用者完成付款 → 閘道回調「成功」
- *       此時錢已經收了，但訂單已是終態，無法轉為 PAID
- * </pre>
- *
- * <p>三種處理方式與取捨：
- * <ul>
- *   <li><b>把付款標記為失敗</b>——錯的。錢真的收了，帳上寫「沒收到」會讓對帳與現實脫節</li>
- *   <li><b>強制把訂單改回 PAID</b>——更錯。庫存已經退回並可能被別人買走，
- *       這會製造一張沒有庫存支撐的訂單，也就是超賣</li>
- *   <li><b>如實記錄收款成功，再標記待退款</b>——本方案</li>
- * </ul>
- *
- * <p>這個競態<b>無法完全消除</b>，只能縮小窗口（付款期限拉長）並確保發生時能被正確處理。
+ * <p><b>收款成功絕不可被改寫成失敗。</b> 付款完成時訂單已被逾時關單搶先是真實競態，
+ * 此時錢確實收了：如實記 {@code SUCCEEDED} 再轉 {@code REFUND_PENDING}，兩個事件都要發。
  */
 @Service
 public class PaymentApplicationService implements PaymentUseCase {
@@ -114,12 +97,7 @@ public class PaymentApplicationService implements PaymentUseCase {
                 intent.paymentUrl(), payment.status().name());
     }
 
-    /**
-     * 重複發起時沿用既有付款單。
-     *
-     * <p>使用者連點兩次「去付款」不該產生兩張付款單——那會讓對帳時
-     * 看到一張訂單對應多筆收款，無從判斷哪些是重複、哪些是真的收了兩次。
-     */
+    /** 重複發起時沿用既有付款單。 */
     private Payment reuseOrRetry(Payment existing) {
         if (existing.status() == PaymentStatus.FAILED) {
             existing.retry(clock.instant());
@@ -176,13 +154,7 @@ public class PaymentApplicationService implements PaymentUseCase {
         }
     }
 
-    /**
-     * 套用收款成功的結果。
-     *
-     * <p>順序不可顛倒：<b>先如實記錄收款成功，再嘗試讓訂單入帳</b>。
-     * 反過來的話，訂單入帳失敗時付款單還停在 PENDING，
-     * 帳上會顯示「沒收到錢」而現實是收到的。
-     */
+    /** 套用收款成功的結果。 */
     private void applySuccess(Payment payment, String transactionId, Instant now) {
         payment.markSucceeded(transactionId, now);
 
@@ -230,12 +202,7 @@ public class PaymentApplicationService implements PaymentUseCase {
                 .orElseThrow(() -> new BusinessException(ErrorCode.PAYMENT_NOT_FOUND));
     }
 
-    /**
-     * 取出訂單並確認歸屬。
-     *
-     * <p>越權一律回「訂單不存在」而非「無權限」——後者等於告訴攻擊者
-     * 這個訂單號真的存在，可被用來枚舉訂單量。與 {@code OrderQueryService} 一致。
-     */
+    /** 取出訂單並確認歸屬。 */
     private Order requireOwnedOrder(OrderNo orderNo, Long userId) {
         Order order = orderRepository.findByOrderNo(orderNo)
                 .orElseThrow(() -> new BusinessException(ErrorCode.ORDER_NOT_FOUND));

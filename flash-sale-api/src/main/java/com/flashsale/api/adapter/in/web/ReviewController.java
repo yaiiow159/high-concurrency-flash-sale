@@ -27,22 +27,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 import java.util.Map;
 
-/**
- * 商品評價。
- *
- * <p><b>讀是公開的，寫必須認證。</b> 評價列表與評分摘要要能被沒登入的訪客看到——
- * 那正是評價存在的意義（幫還沒買的人做決定）。
- * 而「誰能寫」是這個功能的全部價值所在，因此寫入這一側有三道實質約束
- * （訂單擁有、訂單已完成、一行只評一次）。
- *
- * <p>公開的兩支掛在<b>商品的正規路徑</b>下（{@code /api/v1/catalog/products/{id}/...}）
- * 而不是自立一個 {@code /api/v1/products} 前綴：同一個資源有兩個路徑前綴，
- * 呼叫端就得記兩套規則，而那種不一致沒有任何好處。
- *
- * <p>它們在 {@code SecurityConfig} 裡<b>逐一列出</b>，即使
- * {@code /api/v1/catalog/**} 的 GET 規則已經涵蓋。冗餘的放行條目是無害的，
- * 而缺口不是——那條 catalog 規則哪天被收緊，評價會安靜地變成需要登入。
- */
+/** 商品評價。 */
 @RestController
 @RequestMapping("/api/v1")
 @Tag(name = "評價", description = "商品評價與評分")
@@ -71,16 +56,7 @@ public class ReviewController {
         return ApiResponse.ok(reviewUseCase.ratingOf(productId));
     }
 
-    /**
-     * 批次取多個商品的評分，供商品列表使用。
-     *
-     * <p>存在的唯一理由是避免 N+1：列表一頁 24 件商品，逐件查就是 24 次往返。
-     *
-     * <p><b>用查詢參數而不是 POST 一個 body</b>：這是純讀取，
-     * 而 POST 會讓它無法被任何一層快取。上限 100 是為了避免
-     * 一個請求把整張聚合表撈出來——超過的部分直接截斷而不是報錯，
-     * 因為呼叫端要的是「畫面上這幾件商品的星等」，少幾件不該讓整頁掛掉。
-     */
+    /** 批次取多個商品的評分，供商品列表使用。 */
     @GetMapping("/catalog/products/ratings")
     @SecurityRequirements
     @Operation(summary = "批次商品評分", description = "供商品列表顯示星等；最多 100 件；公開")
@@ -105,12 +81,7 @@ public class ReviewController {
                 Math.max(page, 0), Math.clamp(size, 1, MAX_PAGE_SIZE)));
     }
 
-    /**
-     * 這張訂單現在能評什麼。
-     *
-     * <p>由後端算而不是讓前端比對訂單行與既有評價——
-     * 前端再實作一次的話，症狀會是「畫面說可以評，送出卻被拒絕」。
-     */
+    /** 這張訂單現在能評什麼。 */
     @GetMapping("/orders/{orderNo}/reviewable")
     @Operation(summary = "訂單可評價項目", description = "哪幾項還沒評價；不能評時附上原因")
     public ApiResponse<ReviewableView> reviewable(@PathVariable String orderNo,
@@ -118,13 +89,7 @@ public class ReviewController {
         return ApiResponse.ok(reviewUseCase.reviewable(orderNo, userId));
     }
 
-    /**
-     * 發表評價。
-     *
-     * <p>回 {@code 201}：一則評價真的被建立了。
-     * 使用者 ID 來自令牌，不來自請求內容——讓呼叫端自己宣告身分，
-     * 等於讓任何人以任何人的名義發表評價。
-     */
+    /** 發表評價。 */
     @PostMapping("/orders/{orderNo}/reviews")
     @Operation(summary = "發表評價", description = "訂單須為 COMPLETED，且該項尚未評價")
     public ResponseEntity<ApiResponse<ReviewView>> write(
@@ -149,17 +114,7 @@ public class ReviewController {
                 userId, reviewId, request.stars(), request.content())));
     }
 
-    /**
-     * 評分聚合對帳。
-     *
-     * <p><b>唯一一個可以自動修復的對帳</b>：{@code review} 表是原始事實，
-     * 聚合只是它的統計，重算不需要任何猜測。庫存與積分的偏差則分不出成因，
-     * 因此那兩支只讀不修。
-     *
-     * <p>但 {@code repair} 預設是 false。看過差異再決定要不要修，
-     * 是唯一安全的順序——而且偏差的<b>存在</b>本身就是訊號：
-     * 有東西繞過了正規路徑。只修數字不查原因，下週會再看到一次。
-     */
+    /** 評分聚合對帳。 */
     @GetMapping("/admin/reviews/reconciliation")
     @Operation(summary = "評分聚合對帳",
             description = "比對聚合與評價表；repair=true 時重算不一致的商品")

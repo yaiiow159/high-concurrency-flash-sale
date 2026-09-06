@@ -33,21 +33,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * 搜尋索引對帳。
- *
- * <h2>要守的是兩件事</h2>
- *
- * <p><b>一、兩個方向的偏差都要抓到。</b>
- * 「在資料庫但不在索引」的症狀是商品搜不到——沒有人會抱怨一個他不知道存在的商品，
- * 所以只能靠對帳發現。「在索引但不在資料庫」的症狀是搜到了買不到。
- * 兩者的成因與嚴重度不同，不能混成一個數字。
- *
- * <p><b>二、修復動作必須重讀當下狀態。</b>
- * 對帳到修復之間可能又有變更；直接照著對帳當時的集合寫，
- * 會把剛下架的商品又寫回索引——那就是自動修復製造出新問題，
- * 也正是 CLAUDE.md 對自動修復抱持警戒的原因。
- */
+/** 搜尋索引對帳。 */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 @DisplayName("搜尋索引對帳")

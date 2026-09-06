@@ -5,15 +5,7 @@ import com.flashsale.domain.shared.DomainEvent;
 import java.time.Instant;
 import java.util.UUID;
 
-/**
- * 商品掛上了一張圖，下游據此產生尺寸變體（ADR-0027 決策 4）。
- *
- * <p>縮圖在<b>慢車道</b>做：原圖先可用，變體晚幾秒到——
- * 那幾秒商品多半還沒上架，沒有人看得到。
- * 放在請求路徑上做的話，上傳一張圖要等縮圖跑完才回應。
- *
- * @param objectKey 原圖的物件鍵。變體的鍵由它推導，不另外存
- */
+/** 商品掛上了一張圖，下游據此產生尺寸變體（ADR-0027 決策 4）。 */
 public record ProductImageAttachedEvent(
         String eventId,
         Long productId,

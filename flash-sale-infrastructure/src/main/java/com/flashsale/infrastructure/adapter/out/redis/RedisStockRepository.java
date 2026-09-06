@@ -26,13 +26,8 @@ import java.util.function.Consumer;
 /**
  * 庫存埠的 Redis 實作——防超賣的核心。
  *
- * <p>所有讀寫都透過 Lua 腳本完成，一次網路往返即完成整個判斷與扣減。
- * 這裡沒有任何 {@code if (stock > 0) { decr(); }} 這種先讀後寫的程式碼，
- * 因為那正是超賣的來源。
- *
- * <p><b>為什麼不加分散式鎖？</b> Redis 以單執行緒執行 Lua，腳本內天然互斥。
- * 再包一層 Redisson 鎖只會讓每個請求多兩次 RTT 並把並行度壓成 1，
- * 換來的是零額外安全性。詳見 ADR-0003。
+ * <p>扣減與退回<b>只能</b>透過 Lua；Redis 故障時 fail-closed，放行等於無上限超賣。
+ * 腳本的回傳碼與 {@code StockDeductionOutcome} 是一組契約，改一邊要同步改另一邊。
  */
 @Repository
 public class RedisStockRepository implements StockRepository {
@@ -47,12 +42,7 @@ public class RedisStockRepository implements StockRepository {
     private final StringRedisTemplate redisTemplate;
     private final RedisScript<List> deductScript;
     private final RedisScript<Long> restoreScript;
-    /**
-     * activityId → 附屬鍵 TTL 秒數的本機快取。
-     *
-     * <p>沒有這層快取，每次扣減都要多一次 {@code TTL} 查詢——在熱路徑上憑空增加 100% 的
-     * Redis 往返。TTL 只在預熱時決定，短期內是常數，非常適合本機快取。
-     */
+    /** activityId → 附屬鍵 TTL 秒數的本機快取。 */
     private final Cache<Long, Long> auxiliaryTtlCache = Caffeine.newBuilder()
             .maximumSize(1_000)
             .expireAfterWrite(Duration.ofMinutes(5))
@@ -172,12 +162,7 @@ public class RedisStockRepository implements StockRepository {
                 RedisKeys.requestBinding(activityId));
     }
 
-    /**
-     * 附屬鍵（限購、冪等）的 TTL 對齊庫存鍵，結果快取在本機。
-     *
-     * <p>若附屬鍵活得比庫存鍵久，活動結束後會留下大量無主 hash；
-     * 若活得比較短，限購與冪等會在活動途中失效——後者是更嚴重的正確性問題。
-     */
+    /** 附屬鍵（限購、冪等）的 TTL 對齊庫存鍵，結果快取在本機。 */
     private long resolveAuxiliaryKeyTtlSeconds(Long activityId) {
         return auxiliaryTtlCache.get(activityId, this::queryStockKeyTtlSeconds);
     }
@@ -187,13 +172,7 @@ public class RedisStockRepository implements StockRepository {
         return (ttl == null || ttl <= 0) ? FALLBACK_AUXILIARY_TTL.toSeconds() : ttl;
     }
 
-    /**
-     * {@inheritDoc}
-     *
-     * <p>以 {@code HSCAN} 漸進式掃描。<b>絕不可改用 {@code HGETALL}</b>——
-     * 後者會阻塞 Redis 單執行緒直到整個 hash 讀完，
-     * 在一場有數十萬筆綁定的活動進行中執行，等同對自己發動一次阻斷攻擊。
-     */
+    /** {@inheritDoc} */
     @Override
     public void scanBindings(Long activityId, int batchSize, Consumer<List<StockBinding>> batchConsumer) {
         String key = RedisKeys.requestBinding(activityId);

@@ -9,13 +9,7 @@ import jakarta.persistence.Table;
 
 import java.time.Instant;
 
-/**
- * 一筆積分流水。
- *
- * <p><b>全部欄位 {@code updatable = false}</b>：流水是只增不改的。
- * 記錯了要用一筆反向的 {@code ADJUSTMENT} 沖銷，而不是回頭改那一列——
- * 改掉的話，「當時到底發生什麼事」就永遠查不出來了。
- */
+/** 一筆積分流水。 */
 @Entity
 @Table(name = "point_transaction")
 public class PointTransactionEntity {

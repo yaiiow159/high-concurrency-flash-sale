@@ -18,17 +18,7 @@ public record ActivityView(
         Instant endAt,
         String status,
         boolean purchasable,
-        /**
-         * 伺服器當下時間。
-         *
-         * <p>前端用它校正本地時鐘：客戶端時鐘可能偏差數分鐘，
-         * 直接用 {@code Date.now()} 倒數會讓時鐘快的使用者提早狂打 API、
-         * 慢的則錯過開賣。
-         *
-         * <p>放在活動回應裡而非另開端點，是因為前端本來就要取活動資料——
-         * 多一個 {@code /server-time} 端點就多一次往返，而秒殺開賣前
-         * 那一秒的往返最不該浪費。
-         */
+        /** 伺服器當下時間。 */
         Instant serverTime
 ) {
 

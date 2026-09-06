@@ -3,28 +3,13 @@ import { errorMessage, useApi } from '~/composables/useApi'
 import { useAuthStore } from '~/stores/auth'
 import type { OrderView } from '~/types/api'
 
-/**
- * 我的訂單。
- *
- * <p><b>不做 SSR、不做 ISR</b>——訂單是每個人專屬的資料，
- * 進了被快取的 HTML 就等於發給下一個訪客。
- *
- * <p>分頁用「載入更多」而不是頁碼：訂單是時間序的清單，
- * 使用者要找的通常是最近幾筆，很少有人會跳到第 7 頁。
- * 頁碼會多出「目前在第幾頁」這個要維護的狀態，換不到什麼。
- */
+/** 我的訂單。 */
 const auth = useAuthStore()
 const { request } = useApi()
 
 const PAGE_SIZE = 20
 
-/**
- * 狀態篩選。
- *
- * 在**伺服器端**篩，不是撈回來再過濾——「待付款」這種少數狀態
- * 用前端過濾會需要翻很多頁才湊得滿一頁，而使用者只會看到一個
- * 幾乎空白的清單。
- */
+/** 狀態篩選。 在**伺服器端**篩，不是撈回來再過濾——「待付款」這種少數狀態 用前端過濾會需要翻很多頁才湊得滿一頁，而使用者只會看到一個 幾乎空白的清單。 */
 const STATUS_FILTERS = [
   { value: null, label: '全部' },
   { value: 'PENDING_PAYMENT', label: '待付款' },

@@ -6,13 +6,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 
-/**
- * 退貨單的對外表述。
- *
- * <p>{@code refundAmount} 由退貨行推導，與領域模型同一套算法——
- * 前端不自己乘一次。畫面上的金額與實際退款金額必須是同一個數字，
- * 而讓兩邊各算一次，遲早會因為四捨五入或幣別而分岔。
- */
+/** 退貨單的對外表述。 */
 public record ReturnRequestView(
         String returnNo,
         String orderNo,

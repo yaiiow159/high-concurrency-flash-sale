@@ -148,16 +148,7 @@ public class JpaProductRepository implements ProductRepository {
                 .toList();
     }
 
-    /**
-     * 商店列表查詢：<b>固定兩次</b>查詢，與頁大小、與翻到第幾頁都無關。
-     *
-     * <p>第一次取整頁（keyset，ADR-0021），第二次用一次 {@code in (...)}
-     * 把最低價全部帶回來。
-     *
-     * <p>最低價<b>顯示</b>用批次查詢，<b>排序</b>用 product 上反正規化的
-     * {@code lowest_price} 欄位——排序要在資料庫裡對 5 萬列做，
-     * 而相關子查詢會重建剛消掉的那個懸崖。
-     */
+    /** 商店列表查詢：<b>固定兩次</b>查詢，與頁大小、與翻到第幾頁都無關。 */
     @Override
     @Transactional(readOnly = true)
     public List<ProductSummary> findOnShelfSummaries(Collection<Long> categoryIds,
@@ -213,11 +204,7 @@ public class JpaProductRepository implements ProductRepository {
                 .toList();
     }
 
-    /**
-     * 用資料庫回來的排序值組游標。
-     *
-     * <p>排序值為 {@code null} 代表這次是依 id 排序，游標只需要 id。
-     */
+    /** 用資料庫回來的排序值組游標。 */
     private static String cursorOf(Object sortValue, Long id) {
         if (sortValue == null) {
             return ProductCursor.ofId(id).encode();

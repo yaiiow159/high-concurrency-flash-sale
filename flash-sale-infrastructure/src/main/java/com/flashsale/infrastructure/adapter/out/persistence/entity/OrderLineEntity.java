@@ -13,13 +13,7 @@ import jakarta.persistence.Table;
 
 import java.math.BigDecimal;
 
-/**
- * 訂單行的持久化模型。
- *
- * <p>{@code sku_snapshot} 與 {@code unit_price} 是<b>快照</b>：
- * 商家調價或改商品名之後，歷史訂單不能跟著變。
- * 那是財務問題，不是顯示問題。
- */
+/** 訂單行的持久化模型。 */
 @Entity
 @Table(name = "order_line",
         indexes = {

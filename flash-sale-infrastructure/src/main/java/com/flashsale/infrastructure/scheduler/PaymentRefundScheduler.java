@@ -15,20 +15,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.util.List;
 
-/**
- * 處理待退款的收款。
- *
- * <p>每一筆 {@code REFUND_PENDING} 都代表<b>有一筆錢收了卻沒有訂單對應</b>，
- * 正卡在系統裡。成因只有一個：付款完成的瞬間，逾時關單排程已先一步取消訂單。
- *
- * <p>這個競態無法完全消除，只能保證發生時錢會被退回去。
- * 放著不處理會直接變成客訴與金流爭議——而且是最難解釋的那一種，
- * 因為使用者確實付了錢，訂單卻不存在。
- *
- * <p><b>範圍限制</b>：目前只處理「訂單被關閉」造成的全額退款。
- * 使用者主動申請退貨退款是另一條流程（含審核、部分退款、庫存回補），
- * 屬於 P3 的範圍，需要各自的狀態機與 Saga。
- */
+/** 處理待退款的收款。 */
 @Component
 public class PaymentRefundScheduler {
 
@@ -52,10 +39,7 @@ public class PaymentRefundScheduler {
         distributedLock.tryExecuteWithLock(LOCK_KEY, LOCK_LEASE, this::runSafely);
     }
 
-    /**
-     * 排程方法絕不可讓例外逸出——Spring 會直接取消後續排程，
-     * 退款從此靜默停擺，而那些錢會一直卡著。
-     */
+    /** 排程方法絕不可讓例外逸出——Spring 會直接取消後續排程， 退款從此靜默停擺，而那些錢會一直卡著。 */
     private void runSafely() {
         try {
             int refunded = refunder.refundPending(BATCH_SIZE);
@@ -67,13 +51,7 @@ public class PaymentRefundScheduler {
         }
     }
 
-    /**
-     * 實際執行退款。
-     *
-     * <p>拆成獨立 Bean 是為了讓 {@code @Transactional} 真的生效——
-     * Spring 交易靠動態代理，同 Bean 內呼叫不會經過代理。
-     * 與 {@code OutboxRelayer}、{@code RefreshTokenRevoker} 同一個理由。
-     */
+    /** 實際執行退款。 */
     @Component
     public static class PaymentRefunder {
 
@@ -106,12 +84,7 @@ public class PaymentRefundScheduler {
             return refunded;
         }
 
-        /**
-         * 單筆失敗不中斷整批——一筆退不掉不該讓其他人的錢也卡著。
-         *
-         * <p>退款失敗的紀錄會留在 {@code REFUND_PENDING}，下一輪再試；
-         * 若持續失敗，{@code payment.refund.total{result="failure"}} 會讓告警抓到。
-         */
+        /** 單筆失敗不中斷整批——一筆退不掉不該讓其他人的錢也卡著。 */
         private boolean refundOne(Payment payment) {
             try {
                 PaymentGateway.RefundOutcome outcome =

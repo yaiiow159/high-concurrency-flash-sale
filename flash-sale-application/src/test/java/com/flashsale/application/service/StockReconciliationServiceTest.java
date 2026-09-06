@@ -43,13 +43,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * 庫存對帳的單元測試。
- *
- * <p>這裡的測試比一般功能測試更關鍵：對帳一旦算錯又搭配自動修復，
- * 就會拿著錯誤的結論去改動正確的資料——<b>破壞力大於它本來要修的問題</b>。
- * 因此偏差方向、寬限期、以及「什麼情況下絕不自動修」都必須逐一釘死。
- */
+/** 庫存對帳的單元測試。 */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 @DisplayName("庫存對帳")

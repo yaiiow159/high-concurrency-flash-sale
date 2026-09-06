@@ -13,13 +13,7 @@ import jakarta.persistence.Table;
 
 import java.math.BigDecimal;
 
-/**
- * SKU 的持久化模型。
- *
- * <p>價格在這裡而非 ProductEntity —— 這是 SPU/SKU 分離的核心。
- * 庫存則完全不在 Catalog 裡（見 ADR-0008）：它變動極快，
- * 與商品的靜態描述混在一起會讓快取策略無法區分兩者。
- */
+/** SKU 的持久化模型。 */
 @Entity
 @Table(name = "sku", indexes = {
         @Index(name = "idx_sku_product", columnList = "product_id"),

@@ -12,16 +12,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/**
- * 優惠計算引擎。
- *
- * <h2>這裡窮舉的是「順序」與「分攤」</h2>
- *
- * <p>兩者都是<b>寫下來才存在</b>的規則：先打八折再減 100 與反過來差 20 元，
- * 而分攤的餘數給誰決定了退款時哪一行會差一分錢。
- * 沒有測試釘住的話，每個經手的人都會用自己的直覺，
- * 而那些直覺加總起來就是對不平的帳。
- */
+/** 優惠計算引擎。 */
 @DisplayName("優惠計算引擎")
 class PricingEngineTest {
 

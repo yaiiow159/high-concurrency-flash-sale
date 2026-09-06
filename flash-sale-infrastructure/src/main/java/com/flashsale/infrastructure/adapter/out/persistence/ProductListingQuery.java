@@ -5,29 +5,7 @@ import com.flashsale.domain.catalog.ProductSort;
 
 import java.util.Collection;
 
-/**
- * 組出商品列表的 SQL。
- *
- * <h2>為什麼是動態拼裝，而不是十個 {@code @Query}</h2>
- *
- * <p>五種排序 × 有沒有類目條件 = 十種組合。寫成十個具名方法，
- * 十份幾乎相同的 SQL 會各自漂移——改了 keyset 的判斷式而漏改其中一份，
- * 症狀是「某個排序方式下會跳過商品」，而那不會拋任何錯誤。
- *
- * <p>拼裝的部分<b>全部來自列舉</b>，沒有任何一段字串來自請求，
- * 因此不存在注入面。參數一律走 bind。
- *
- * <h2>keyset 的判斷式為什麼長這樣</h2>
- *
- * <p>非唯一的排序鍵必須配 id 當決勝鍵：
- * {@code (sort, id) < (:sortValue, :id)}。
- * 只比 sort 的話，同值的商品會被整批跳過（用 {@code <}）
- * 或整批重複（用 {@code <=}），而兩種都不會報錯。
- *
- * <p>MySQL 支援 row constructor 比較，但它在混合排序方向
- * （價格升冪 + id 降冪）時無法直接表達，因此展開成
- * {@code sort < ? or (sort = ? and id < ?)}——語意相同、方向可各自指定。
- */
+/** 組出商品列表的 SQL。 */
 final class ProductListingQuery {
 
     private ProductListingQuery() {

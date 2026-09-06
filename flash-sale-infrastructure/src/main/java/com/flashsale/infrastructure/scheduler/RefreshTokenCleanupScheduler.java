@@ -10,17 +10,7 @@ import org.springframework.stereotype.Component;
 import java.time.Clock;
 import java.time.Duration;
 
-/**
- * 清除過期的 refresh token。
- *
- * <p>這張表的寫入量是「登入次數 × refresh 頻率」——以 15 分鐘的 access token 計算，
- * 一個活躍使用者一天就會產生近百筆紀錄。不清理的話，
- * {@code token_hash} 的唯一索引會持續膨脹，拖慢每一次續期。
- *
- * <p><b>保留期比 TTL 多一段緩衝</b>：已過期的紀錄仍有鑑識價值——
- * 調查「這個帳號是什麼時候、從哪條輪替鏈被盜用的」需要看到歷史。
- * 立刻刪掉等於把安全事件的線索一併刪掉。
- */
+/** 清除過期的 refresh token。 */
 @Component
 public class RefreshTokenCleanupScheduler {
 
@@ -48,10 +38,7 @@ public class RefreshTokenCleanupScheduler {
         distributedLock.tryExecuteWithLock(LOCK_KEY, LOCK_LEASE, this::runSafely);
     }
 
-    /**
-     * 排程方法絕不可讓例外逸出——Spring 會直接取消該任務的後續排程，
-     * 清理從此靜默停擺，直到有人發現這張表大得離譜。
-     */
+    /** 排程方法絕不可讓例外逸出——Spring 會直接取消該任務的後續排程， 清理從此靜默停擺，直到有人發現這張表大得離譜。 */
     private void runSafely() {
         try {
             int deleted = refreshTokenRepository.deleteExpiredBefore(

@@ -7,59 +7,16 @@ import com.flashsale.domain.stock.StockDeductionResult;
 
 import java.util.Objects;
 
-/**
- * 庫存扣減埠（出站）——雙模型的統一入口。
- *
- * <p>背後有兩套完全不同的機制（ADR-0008）：
- *
- * <table border="1">
- *   <caption>通道與機制對應</caption>
- *   <tr><th>通道</th><th>機制</th><th>理由</th></tr>
- *   <tr><td>{@code NORMAL}</td><td>MySQL 行 + 樂觀鎖</td>
- *       <td>數萬個 SKU、衝突率極低，DB 完全夠用且天然有交易保證</td></tr>
- *   <tr><td>{@code SECKILL}</td><td>Redis Lua</td>
- *       <td>所有請求競爭同一行，DB 鎖會塌陷（ADR-0002）</td></tr>
- * </table>
- *
- * <p><b>呼叫端不該知道背後是 Redis 還是 MySQL。</b>
- * 路由由基礎設施層的 {@code RoutingInventoryService} 依通道決定，
- * 與 {@code MultiLevelActivityRepository} 用 Decorator 藏住快取是同一個手法。
- *
- * <p>這層間接的價值在退場時最明顯：若秒殺不再是業務重點，
- * 刪掉 Redis 實作與一段路由即可，所有呼叫端不受影響。
- */
+/** 庫存扣減埠（出站）——雙模型的統一入口。 */
 public interface InventoryService {
 
-    /**
-     * 扣減庫存。
-     *
-     * <p>不拋業務例外——由呼叫端決定如何把 {@link StockDeductionResult} 映射為業務語意。
-     * 基礎設施故障仍會拋 {@link RuntimeException}，那是另一回事。
-     */
+    /** 扣減庫存。 */
     StockDeductionResult deduct(DeductCommand command);
 
-    /**
-     * 退回先前的扣減。
-     *
-     * <p><b>必須冪等。</b>補償排程、DLQ 消費端與同步補償三個路徑可能同時
-     * 對同一筆訂單發起退庫，重複呼叫只能真的退一次。
-     *
-     * @return {@code true} 表示本次確實退回了庫存
-     */
+    /** 退回先前的扣減。 */
     boolean restore(RestoreCommand command);
 
-    /**
-     * 扣減指令。
-     *
-     * <p>用靜態工廠而非公開建構子，因為兩條通道需要的欄位不同：
-     * 秒殺要 {@code activityId} 與 {@code perUserLimit}，一般下單兩者都沒有。
-     * 讓呼叫端自己組一個所有欄位的建構子，遲早會出現
-     * 「一般下單卻填了 activityId」這種編譯得過但語意錯誤的呼叫。
-     *
-     * @param skuId        兩條通道都必填。秒殺也要記 SKU，否則對帳時
-     *                     無法把 Redis 的扣減對回 MySQL 的劃撥量
-     * @param perUserLimit 僅秒殺有意義；一般通道傳 {@link #NO_USER_LIMIT}
-     */
+    /** 扣減指令。 */
     record DeductCommand(
             OrderChannel channel,
             Long skuId,
@@ -103,9 +60,9 @@ public interface InventoryService {
      * 退庫指令。欄位需求與 {@link DeductCommand} 對稱。
      *
      * @param returnNo 非 {@code null} 時代表這次退庫是退貨造成的（ADR-0011）。
-     *                 它會成為庫存流水的來源單號，而流水的唯一鍵包含來源單號——
-     *                 一張訂單可以有多張退貨單，全都記訂單號的話，
-     *                 第二張的回補會被判定為重複而安靜略過
+     * 它會成為庫存流水的來源單號，而流水的唯一鍵包含來源單號——
+     * 一張訂單可以有多張退貨單，全都記訂單號的話，
+     * 第二張的回補會被判定為重複而安靜略過
      */
     record RestoreCommand(
             OrderChannel channel,
@@ -137,13 +94,7 @@ public interface InventoryService {
                     quantity, requestId, orderNo, null);
         }
 
-        /**
-         * 退貨造成的退庫。
-         *
-         * <p><b>通道固定為 {@code NORMAL}，即使原本是秒殺訂單</b>（ADR-0011 決策 4）。
-         * 活動可能早就結束並釋放過額度了，把量寫回 Redis 等於復活一個已釋放的活動——
-         * 那正是 ADR-0008 明文禁止、且實際發生過的超賣路徑。
-         */
+        /** 退貨造成的退庫。 */
         public static RestoreCommand forReturn(Long skuId, Long userId, int quantity,
                                                String orderNo, String returnNo) {
             return new RestoreCommand(OrderChannel.NORMAL, skuId, null, userId,

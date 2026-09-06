@@ -15,12 +15,7 @@ public record CategoryView(
         List<CategoryView> children
 ) {
 
-    /**
-     * 把扁平清單組成樹。
-     *
-     * <p>在應用層組樹而非讓資料庫做遞迴查詢：類目總數以千為上限，
-     * 一次全撈再在記憶體裡組，比 N 次遞迴查詢快得多，程式也好讀得多。
-     */
+    /** 把扁平清單組成樹。 */
     public static List<CategoryView> buildTree(List<Category> flat) {
         Map<Long, List<Category>> byParent = flat.stream()
                 .filter(category -> !category.isRoot())

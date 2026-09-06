@@ -15,21 +15,7 @@ import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Component;
 
-/**
- * 把領域事件變成通知。
- *
- * <p>與 {@code FulfillmentConsumer}、{@code RefundConsumer} 共用同一個 topic
- * 但各自的 group，因此三邊都收到完整的事件流、互不影響。
- * 共用 group 的話一則事件只會被其中一個消費掉。
- *
- * <p><b>冪等由 {@code (sourceEventId, channel)} 的唯一索引保證。</b>
- * 重複投遞是常態不是異常，而重複的後果是使用者為同一次出貨收到三封一樣的信——
- * 那比漏寄更容易讓人乾脆關掉全部通知。
- *
- * <p>這裡只寫資料庫、不寄信。SMTP 是遠端呼叫，留在消費端會讓
- * 一個信箱掛掉的使用者拖住整個分區的通知（寄送交給
- * {@code NotificationDeliveryScheduler}）。
- */
+/** 把領域事件變成通知。 */
 @Component
 public class NotificationConsumer {
 

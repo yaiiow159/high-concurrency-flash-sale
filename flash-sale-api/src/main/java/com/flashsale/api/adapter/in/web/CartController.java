@@ -20,21 +20,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * 購物車 API。
- *
- * <p>全部需要登入。未登入的購物車放在前端 localStorage，
- * 登入後呼叫一次 {@code /merge} 併進來——這讓「先逛再登入」成為可能，
- * 而不是逼使用者一進站就登入。
- *
- * <p><b>每個操作都回傳完整的購物車</b>，而不是只回傳被改動的那一項。
- * 購物車的總額、可購買狀態會因為單一品項的變動而改變
- * （某個商品剛好下架、價格剛好調整），只回傳差異會讓前端自己拼湊出
- * 一份與伺服器不一致的狀態。多傳幾百個位元組，換掉整類同步問題。
- *
- * <p>所有回應的價格都是<b>當下</b>的目錄價，僅供預覽。
- * 真正的金額在下單時重新計算並凍結進訂單。
- */
+/** 購物車 API。 */
 @RestController
 @RequestMapping("/api/v1/cart")
 @Tag(name = "購物車", description = "購物車管理與本地購物車合併")
@@ -81,12 +67,7 @@ public class CartController {
         return ResponseEntity.noContent().build();
     }
 
-    /**
-     * 登入後合併本地購物車。
-     *
-     * <p>同一個 SKU 取兩邊較大值而非相加：在手機加了 2 件、電腦也加了 2 件的人，
-     * 想要的幾乎一定是 2 件；相加會讓他在結帳頁看到一個從沒按過的數字 4。
-     */
+    /** 登入後合併本地購物車。 */
     @PostMapping("/merge")
     @Operation(summary = "合併本地購物車", description = "同一 SKU 取兩邊較大值；不可購買的品項會被略過")
     public ApiResponse<CartView> merge(@Valid @RequestBody CartMergeRequest request,

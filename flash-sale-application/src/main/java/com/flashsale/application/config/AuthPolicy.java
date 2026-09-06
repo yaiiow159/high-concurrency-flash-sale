@@ -6,7 +6,7 @@ import java.time.Duration;
  * 認證流程的策略參數。
  *
  * @param accessTokenTtl  Access token 有效期。<b>刻意設短</b>——它無法被撤銷，
- *                        停權或登出後仍會在這段時間內有效，這是無狀態設計的固有空窗
+ * 停權或登出後仍會在這段時間內有效，這是無狀態設計的固有空窗
  * @param refreshTokenTtl Refresh token 有效期，決定「多久沒用就要重新登入」
  */
 public record AuthPolicy(Duration accessTokenTtl, Duration refreshTokenTtl) {

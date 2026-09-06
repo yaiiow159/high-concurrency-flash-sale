@@ -4,17 +4,7 @@ import { useReturns } from '~/composables/useReturns'
 import { useAuthStore } from '~/stores/auth'
 import type { ReturnReason, ReturnableView } from '~/types/api'
 
-/**
- * 申請退貨。
- *
- * <p><b>可退數量問後端，不在這裡自己扣。</b>「審核中的退貨單也佔用額度」
- * 是領域規則；在前端複製一份，兩邊分岔時的症狀是
- * 「畫面說可以退，送出卻被拒絕」——畫面看起來完全正常，最難查。
- *
- * <p><b>「是否需要寄回」在按下送出之前就講明。</b>
- * 未出貨的訂單免寄回，已出貨的要等買家寄回才會退款。
- * 事後才告知等於讓人以為錢馬上會回來，那是客訴的標準起點。
- */
+/** 申請退貨。 */
 const route = useRoute()
 const orderNo = route.params.orderNo as string
 
@@ -28,10 +18,7 @@ const submitting = ref(false)
 const submitError = ref<string | null>(null)
 
 /**
- * 冪等鍵：<b>送出前產生，只在成功後才作廢</b>。
- *
- * 與下單同一個手法（見 useCheckout）。逾時重送同一個值會拿回同一張退貨單；
- * 每次重試都換新值的話，使用者按兩次就會申請兩次退貨。
+ * 冪等鍵：<b>送出前產生，只在成功後才作廢</b>。 與下單同一個手法（見 useCheckout）。逾時重送同一個值會拿回同一張退貨單； 每次重試都換新值的話，使用者按兩次就會申請兩次退貨。
  */
 let requestId: string | null = null
 
@@ -41,13 +28,7 @@ const quantities = reactive<Record<number, number>>({})
 const reason = ref<ReturnReason>('CHANGED_MIND')
 const reasonDetail = ref('')
 
-/**
- * 原因的順序刻意把「商品有問題」放前面。
- *
- * 真正會退貨的人多半是收到瑕疵品，讓他們少捲一次；
- * 而「改變心意」放在最後也是一種輕微的提醒，
- * 不是為了勸退，是因為它的責任歸屬與運費規則不同。
- */
+/** 原因的順序刻意把「商品有問題」放前面。 真正會退貨的人多半是收到瑕疵品，讓他們少捲一次； 而「改變心意」放在最後也是一種輕微的提醒， 不是為了勸退，是因為它的責任歸屬與運費規則不同。 */
 const REASONS: { value: ReturnReason, label: string, hint: string }[] = [
   { value: 'DEFECTIVE', label: '商品瑕疵或損壞', hint: '收到時已經有問題' },
   { value: 'NOT_AS_DESCRIBED', label: '與商品描述不符', hint: '實物與頁面說明不同' },
@@ -64,15 +45,7 @@ const selectedLines = computed(() =>
 )
 
 /**
- * 預估退款。
- *
- * 用 `paidAmount`（整單折扣分攤後的實付）而不是 `unitPrice × 數量`——
- * 有折扣的訂單，定價是使用者**沒有付過**的錢，照定價估會讓畫面上的數字
- * 比實際收到的退款高。
- *
- * 無條件捨去到分，與後端的分攤規則同方向（ADR-0013 決策 5）。
- * 這仍然是**預估**：後端按累計分攤算，分次退貨時餘數落在最後一次，
- * 前端不知道先前退過幾件，也不該為了知道而多打一支 API。
+ * 預估退款。 用 `paidAmount`（整單折扣分攤後的實付）而不是 `unitPrice × 數量`—— 有折扣的訂單，定價是使用者**沒有付過**的錢，照定價估會讓畫面上的數字 比實際收到的退款高。 無條件捨去到分，與後端的分攤規則同方向（ADR-0013 決策 5）。 這仍然是**預估**：後端按累計分攤算，分次退貨時餘數落在最後一次， 前端不知道先前退過幾件，也不該為了知道而多打一支 API。
  */
 const refundEstimate = computed(() =>
   selectedLines.value.reduce((sum, line) => {

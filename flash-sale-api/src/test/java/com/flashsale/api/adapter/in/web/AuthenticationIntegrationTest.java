@@ -25,23 +25,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/**
- * 認證流程的整合測試——對著<b>真實的 MySQL</b> 執行。
- *
- * <p><b>為什麼非得用真的資料庫？</b>
- * 這裡要驗證的風險是「交易邊界」，而那是 mock 結構上就看不到的東西。
- *
- * <p>實際發生過的例子：重用偵測撤銷整條輪替鏈後拋例外拒絕請求，
- * 但拋例外讓外層交易回滾，把撤銷一起還原掉。
- * 單元測試完全通過——mock 顯示 {@code revokeFamily} 確實被呼叫了，
- * 而它確實被呼叫了。回滾發生在 mock 之外。
- *
- * <p>這一類 bug 只有「真的寫進資料庫、真的 commit、再真的讀回來」才會現形。
- * 本測試因此刻意不 mock 任何持久化元件。
- *
- * <p>Kafka 不啟動（本流程用不到），排程也設成極長間隔——
- * 它們與認證無關，讓它們跑只會製造雜訊與不穩定。
- */
+/** 認證流程的整合測試——對著<b>真實的 MySQL</b> 執行。 */
 @SpringBootTest
 @AutoConfigureMockMvc
 @Testcontainers
@@ -163,15 +147,7 @@ class AuthenticationIntegrationTest {
                     .andExpect(status().isOk());
         }
 
-        /**
-         * <b>這是本測試類別存在的理由。</b>
-         *
-         * <p>重用偵測的正確性取決於「撤銷必須真的被 commit」。
-         * 曾經有一版程式撤銷後拋例外，導致交易回滾把撤銷還原——
-         * 單元測試全綠，但實際上什麼都沒撤銷。
-         *
-         * <p>只有真的寫進資料庫、commit、再用另一個請求讀回來，才驗證得了這件事。
-         */
+        /** <b>這是本測試類別存在的理由。</b> */
         @Test
         @DisplayName("重用已輪替的 token：整條輪替鏈失效，連最新的也不能用")
         void reuseRevokesEntireFamily() throws Exception {

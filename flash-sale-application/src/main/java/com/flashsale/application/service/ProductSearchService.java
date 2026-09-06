@@ -14,20 +14,7 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.Optional;
 
-/**
- * 商品搜尋。
- *
- * <h2>索引更新讀的是「當下的商品」，不是事件裡的內容</h2>
- *
- * <p>事件只帶 ID（見 {@code ProductIndexChangedEvent} 的說明），
- * 因此這裡回頭讀 Catalog。好處是索引想加欄位時事件完全不用動；
- * 代價是每則事件多一次資料庫讀取，而商品變更是低頻操作。
- *
- * <h2>下架與「查不到」走同一條路</h2>
- *
- * <p>兩者都從索引移除。商品被硬刪（理論上不該發生）時，
- * 讀不到就移除，索引不會留下一筆指向不存在商品的殘骸。
- */
+/** 商品搜尋。 */
 @Service
 public class ProductSearchService implements ProductSearchUseCase {
 
@@ -53,16 +40,7 @@ public class ProductSearchService implements ProductSearchUseCase {
                 categoryId, brand, paging.number(), paging.size()));
     }
 
-    /**
-     * {@inheritDoc}
-     *
-     * <p><b>刻意不加 {@code @Transactional}。</b> 這裡有一次遠端 ES 往返
-     * （最壞 1 秒連線 + 3 秒 socket），包在交易裡會把一條資料庫連線
-     * 握著整段時間——那正是先前「通知寫入拖垮外層交易」修過的同一類問題。
-     *
-     * <p>不需要交易也安全：{@code findById} 走的是 fetch join，
-     * 聚合根離開交易後是完整的，不會有 lazy loading 問題。
-     */
+    /** {@inheritDoc} */
     @Override
     public void applyIndexChange(ProductIndexChangedEvent event) {
         Optional<Product> product = productRepository.findById(event.productId());

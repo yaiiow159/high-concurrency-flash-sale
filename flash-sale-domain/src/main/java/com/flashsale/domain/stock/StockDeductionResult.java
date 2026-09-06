@@ -2,18 +2,7 @@ package com.flashsale.domain.stock;
 
 import java.util.Objects;
 
-/**
- * 庫存扣減的完整結果。
- *
- * <p>{@code orderNo} 在兩種情況下有值：
- * <ul>
- *   <li>{@link StockDeductionOutcome#SUCCESS}：本次新扣減所綁定的訂單號</li>
- *   <li>{@link StockDeductionOutcome#DUPLICATE_REQUEST}：<b>首次</b>扣減時綁定的訂單號</li>
- * </ul>
- *
- * <p>第二種情況是真正的冪等語意：重送相同 requestId，使用者拿回的是同一張訂單，
- * 而不是一個「重複請求」的錯誤畫面。使用者連點兩次不該被懲罰。
- */
+/** 庫存扣減的完整結果。 */
 public record StockDeductionResult(StockDeductionOutcome outcome, String orderNo) {
 
     public StockDeductionResult {

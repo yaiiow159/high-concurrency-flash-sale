@@ -11,16 +11,7 @@ import jakarta.persistence.UniqueConstraint;
 
 import java.time.Instant;
 
-/**
- * 出貨單的持久化模型。
- *
- * <p><b>沒有收貨地址欄位。</b>地址快照在訂單上，出貨單再存一份就會出現
- * 「訂單寫台北、出貨單寫高雄」這種沒有人能仲裁的狀態。
- *
- * <p>{@code order_no} 目前是唯一索引（一張訂單一張出貨單）。
- * 未來要支援分批出貨時，把它降級成一般索引即可——
- * 領域模型那邊也刻意沒有假設一對一。
- */
+/** 出貨單的持久化模型。 */
 @Entity
 @Table(name = "shipment",
         uniqueConstraints = {

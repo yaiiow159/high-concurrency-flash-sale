@@ -10,12 +10,7 @@ import java.time.Instant;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/**
- * Refresh token 的生命週期測試。
- *
- * <p>這些規則的錯誤不會讓任何功能「壞掉」——放寬了反而更順暢，
- * 只是同時把攻擊者也放進來了。因此每一條都要明確斷言。
- */
+/** Refresh token 的生命週期測試。 */
 @DisplayName("Refresh token")
 class RefreshTokenTest {
 

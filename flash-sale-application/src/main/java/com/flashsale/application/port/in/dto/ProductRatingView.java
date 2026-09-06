@@ -5,17 +5,7 @@ import com.flashsale.domain.review.ProductRating;
 import java.math.BigDecimal;
 import java.util.List;
 
-/**
- * 商品的評分摘要。
- *
- * <p>分佈的百分比由<b>後端</b>算好給前端。讓前端拿 count 自己除的話，
- * 兩邊各算一次遲早會有一邊的四捨五入不同，而那會表現成
- * 「長條圖加起來不是 100%」——一個沒有人會回報但每個人都看得出來的瑕疵。
- *
- * @param average     平均分，小數一位。沒有評價時是 0，
- *                    畫面靠 {@code count == 0} 決定顯示「尚無評價」而不是「0 分」
- * @param distribution 由高星到低星，那是評價區長條圖的呈現順序
- */
+/** 商品的評分摘要。 */
 public record ProductRatingView(
         Long productId,
         BigDecimal average,

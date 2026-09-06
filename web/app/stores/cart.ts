@@ -13,14 +13,7 @@ interface LocalItem {
 }
 
 /**
- * 購物車。
- *
- * 未登入時放 localStorage，登入後併進伺服器端。這讓「先逛再登入」成為可能，
- * 而不是逼使用者一進站就登入。
- *
- * **本地購物車只存 skuId 與數量，不存價格。**
- * 價格每次都由伺服器回傳——存在瀏覽器裡的價格既會過期，也是使用者改得動的。
- * 這與伺服器端購物車不存價格是同一個理由，也與訂單必須存快照剛好相反。
+ * 購物車。 未登入時放 localStorage，登入後併進伺服器端。這讓「先逛再登入」成為可能， 而不是逼使用者一進站就登入。 **本地購物車只存 skuId 與數量，不存價格。** 價格每次都由伺服器回傳——存在瀏覽器裡的價格既會過期，也是使用者改得動的。 這與伺服器端購物車不存價格是同一個理由，也與訂單必須存快照剛好相反。
  */
 export const useCartStore = defineStore('cart', () => {
   const auth = useAuthStore()
@@ -32,12 +25,7 @@ export const useCartStore = defineStore('cart', () => {
   const local = ref<LocalItem[]>([])
   const loading = ref(false)
 
-  /**
-   * 購物車圖示上的數字。
-   *
-   * 未登入時只數本地品項——本地沒有價格，也算不出金額，
-   * 但「有幾件」這個資訊不需要伺服器就給得出來。
-   */
+  /** 購物車圖示上的數字。 未登入時只數本地品項——本地沒有價格，也算不出金額， 但「有幾件」這個資訊不需要伺服器就給得出來。 */
   const itemCount = computed(() =>
     auth.isAuthenticated
       ? (remote.value?.totalQuantity ?? 0)
@@ -162,14 +150,7 @@ export const useCartStore = defineStore('cart', () => {
     writeLocal(items)
   }
 
-  /**
-   * 登入後把本地購物車併進伺服器端。
-   *
-   * **合併成功才清掉本地**——順序反了的話，合併請求失敗時
-   * 使用者的購物車就兩邊都沒有了。
-   *
-   * 本地是空的就直接載入伺服器端，不必多送一次請求。
-   */
+  /** 登入後把本地購物車併進伺服器端。 **合併成功才清掉本地**——順序反了的話，合併請求失敗時 使用者的購物車就兩邊都沒有了。 本地是空的就直接載入伺服器端，不必多送一次請求。 */
   async function mergeAfterLogin(): Promise<void> {
     const items = readLocal()
     if (items.length === 0) {

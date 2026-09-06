@@ -43,16 +43,7 @@ public class JpaMembershipRepository implements MembershipRepository {
                 .orElseGet(() -> MemberAccount.fresh(userId));
     }
 
-    /**
-     * {@inheritDoc}
-     *
-     * <p>{@code MANDATORY}：積分的異動必須跟著觸發它的那件事一起成功或一起回滾。
-     * 自己開交易的話，退款失敗時積分已經扣掉了——而使用者既沒拿到錢也少了點。
-     * 與 {@code EventOutbox.append}、券的核銷同一個理由。
-     *
-     * <p>已經記錄過就回 {@code false} 且<b>什麼都不做</b>。那是重放，不是錯誤——
-     * 訂單完成事件是至少一次投遞。
-     */
+    /** {@inheritDoc} */
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
     public boolean record(Long userId, long delta, PointReason reason, String refNo,
@@ -120,14 +111,7 @@ public class JpaMembershipRepository implements MembershipRepository {
                 .map(JpaMembershipRepository::toDomain);
     }
 
-    /**
-     * 確保帳戶存在。
-     *
-     * <p>增量 UPDATE 需要有一列可以加。遷移時已經替既有使用者建好，
-     * 但<b>新註冊的人不會經過遷移</b>——而在註冊流程裡建帳戶會讓
-     * Identity 認得 Membership，那是一條不必要的跨脈絡依賴。
-     * 在這裡補是最便宜的做法：每次異動都問一次主鍵，成本可以忽略。
-     */
+    /** 確保帳戶存在。 */
     @Override
     @Transactional(readOnly = true)
     public List<BalanceDrift> findBalanceDrifts() {

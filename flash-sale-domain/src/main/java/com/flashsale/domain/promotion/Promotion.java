@@ -8,18 +8,7 @@ import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.Objects;
 
-/**
- * 一條優惠規則。
- *
- * <h2>兩種規則用同一個聚合根，而不是繼承</h2>
- *
- * <p>滿減與折扣的差別只有「怎麼從金額算出折抵」這一件事。
- * 拆成兩個子類別會讓每一個持久化、每一個 DTO、每一個 switch 都跟著分兩支，
- * 換來的只是把一行三元運算式挪個位置。
- *
- * <p>判準是：<b>當兩種型別的差異開始出現在「行為」而不只是「參數」上時</b>
- * 才該拆。目前它們的行為完全一樣——檢查門檻、算折抵、夾上限。
- */
+/** 一條優惠規則。 */
 public final class Promotion {
 
     private static final int SCALE = 2;
@@ -35,25 +24,14 @@ public final class Promotion {
     /** 折抵值：固定金額折抵時是金額，比例折扣時是折扣率（0.2 代表打八折折 20%）。 */
     private final BigDecimal value;
 
-    /**
-     * 折抵上限。
-     *
-     * <p>比例折扣<b>必須</b>有上限，否則一張「全站八折」用在一筆十萬元的訂單上
-     * 就是折兩萬。{@code null} 代表不設限，只有固定金額折抵可以這樣。
-     */
+    /** 折抵上限。 */
     private final BigDecimal maxDiscount;
 
     private final Instant startAt;
     private final Instant endAt;
     private final boolean enabled;
 
-    /**
-     * 兌換所需積分；{@code null} 代表不開放兌換。
-     *
-     * <p>掛在這裡而不是另開一張「兌換商品表」：兌換出來的<b>就是一張券</b>，
-     * 而券的規則已經在這個聚合根裡了。另開一張表等於把同一件事描述兩次，
-     * 而兩份描述遲早會不一致。
-     */
+    /** 兌換所需積分；{@code null} 代表不開放兌換。 */
     private final Long pointCost;
 
     private Promotion(Long id, String name, DiscountType type, PromotionRule rule,
@@ -101,23 +79,12 @@ public final class Promotion {
                 startAt, endAt, enabled, pointCost);
     }
 
-    /**
-     * 現在能不能用。
-     *
-     * <p>時間由呼叫端傳入，不自己讀時鐘（鐵則 9）——
-     * 「活動最後一秒還能不能用」因此可以寫成一個固定的測試。
-     */
+    /** 現在能不能用。 */
     public boolean isApplicableAt(Instant now) {
         return enabled && !now.isBefore(startAt) && now.isBefore(endAt);
     }
 
-    /**
-     * 對指定金額能折抵多少；不適用時回 0。
-     *
-     * <p>回 0 而不是拋例外：不適用是<b>預期結果</b>而不是錯誤。
-     * 引擎會依序問過每一條規則，多數都不適用——
-     * 用例外表達正常結果會讓一次計算產生幾十個堆疊。
-     */
+    /** 對指定金額能折抵多少；不適用時回 0。 */
     public BigDecimal discountFor(BigDecimal amount) {
         if (amount.compareTo(threshold) < 0) {
             return BigDecimal.ZERO;
@@ -190,12 +157,7 @@ public final class Promotion {
         return pointCost;
     }
 
-    /**
-     * 這個優惠能不能用積分換。
-     *
-     * <p>兌換價為 0 或負數視為不可兌換——免費的「兌換」不是兌換，
-     * 而那多半是資料填錯而不是刻意的設計。
-     */
+    /** 這個優惠能不能用積分換。 */
     public boolean isExchangeable() {
         return pointCost != null && pointCost > 0;
     }

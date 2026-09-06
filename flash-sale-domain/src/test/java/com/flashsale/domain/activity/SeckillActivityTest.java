@@ -13,13 +13,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/**
- * 活動聚合根的業務規則測試。
- *
- * <p>注意這裡<b>沒有任何 mock、沒有 Spring context、沒有資料庫</b>——
- * 純粹的物件與斷言，毫秒級執行完畢。這正是把業務規則放在無框架依賴的領域層的報酬：
- * 最核心的邏輯獲得最快、最穩定的測試回饋。
- */
+/** 活動聚合根的業務規則測試。 */
 class SeckillActivityTest {
 
     private static final Instant START = Instant.parse("2025-06-01T10:00:00Z");

@@ -24,26 +24,13 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-/**
- * 全域例外處理。
- *
- * <p>集中在一處的價值：<b>錯誤回應的格式與狀態碼只有一個定義點</b>。
- * 若讓每個 Controller 自己 try-catch，同一種錯誤在不同端點會回不同的格式，
- * 前端只能逐一特判。
- *
- * <p>錯誤碼到 HTTP 狀態碼的映射寫成一張表，而非散落的 if-else：
- * 新增錯誤碼時漏了映射，會落到明確的預設值，而不是意外回一個 200。
- */
+/** 全域例外處理。 */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
-    /**
-     * 錯誤碼 → HTTP 狀態碼。
-     *
-     * <p>未列出的錯誤碼依前綴決定：{@code C}（系統故障）→ 503，其餘 → 409。
-     */
+    /** 錯誤碼 → HTTP 狀態碼。 */
     // 用 Map.ofEntries 而非 Map.of：後者上限 10 組，加到第 11 個錯誤碼時
     // 會是一個難以一眼看出原因的編譯錯誤。
     private static final Map<ErrorCode, HttpStatus> STATUS_MAPPING = Map.ofEntries(
@@ -152,19 +139,7 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error(ErrorCode.INVALID_PARAMETER, message));
     }
 
-    /**
-     * 請求體讀不動：JSON 語法錯、型別對不上、列舉值不在允許範圍內。
-     *
-     * <p><b>這是 400 不是 500。</b> 少了這個處理器，一個打錯的列舉值
-     * （例如把承運商寫成不存在的 {@code BLACK_CAT}）會落到最後那個
-     * {@code Exception} 的兜底，回 {@code C0004 系統異常，請稍後再試}——
-     * 而那句話有兩個問題：它把呼叫端的錯說成伺服器的錯，
-     * 而且 {@code retryable: true} 會讓客戶端一直重試一個永遠不會成功的請求。
-     *
-     * <p>訊息刻意<b>不回傳原始例外內容</b>。Jackson 的訊息會帶上類別全名與
-     * 欄位路徑，那是內部結構的洩漏。允許的列舉值本身不是機密，
-     * 但要讓呼叫端知道，該由 OpenAPI 文件負責，不是由錯誤訊息負責。
-     */
+    /** 請求體讀不動：JSON 語法錯、型別對不上、列舉值不在允許範圍內。 */
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ApiResponse<Void>> handleUnreadableBody(
             HttpMessageNotReadableException e) {
@@ -174,18 +149,7 @@ public class GlobalExceptionHandler {
                         "請求內容格式不正確，請確認欄位型別與必填欄位"));
     }
 
-    /**
-     * 查詢參數或路徑變數轉不出來：列舉值不在允許範圍、數字欄位收到文字。
-     *
-     * <p>與 {@link #handleUnreadableBody} 同一類，只是位置不同——
-     * 一個在請求體、一個在查詢字串。少了這一個，
-     * {@code ?status=PENDING}（而合法值是 {@code READY}）會回
-     * {@code 500 系統異常，retryable: true}，於是客戶端開始重試一個
-     * 永遠不會成功的請求。這個情況實際發生過。
-     *
-     * <p>訊息帶上參數名稱但<b>不帶允許的值</b>：後者由 OpenAPI 文件負責，
-     * 從錯誤訊息把列舉內容倒出來是在洩漏內部結構。
-     */
+    /** 查詢參數或路徑變數轉不出來：列舉值不在允許範圍、數字欄位收到文字。 */
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<ApiResponse<Void>> handleTypeMismatch(
             MethodArgumentTypeMismatchException e) {
@@ -201,15 +165,7 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error(ErrorCode.INVALID_PARAMETER, "缺少必要標頭: " + e.getHeaderName()));
     }
 
-    /**
-     * 樂觀鎖衝突。
-     *
-     * <p>兩個人同時處理同一張單時，輸的那一方整筆回滾——這是<b>預期中的結果</b>，
-     * 不是系統故障。落到兜底處理會變成 500「系統異常」，
-     * 客服看到的是「系統壞了」而不是「這張單剛剛被別人處理過，請重新整理」。
-     *
-     * <p>回 409 而非 500，也讓客戶端能據此決定重讀後再試。
-     */
+    /** 樂觀鎖衝突。 */
     @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
     public ResponseEntity<ApiResponse<Void>> handleConcurrentModification(
             ObjectOptimisticLockingFailureException e) {
@@ -219,42 +175,14 @@ public class GlobalExceptionHandler {
                         "這筆資料剛剛被其他人修改過，請重新整理後再試"));
     }
 
-    /**
-     * 路徑不存在。
-     *
-     * <p><b>不讓它落到兜底處理</b>。兜底會回 500、把 {@code retryable} 標成 true，
-     * 並記下一整份堆疊——而觸發它的通常只是打錯的網址或掃描器的例行探測。
-     * 三個後果都不對：客戶端會去重試一個永遠不會成功的請求；
-     * 呼叫端分不出「網址寫錯」與「伺服器壞了」；
-     * 而真正的系統錯誤會被淹沒在探測噪音裡。
-     *
-     * <p>不記日誌是刻意的，理由與對帳只在異常時輸出同一個：
-     * 每一筆都記，等於沒有記。
-     */
+    /** 路徑不存在。 */
     @ExceptionHandler({NoResourceFoundException.class, NoHandlerFoundException.class})
     public ResponseEntity<ApiResponse<Void>> handleNotFound(Exception e) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(ApiResponse.error(ErrorCode.ENDPOINT_NOT_FOUND, "找不到這個路徑"));
     }
 
-    /**
-     * 拿不到資料庫連線。
-     *
-     * <p><b>這是容量問題，不是程式錯誤，因此不該落到兜底處理。</b>
-     *
-     * <p>壓測時的實際成因：所有請求搶同一個 SKU 的庫存列，
-     * 等在行鎖上的請求<b>會一直握著它的連線</b>，於是連線池（50）被排隊的人佔滿，
-     * 後面的請求連交易都開不起來——<b>包含那些要買別的商品、
-     * 根本不碰這一列的請求</b>。一個熱門商品就能讓整條同步下單通道陪葬。
-     *
-     * <p>回 500 有兩個問題：客戶端看到「系統異常」不會重試，
-     * 而這恰恰是重試就會好的那種錯誤；同時它會把真正的程式錯誤淹沒在
-     * 尖峰噪音裡。改回 503 並標記可重試，語意才對得上。
-     *
-     * <p><b>不印堆疊。</b> 這種錯誤一出現就是成百上千筆，
-     * 每筆一份堆疊會讓日誌 I/O 在系統已經滿載時再補一刀——
-     * 與熔斷器降級路徑犯過的錯完全相同。
-     */
+    /** 拿不到資料庫連線。 */
     @ExceptionHandler({CannotCreateTransactionException.class,
             CannotAcquireLockException.class,
             QueryTimeoutException.class})
@@ -264,12 +192,7 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error(ErrorCode.SYSTEM_BUSY, "系統忙碌中，請稍後再試"));
     }
 
-    /**
-     * 兜底處理。
-     *
-     * <p>回傳的訊息刻意不含例外細節——堆疊資訊可能洩漏內部類別名稱、SQL 片段甚至連線字串。
-     * 詳情記在伺服器日誌，對外只給一個通用訊息。
-     */
+    /** 兜底處理。 */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleUnexpected(Exception e) {
         log.error("未預期的例外", e);

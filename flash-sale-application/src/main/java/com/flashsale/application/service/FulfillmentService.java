@@ -25,22 +25,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
-/**
- * 履約服務。
- *
- * <h2>出貨單由付款事件建立，不在下單當下</h2>
- *
- * <p>沒付錢的訂單不該進入揀貨佇列。而付款完成是一個<b>事件</b>而非同步呼叫，
- * 因此這裡是 MQ 消費端——也就意味著<b>冪等是必答題</b>：
- * Outbox 是至少一次語意，同一個付款事件一定會被重複投遞，
- * 而重複建立的後果是同一張訂單出兩次貨。
- *
- * <h2>訂單狀態與出貨狀態分開推進</h2>
- *
- * <p>出貨單有五個狀態，訂單只有兩個對應的里程碑（{@code SHIPPED}、{@code COMPLETED}）。
- * 「配送失敗」不會反映到訂單上——那是物流的事，
- * 而且失敗後幾乎都會重送，把它傳到訂單只會讓訂單狀態來回跳動。
- */
+/** 履約服務。 */
 @Service
 public class FulfillmentService implements FulfillmentUseCase {
 
@@ -81,14 +66,7 @@ public class FulfillmentService implements FulfillmentUseCase {
                 event.orderNo(), created.get().shipmentNo().value());
     }
 
-    /**
-     * 交付承運商，並把訂單推進到「已出貨」。
-     *
-     * <p>兩件事在同一個交易裡：出貨單與訂單的狀態不可以只成功一半。
-     * 若出貨單標記為運送中而訂單還停在 {@code PAID}，
-     * 買家會看到一張「已付款但可取消」的訂單，而貨其實已經在路上了——
-     * 他一按取消，庫存就會被退回可售池，那批貨等於憑空多出來。
-     */
+    /** 交付承運商，並把訂單推進到「已出貨」。 */
     @Override
     @Transactional
     public ShipmentView dispatch(String orderNo, Carrier carrier, String trackingNumber) {
@@ -137,13 +115,7 @@ public class FulfillmentService implements FulfillmentUseCase {
         return ShipmentView.from(shipment);
     }
 
-    /**
-     * 配送失敗。
-     *
-     * <p><b>刻意不動訂單狀態。</b>配送失敗後幾乎都是重新派送，
-     * 把它傳到訂單只會讓訂單狀態在「已出貨」與某個失敗狀態之間來回跳動，
-     * 而買家能做的事從頭到尾沒有改變。
-     */
+    /** 配送失敗。 */
     @Override
     @Transactional
     public ShipmentView markFailed(String orderNo, String reason) {

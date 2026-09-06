@@ -5,16 +5,7 @@ import com.flashsale.domain.shared.ErrorCode;
 
 import java.util.Objects;
 
-/**
- * 商品類目（樹狀）。
- *
- * <p>存 {@code level} 而非每次遞迴計算：類目樹極少變動、卻在每次商品查詢時被讀取，
- * 這是典型「讀多寫極少」的資料。
- *
- * <p><b>{@code level} 與 {@code parentId} 必須一致</b>——根類目的 level 為 1 且無父，
- * 其餘 level 為父的 level + 1。這個不變條件在此處強制，
- * 否則樹會出現「level 3 卻掛在 level 1 底下」這種無法渲染的資料。
- */
+/** 商品類目（樹狀）。 */
 public final class Category {
 
     /** 根類目的層級。從 1 起算而非 0，與營運後台的顯示習慣一致。 */

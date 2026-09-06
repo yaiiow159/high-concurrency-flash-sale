@@ -6,34 +6,7 @@ import com.flashsale.domain.shared.ErrorCode;
 import java.time.Instant;
 import java.util.Objects;
 
-/**
- * 收貨地址簿條目。
- *
- * <p><b>是獨立的聚合根，不是 {@link User} 的一部分。</b>
- * 兩個理由：地址的增刪改與使用者本身無關，硬綁在一起會讓「改一個地址」
- * 變成「載入並寫回整個使用者」；而一個使用者可能有數十筆地址，
- * 載入使用者時把它們一起撈出來是純粹的浪費。
- *
- * <p><b>這個物件<u>不會</u>被放進訂單。</b>訂單存的是 Ordering 脈絡自己的
- * {@code ShippingInfo} 快照。兩者刻意分開，因為它們回答不同的問題：
- *
- * <ul>
- *   <li>{@code Address}：「這個使用者現在的收貨地址是什麼」——會變</li>
- *   <li>{@code ShippingInfo}：「這張訂單當初要寄到哪裡」——永遠不變</li>
- * </ul>
- *
- * <p>若訂單只存 {@code addressId}，使用者搬家改了地址簿之後，
- * 三個月前那張已送達的訂單會顯示成寄到新家。那不是顯示問題，
- * 是出貨紀錄與客訴處理的依據被竄改了。
- *
- * <p><b>這個類別刻意不認得 {@code ShippingInfo}。</b> 轉換由應用層負責
- * （{@code OrderPlacementService}）。讓 Identity 去 import Ordering 的型別，
- * 等於把兩個脈絡黏在一起——之後訂單那邊改一個欄位，地址簿就得跟著動。
- * 代價是 {@code fullAddress()} 的格式化在兩邊各有一份；
- * 那點重複遠比脈絡耦合便宜，而且它們本來就可能因為用途不同而分岔
- * （一個給使用者看，一個給物流單據用）。
- * ArchUnit 只管分層，抓不到脈絡間的耦合，只能靠 review 守住。
- */
+/** 收貨地址簿條目。 */
 public final class Address {
 
     private static final int MAX_RECIPIENT_LENGTH = 32;
@@ -81,12 +54,7 @@ public final class Address {
                 defaultAddress, createdAt);
     }
 
-    /**
-     * 修改地址內容。
-     *
-     * <p>地址<b>可以</b>被修改——這正是它與訂單快照必須分開的理由。
-     * 修改只影響「之後的訂單要寄到哪」，已經成立的訂單完全不受影響。
-     */
+    /** 修改地址內容。 */
     public void update(String recipientName, String phone, String postalCode,
                        String region, String district, String streetAddress) {
         this.recipientName = requireText(recipientName, "收件人", MAX_RECIPIENT_LENGTH);
@@ -105,12 +73,7 @@ public final class Address {
         this.defaultAddress = false;
     }
 
-    /**
-     * 確認這筆地址屬於指定使用者。
-     *
-     * <p>回傳 void 並拋例外，而不是回傳布林：權限檢查若能被忽略，
-     * 遲早會有某個呼叫端忘記檢查，而那個 bug 的表現是「可以寄貨到別人家」。
-     */
+    /** 確認這筆地址屬於指定使用者。 */
     public void requireOwnedBy(Long expectedUserId) {
         if (!Objects.equals(userId, expectedUserId)) {
             // 刻意回「不存在」而非「無權限」：後者等於告訴攻擊者這個 ID 是有效的，
@@ -124,13 +87,7 @@ public final class Address {
         return "%s %s%s%s".formatted(postalCode, region, district, streetAddress);
     }
 
-    /**
-     * 台灣手機或市話。
-     *
-     * <p>刻意寬鬆：只擋明顯不是電話的輸入，不試圖窮舉所有合法格式。
-     * 過嚴的電話驗證會擋掉真實存在的號碼（分機、境外門號），
-     * 而那個損失遠大於放進一筆格式怪異的資料。
-     */
+    /** 台灣手機或市話。 */
     private static String requireValidPhone(String phone) {
         String trimmed = phone == null ? "" : phone.trim();
         if (!trimmed.matches("^[0-9+() -]{8,24}$")) {

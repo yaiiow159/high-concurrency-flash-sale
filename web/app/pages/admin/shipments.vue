@@ -4,24 +4,13 @@ import { useAdmin } from '~/composables/useAdmin'
 import type { ShipmentView } from '~/types/api'
 
 /**
- * 出貨處理。
- *
- * 這一頁是**工作佇列**而不是資料表：維運人員來這裡是為了把一批單子推進到下一個狀態，
- * 因此每一列的主要動作直接放在列上，不必先點進詳情。
- *
- * **一次處理一筆，沒有批次操作。** 每一筆的失敗處理都不同
- * （承運商拒收、單號打錯、訂單已取消），批次介面會把
- * 「哪幾筆失敗了」變成一個新的 UI 問題（ADR-0015「不做的事」）。
+ * 出貨處理。 這一頁是**工作佇列**而不是資料表：維運人員來這裡是為了把一批單子推進到下一個狀態， 因此每一列的主要動作直接放在列上，不必先點進詳情。 **一次處理一筆，沒有批次操作。** 每一筆的失敗處理都不同 （承運商拒收、單號打錯、訂單已取消），批次介面會把 「哪幾筆失敗了」變成一個新的 UI 問題（ADR-0015「不做的事」）。
  */
 definePageMeta({ layout: 'admin', middleware: 'admin', ssr: false })
 
 const { shipments, dispatch, markDelivered, markFailed } = useAdmin()
 
-/**
- * 承運商。與後端的 `Carrier` 列舉一一對應——
- * 打錯值的話後端回 400，而使用者看到的是一個沒有上下文的錯誤訊息。
- * 做成下拉選單就不會有打錯這回事。
- */
+/** 承運商。與後端的 `Carrier` 列舉一一對應—— 打錯值的話後端回 400，而使用者看到的是一個沒有上下文的錯誤訊息。 做成下拉選單就不會有打錯這回事。 */
 const CARRIERS = [
   { value: 'TCAT', label: '黑貓宅急便' },
   { value: 'HCT', label: '新竹物流' },
@@ -31,14 +20,7 @@ const CARRIERS = [
 ] as const
 
 /**
- * 狀態值必須與後端的 `ShipmentStatus` 一字不差。
- *
- * 打錯的話後端連參數都轉不出來，回的是一個沒有上下文的錯誤——
- * 而畫面上只會看到「載入失敗」。這裡曾經寫成 PENDING/SHIPPED，
- * 而真正的值是 READY/IN_TRANSIT。
- *
- * 不放 CANCELLED：那是出貨前取消，屬於訂單那一側的事，
- * 出貨佇列裡沒有任何動作可以對它做。
+ * 狀態值必須與後端的 `ShipmentStatus` 一字不差。 打錯的話後端連參數都轉不出來，回的是一個沒有上下文的錯誤—— 而畫面上只會看到「載入失敗」。這裡曾經寫成 PENDING/SHIPPED， 而真正的值是 READY/IN_TRANSIT。 不放 CANCELLED：那是出貨前取消，屬於訂單那一側的事， 出貨佇列裡沒有任何動作可以對它做。
  */
 const TABS = [
   { value: 'READY', label: '待出貨' },
@@ -95,12 +77,7 @@ async function confirmDispatch() {
   }
 }
 
-/**
- * 標記送達。
- *
- * **要二次確認**：這一步會啟動退貨期限的計時，而且不可逆
- * （沒有「取消送達」這個動作）。誤按的成本由買家承擔。
- */
+/** 標記送達。 **要二次確認**：這一步會啟動退貨期限的計時，而且不可逆 （沒有「取消送達」這個動作）。誤按的成本由買家承擔。 */
 async function confirmDelivered(orderNo: string) {
   if (!confirm(`確定訂單 ${orderNo} 已送達？\n\n這會啟動退貨期限的計時，而且無法取消。`)) {
     return

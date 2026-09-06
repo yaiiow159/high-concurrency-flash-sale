@@ -24,26 +24,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ThreadLocalRandom;
 
-/**
- * 多級快取活動查詢——以 <b>Decorator 模式</b>疊在資料庫實作之上。
- *
- * <p>應用層注入的是 {@code ActivityRepository} 介面，完全不知道有快取存在。
- * 要拆掉這層快取，只需移除 {@code @Primary}，一行 Use Case 都不用改。
- *
- * <p><b>三層結構與各自要解決的問題</b>：
- * <pre>
- *   L1  Caffeine（本機，秒級 TTL）  ── 消滅同節點內的重複查詢，零網路成本
- *   L2  Redis（叢集共享，分鐘級）   ── 消滅跨節點的重複查詢，保護資料庫
- *   L3  MySQL（delegate）           ── 唯一的真實來源
- * </pre>
- *
- * <p><b>快取三大災難的對策</b>：
- * <ul>
- *   <li><b>穿透</b>（查不存在的 id 反覆打 DB）：把「查無資料」也快取起來，用短 TTL 的空值哨兵</li>
- *   <li><b>擊穿</b>（熱點 key 過期瞬間萬人同時回源）：回源前先搶分散式鎖，只放一個執行緒進 DB</li>
- *   <li><b>雪崩</b>（大量 key 同時過期）：TTL 加上隨機抖動，把過期時間打散</li>
- * </ul>
- */
+/** 多級快取活動查詢——以 <b>Decorator 模式</b>疊在資料庫實作之上。 */
 @Repository
 @Primary
 public class MultiLevelActivityRepository implements ActivityRepository {
@@ -66,25 +47,7 @@ public class MultiLevelActivityRepository implements ActivityRepository {
     private final DistributedLock distributedLock;
     private final ObjectMapper objectMapper;
 
-    /**
-     * L1 本機快取。
-     *
-     * <p>TTL 只有 5 秒，但<b>那不代表活動下架後 5 秒就會生效</b>。
-     * L1 過期後讀到的是 L2，而 L2 的 TTL 是 5~6 分鐘——
-     * 兩層都沒有任何主動失效的路徑（全檔只有反序列化失敗時會刪鍵）。
-     * 因此下架的實際最壞延遲是 <b>L2 的 6 分鐘</b>，不是 5 秒。
-     *
-     * <p>這句話先前寫成「最慢 5 秒內所有節點都會看到新狀態」，那是錯的。
-     * 錯在它會讓維運在緊急下架一個有問題的活動後，
-     * 以為沒生效是別的原因——而實際上請求還會照樣進來、庫存照樣扣好幾分鐘。
-     *
-     * <p>{@link #update} 會在寫入後主動清掉 L2 與本機 L1，因此
-     * <b>經由管理端點下架時，這 5 秒是真的上界</b>：清完 L2 之後，
-     * 其他節點最慢 5 秒（L1 TTL）就會回源看到新狀態。
-     *
-     * <p>但直接改資料庫仍然繞得過去——那條路沒有任何地方可以掛失效邏輯，
-     * 最壞要等 L2 的 6 分鐘。營運要下架請走端點。
-     */
+    /** L1 本機快取。 */
     private final Cache<Long, Optional<SeckillActivity>> localCache = Caffeine.newBuilder()
             .maximumSize(5_000)
             .expireAfterWrite(L1_TTL)
@@ -121,16 +84,7 @@ public class MultiLevelActivityRepository implements ActivityRepository {
         return rebuild(activityId);
     }
 
-    /**
-     * 後台清單<b>一律直接回源，不經過任何一層快取</b>。
-     *
-     * <p>兩個理由。其一：後台看到的必須是當下的真實狀態——
-     * 維運剛下架一檔活動，後台卻因為快取還顯示「上架中」，
-     * 他會再按一次，而那才是真正危險的地方。
-     *
-     * <p>其二：這支查詢每天被呼叫幾十次，快取它省不到任何東西，
-     * 卻多一個會過期、會失效、會出錯的東西。
-     */
+    /** 後台清單<b>一律直接回源，不經過任何一層快取</b>。 */
     @Override
     public List<SeckillActivity> findAllForAdmin(int limit, int offset) {
         return delegate.findAllForAdmin(limit, offset);
@@ -143,18 +97,7 @@ public class MultiLevelActivityRepository implements ActivityRepository {
         return onlineListCache.get(RedisKeys.onlineActivitiesCache(), key -> delegate.findOnlineActivities());
     }
 
-    /**
-     * 寫入後立刻讓快取失效。
-     *
-     * <p><b>順序是先寫資料庫、再清快取。</b> 反過來（先清再寫）會開一個窗口：
-     * 清完之後、commit 之前，有請求回源讀到<b>舊值</b>並把它重新寫進快取，
-     * 於是下架完成的瞬間快取裡剛好又是「上架中」，而且這次沒有東西會再清它。
-     *
-     * <p><b>其他節點的 L1 仍會保留最多 5 秒。</b>Caffeine 是行程內的，
-     * 刪 Redis 鍵刪不掉別台機器的記憶體。這正是 L1 TTL 只設 5 秒的理由——
-     * 那 5 秒是「營運按下下架後，最壞多久所有節點都會看到」的上界。
-     * 要真正即時就得再加一層 pub/sub 廣播，那是為了 5 秒引進一個新的故障點。
-     */
+    /** 寫入後立刻讓快取失效。 */
     @Override
     public SeckillActivity update(SeckillActivity activity) {
         SeckillActivity updated = delegate.update(activity);
@@ -175,13 +118,7 @@ public class MultiLevelActivityRepository implements ActivityRepository {
         onlineListCache.invalidate(RedisKeys.onlineActivitiesCache());
     }
 
-    /**
-     * 對帳查詢<b>刻意不走快取</b>，直接回源。
-     *
-     * <p>對帳的整個意義就是核對真實狀態。若讀到的是幾分鐘前的快取，
-     * 核對出來的偏差是假的——可能報出根本不存在的問題，也可能漏掉真正的偏差。
-     * 這類低頻的正確性檢查，不該為了省一次查詢而犧牲資料新鮮度。
-     */
+    /** 對帳查詢<b>刻意不走快取</b>，直接回源。 */
     @Override
     public List<SeckillActivity> findForReconciliation(Instant endedAfter) {
         return delegate.findForReconciliation(endedAfter);
@@ -193,12 +130,7 @@ public class MultiLevelActivityRepository implements ActivityRepository {
         return delegate.findEndedBefore(endedBefore);
     }
 
-    /**
-     * 回源重建快取，以分散式鎖防擊穿。
-     *
-     * <p>取不到鎖時<b>直接讀資料庫</b>而非拋錯：等鎖逾時就報錯，會把一次快取失效放大成一次故障。
-     * 少數請求穿透到 DB 的代價，遠低於對使用者回傳錯誤。
-     */
+    /** 回源重建快取，以分散式鎖防擊穿。 */
     private Optional<SeckillActivity> rebuild(Long activityId) {
         try {
             return distributedLock.executeWithLock(
@@ -227,16 +159,7 @@ public class MultiLevelActivityRepository implements ActivityRepository {
         return fromDb;
     }
 
-    /**
-     * 讀取 L2。
-     *
-     * <p>回傳值有三種語意，刻意用 {@code null} 與 {@code Optional.empty()} 區分：
-     * <ul>
-     *   <li>{@code null}：快取未命中，需要回源</li>
-     *   <li>{@code Optional.empty()}：命中空值哨兵，確定此活動不存在，<b>不必</b>回源</li>
-     *   <li>有值：正常命中</li>
-     * </ul>
-     */
+    /** 讀取 L2。 */
     private Optional<SeckillActivity> readFromRedis(Long activityId) {
         String cached;
         try {

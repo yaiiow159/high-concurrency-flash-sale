@@ -10,17 +10,7 @@ import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Component;
 
-/**
- * 執行已核可的退款——退款 Saga 的慢車道（ADR-0011）。
- *
- * <p><b>併發刻意設為 1。</b>其他消費組都開 2 以上，這裡不行：
- * 同一張訂單的多筆退款若併行處理，「累計退款 ≤ 已付金額」的檢查
- * 會同時讀到舊值，樂觀鎖雖然擋得住，但代價是整批重試。
- * 退款不是高流量路徑——一天幾百筆的東西不需要為了吞吐冒這個險。
- *
- * <p>事件的 partition key 是<b>訂單號</b>，因此同一張訂單的退款本來就落在同一個分區，
- * 單執行緒消費即可保證有序。
- */
+/** 執行已核可的退款——退款 Saga 的慢車道（ADR-0011）。 */
 @Component
 public class RefundConsumer {
 

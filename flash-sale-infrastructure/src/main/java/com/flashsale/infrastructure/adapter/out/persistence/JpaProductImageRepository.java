@@ -15,27 +15,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-/**
- * 商品圖片的持久化（ADR-0027）。
- *
- * <p>用原生 SQL：掛載走 upsert（重複掛同一張圖是常態，
- * 不該拋例外），而孤兒對帳要的是整欄的鍵集合，兩者都不適合具名查詢。
- */
+/** 商品圖片的持久化（ADR-0027）。 */
 @Repository
 public class JpaProductImageRepository implements ProductImageRepository {
 
     @PersistenceContext
     private EntityManager entityManager;
 
-    /**
-     * 掛載。
-     *
-     * <p>用 upsert 而不是「先查再插」：後者是 read-modify-write，
-     * 兩個並行的掛載請求都會通過檢查然後各插一筆，
-     * 而唯一索引會讓其中一筆爆掉——使用者看到的是「系統異常」。
-     *
-     * <p>排序取現有最大值加一；第一張是 0，也就是主圖。
-     */
+    /** 掛載。 */
     @Override
     @Transactional
     public ProductImage attach(Long productId, String objectKey,
@@ -91,12 +78,7 @@ public class JpaProductImageRepository implements ProductImageRepository {
         return rows.stream().map(row -> toDomain(row, productId)).toList();
     }
 
-    /**
-     * 批次取主圖。
-     *
-     * <p>用視窗函式一次取回每個商品排序最前的那一張——
-     * 逐商品查是 N+1，而商品列表已經因為那個問題被修過一次。
-     */
+    /** 批次取主圖。 */
     @Override
     @Transactional(readOnly = true)
     public Map<Long, ProductImage> findPrimaryByProductIds(List<Long> productIds) {
@@ -129,12 +111,7 @@ public class JpaProductImageRepository implements ProductImageRepository {
         return result;
     }
 
-    /**
-     * 標記變體已產生。
-     *
-     * <p>依<b>物件鍵</b>更新：同一張圖可能掛在多個商品上，
-     * 而變體是物件的屬性，產生一次對所有掛載都成立。
-     */
+    /** 標記變體已產生。 */
     @Override
     @Transactional
     public void markVariantsReady(String objectKey) {
@@ -180,20 +157,7 @@ public class JpaProductImageRepository implements ProductImageRepository {
         return new HashSet<>(keys);
     }
 
-    /**
-     * 讀 {@code TINYINT(1)} 旗標。
-     *
-     * <p><b>不可直接轉成 {@code Number}。</b> MySQL Connector/J 預設
-     * {@code tinyInt1isBit=true}，會把 {@code TINYINT(1)} 當成布林值回傳
-     * {@link Boolean}——而這是連線字串上的一個旗標，不是我們控制的東西。
-     * 兩種都收，換掉驅動或改了設定都不會壞。
-     *
-     * <p>這個坑實機才會踩到：JPA 實體有型別轉換器接住，
-     * 只有原生查詢會拿到驅動的原始回傳值。
-     *
-     * <p>放成 package-private 是為了讓單元測試能直接打它——
-     * 這裡沒有 MySQL 的測試容器，而這個轉換是純函式。
-     */
+    /** 讀 {@code TINYINT(1)} 旗標。 */
     static boolean flag(Object value) {
         if (value instanceof Boolean bool) {
             return bool;

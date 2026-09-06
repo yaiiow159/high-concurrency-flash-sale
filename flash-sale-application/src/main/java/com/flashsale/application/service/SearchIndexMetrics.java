@@ -6,13 +6,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.concurrent.atomic.AtomicLong;
 
-/**
- * 搜尋索引的對帳指標。
- *
- * <p>用 Gauge 而不是 Counter：這裡要看的是<b>「現在差多少」</b>，
- * 不是「歷來累積差過多少」。累積量在修好之後仍然居高不下，
- * 那種指標沒辦法拿來設告警。
- */
+/** 搜尋索引的對帳指標。 */
 @Component
 public class SearchIndexMetrics {
 

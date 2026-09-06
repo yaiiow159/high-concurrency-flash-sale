@@ -6,18 +6,7 @@ import com.flashsale.domain.shared.ErrorCode;
 import java.util.Locale;
 import java.util.regex.Pattern;
 
-/**
- * 電子郵件值物件，同時是帳號識別。
- *
- * <p><b>正規化為小寫</b>是關鍵行為，不只是美化：
- * {@code Alice@Example.com} 與 {@code alice@example.com} 是同一個信箱，
- * 若不正規化就存進資料庫，唯一索引擋不住重複註冊——
- * 使用者會發現自己「明明註冊過卻登不進去」，因為登入時大小寫打得不一樣。
- *
- * <p>驗證規則刻意寬鬆：只擋明顯不合法的格式。
- * 嚴格的 RFC 5322 正規表示式冗長難讀，且會誤殺合法信箱；
- * 真正確認信箱可用的方式是寄一封驗證信，不是正規表示式。
- */
+/** 電子郵件值物件，同時是帳號識別。 */
 public record Email(String value) {
 
     private static final Pattern SHAPE = Pattern.compile("^[^\\s@]+@[^\\s@.]+\\.[^\\s@]+$");
@@ -40,12 +29,7 @@ public record Email(String value) {
         return new Email(value);
     }
 
-    /**
-     * 遮蔽後的顯示形式，供日誌使用。
-     *
-     * <p>完整信箱是個資，不該直接寫進日誌——日誌會被收集、轉發、長期保存，
-     * 而且存取權限通常比資料庫寬鬆得多。
-     */
+    /** 遮蔽後的顯示形式，供日誌使用。 */
     public String masked() {
         int at = value.indexOf('@');
         String local = value.substring(0, at);

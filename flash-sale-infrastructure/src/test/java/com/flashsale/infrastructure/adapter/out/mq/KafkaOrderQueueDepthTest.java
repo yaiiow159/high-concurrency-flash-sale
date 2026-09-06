@@ -14,13 +14,7 @@ import java.time.ZoneOffset;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
-/**
- * 入場控制的判斷邏輯（ADR-0023）。
- *
- * <p>這裡測的不是「能不能連上 Kafka」，而是<b>資料不完整時會不會誤擋人</b>。
- * 誤擋的代價是合法請求被拒絕，比「收太多」嚴重得多，
- * 而它不會拋任何例外——只會有人買不到東西。
- */
+/** 入場控制的判斷邏輯（ADR-0023）。 */
 @DisplayName("建單佇列深度")
 class KafkaOrderQueueDepthTest {
 

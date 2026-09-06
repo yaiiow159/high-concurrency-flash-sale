@@ -31,12 +31,7 @@ import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * 商店的商品列表：keyset 分頁（ADR-0021）與類目子樹（ADR-0022）。
- *
- * <p>這裡壞掉的方式都很安靜：游標算錯會讓最後一筆重複或漏掉一筆，
- * 子樹沒展開會讓中間層類目回空頁面——兩者都不會拋任何例外。
- */
+/** 商店的商品列表：keyset 分頁（ADR-0021）與類目子樹（ADR-0022）。 */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 @DisplayName("商品目錄查詢")

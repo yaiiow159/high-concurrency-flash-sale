@@ -12,13 +12,7 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
-/**
- * 建立商品。
- *
- * <p><b>沒有 status 欄位。</b> 新建的商品一律是 {@code DRAFT}——
- * 讓呼叫端指定狀態等於讓它跳過「上架」這個獨立動作，
- * 而上架會觸發搜尋索引寫入。建立與曝光是兩件事（ADR-0015 決策 5）。
- */
+/** 建立商品。 */
 public record CreateProductRequest(
 
         @NotNull(message = "請選擇類目")
@@ -50,7 +44,7 @@ public record CreateProductRequest(
 
     /**
      * @param attributes 規格屬性，例如 {@code {"容量": "256G"}}。
-     *                   用 Map 而不是固定欄位——不同品類的規格維度本來就不同
+     * 用 Map 而不是固定欄位——不同品類的規格維度本來就不同
      */
     public record SkuRequest(
 

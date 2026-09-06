@@ -2,14 +2,7 @@ import { errorMessage, useApi } from '~/composables/useApi'
 import type { ProductImageView, UploadAuthorization } from '~/types/api'
 
 /**
- * 商品圖片上傳（ADR-0027）。
- *
- * 三步：算雜湊 → 要授權 → 直傳物件儲存 → 回報掛載。
- *
- * **位元組不經過應用伺服器**——那條請求執行緒是秒殺熱路徑要用的。
- * 這也是為什麼雜湊在瀏覽器算：伺服器要驗證雜湊就得讀完整個檔案，
- * 而那正是我們在避免的事。算錯的後果是「同一張圖存了兩份」，
- * 是浪費不是錯誤。
+ * 商品圖片上傳（ADR-0027）。 三步：算雜湊 → 要授權 → 直傳物件儲存 → 回報掛載。 **位元組不經過應用伺服器**——那條請求執行緒是秒殺熱路徑要用的。 這也是為什麼雜湊在瀏覽器算：伺服器要驗證雜湊就得讀完整個檔案， 而那正是我們在避免的事。算錯的後果是「同一張圖存了兩份」， 是浪費不是錯誤。
  */
 export function useProductMedia() {
   const { request } = useApi()

@@ -5,15 +5,7 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
 
 import java.time.Duration;
 
-/**
- * 秒殺系統的可調參數。
- *
- * <p>用巢狀 record 而非扁平的一堆欄位，是為了讓設定檔的結構與程式碼的結構一致——
- * {@code flash-sale.mq.send-timeout} 在 yml 與 Java 裡長得一樣，改設定時不用猜對應關係。
- *
- * <p>所有欄位都給了預設值：一個剛 clone 下來的專案應該能直接跑起來，
- * 而不是先解一輪「缺少必要設定」的錯誤。
- */
+/** 秒殺系統的可調參數。 */
 @ConfigurationProperties(prefix = "flash-sale")
 public record FlashSaleProperties(
         @DefaultValue Mq mq,
@@ -26,7 +18,7 @@ public record FlashSaleProperties(
 
     /**
      * @param sendTimeout 等待 broker ack 的上限。設短是刻意的——
-     *                    秒殺場景寧可快速失敗讓使用者重試，也不要讓請求執行緒被佔住
+     * 秒殺場景寧可快速失敗讓使用者重試，也不要讓請求執行緒被佔住
      */
     public record Mq(@DefaultValue("500ms") Duration sendTimeout) {
     }
@@ -42,14 +34,14 @@ public record FlashSaleProperties(
 
     /**
      * @param keyTtlBuffer 庫存鍵在活動結束後的保留時長，
-     *                     讓尚未跑完的補償流程仍有鍵可退
+     * 讓尚未跑完的補償流程仍有鍵可退
      */
     public record Stock(@DefaultValue("2h") Duration keyTtlBuffer) {
     }
 
     /**
      * @param nodeId 節點編號（0-1023）。<b>多副本部署時必須各自不同</b>，
-     *               否則會產生重複的訂單號。生產環境應由 StatefulSet 序號或環境變數注入
+     * 否則會產生重複的訂單號。生產環境應由 StatefulSet 序號或環境變數注入
      */
     public record Snowflake(@DefaultValue("0") long nodeId) {
     }
@@ -67,11 +59,11 @@ public record FlashSaleProperties(
 
     /**
      * @param orphanGracePeriod 孤兒扣減的寬限期。<b>必須明顯長於付款期限與 MQ 最大重試時間</b>，
-     *                          否則會把還在佇列中正常排隊的請求誤判為孤兒而退庫，
-     *                          等訊息真的被消費時就成了超賣
+     * 否則會把還在佇列中正常排隊的請求誤判為孤兒而退庫，
+     * 等訊息真的被消費時就成了超賣
      * @param scanBatchSize     掃描扣減憑證的單批筆數
      * @param autoRepairOrphans 是否自動退回孤兒扣減。<b>預設關閉</b>：
-     *                          有 bug 的自動修復，破壞力大於它要修的問題
+     * 有 bug 的自動修復，破壞力大於它要修的問題
      */
     public record Reconciliation(
             @DefaultValue("30m") Duration orphanGracePeriod,

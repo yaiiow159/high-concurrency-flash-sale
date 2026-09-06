@@ -33,14 +33,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * 由事件產生通知。
- *
- * <p>測試盯的是三件這一層自己負責的事：
- * <b>每個事件產生兩個管道各一筆</b>、
- * <b>冪等鍵帶著來源事件 ID</b>、
- * <b>內容在建立當下就算好並存成快照</b>。
- */
+/** 由事件產生通知。 */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 @DisplayName("通知派送")

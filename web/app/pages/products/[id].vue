@@ -11,13 +11,7 @@ import type {
 } from '~/types/api'
 
 /**
- * 商品詳情與直接購買。
- *
- * 頁面本身走 ISR（商品資料變動慢），但下單一定是客戶端的動作——
- * 它帶身分、會改狀態，永遠不該出現在被快取的 HTML 裡。
- *
- * 桌機把購買面板固定在右側，手機改用底部固定操作列——
- * 主要動作永遠在拇指構得到的地方，而不是跟著內容捲走。
+ * 商品詳情與直接購買。 頁面本身走 ISR（商品資料變動慢），但下單一定是客戶端的動作—— 它帶身分、會改狀態，永遠不該出現在被快取的 HTML 裡。 桌機把購買面板固定在右側，手機改用底部固定操作列—— 主要動作永遠在拇指構得到的地方，而不是跟著內容捲走。
  */
 const route = useRoute()
 const productId = route.params.id as string
@@ -27,16 +21,7 @@ const { data } = await useFetch<ApiResponse<ProductView>>(
 )
 const product = computed(() => data.value?.data ?? null)
 
-/**
- * 麵包屑與同類商品。
- *
- * <p>先前商品頁是一條<b>死路</b>——看完只能按瀏覽器上一頁。
- * 逛街的體驗是一個接一個，而「回到這個類目」與「看看類似的」
- * 是最自然的兩個下一步。
- *
- * <p>兩者都不需要新端點：類目路徑從既有的類目樹算出來，
- * 同類商品用既有的列表 API 加 categoryId（而它現在含子樹，ADR-0022）。
- */
+/** 麵包屑與同類商品。 */
 const { data: categoryData } = await useFetch<ApiResponse<CategoryView[]>>(
   '/api/v1/catalog/categories')
 
@@ -61,16 +46,7 @@ const breadcrumb = computed(() => {
     : pathTo(categoryData.value?.data ?? [], categoryId)
 })
 
-/**
- * 商品圖片（ADR-0027）。
- *
- * <p>與庫存、評分同一個做法：客戶端另外取，不併進這一頁的 SSR。
- * 這一頁是 ISR 快取的，而圖片會被換掉——跟著被快取的話，
- * 換了圖的商家會看到舊圖直到快取過期。
- *
- * <p>圖片網址本身是內容雜湊，不可變，所以**瀏覽器與 CDN 可以永久快取**；
- * 會變的是「這個商品指向哪些網址」，而那正是這裡要重新取的東西。
- */
+/** 商品圖片（ADR-0027）。 */
 const images = ref<ProductImageView[]>([])
 const activeImage = ref(0)
 
@@ -93,12 +69,7 @@ const heroImage = computed(() => images.value[activeImage.value]?.url ?? null)
 const related = ref<ProductView[]>([])
 
 /**
- * 同類商品。
- *
- * 在客戶端取而不是併進 SSR：這一頁是 ISR 快取的，
- * 而「同類商品」會隨著上下架變動——跟著被快取會顯示已下架的商品。
- *
- * 多要一筆再把自己濾掉：不濾的話推薦區第一個就是使用者正在看的東西。
+ * 同類商品。 在客戶端取而不是併進 SSR：這一頁是 ISR 快取的， 而「同類商品」會隨著上下架變動——跟著被快取會顯示已下架的商品。 多要一筆再把自己濾掉：不濾的話推薦區第一個就是使用者正在看的東西。
  */
 async function loadRelated() {
   const categoryId = product.value?.categoryId
@@ -127,10 +98,7 @@ const cart = useCartStore()
 const addingToCart = ref(false)
 const cartMessage = ref<string | null>(null)
 
-/**
- * 加入購物車。未登入也能用——內容放在 localStorage，登入後自動併入。
- * 這讓「先逛再登入」成為可能，而不是逼使用者一進站就登入。
- */
+/** 加入購物車。未登入也能用——內容放在 localStorage，登入後自動併入。 這讓「先逛再登入」成為可能，而不是逼使用者一進站就登入。 */
 async function addToCart() {
   if (!selectedSku.value) {
     return
@@ -147,21 +115,12 @@ async function addToCart() {
   }
 }
 
-/**
- * 地址在客戶端掛載後才取，絕不進 SSR——這一頁是 ISR 快取的，
- * 個資一旦進了快取的 HTML 就等於發給下一個訪客。
- */
+/** 地址在客戶端掛載後才取，絕不進 SSR——這一頁是 ISR 快取的， 個資一旦進了快取的 HTML 就等於發給下一個訪客。 */
 const { addresses, defaultAddress, load: loadAddresses } = useAddresses()
 const selectedAddressId = ref<number | null>(null)
 
 /**
- * 評價。
- *
- * 在客戶端載入而不是併進這一頁的 SSR：評價變動比商品頻繁得多，
- * 跟著 ISR 一起被快取的話，新評價要等快取過期才看得到。
- *
- * 失敗不擋住商品頁——這是 fail-open，代價只是「少看到評價」，
- * 而使用者仍然買得到東西。
+ * 評價。 在客戶端載入而不是併進這一頁的 SSR：評價變動比商品頻繁得多， 跟著 ISR 一起被快取的話，新評價要等快取過期才看得到。 失敗不擋住商品頁——這是 fail-open，代價只是「少看到評價」， 而使用者仍然買得到東西。
  */
 const {
   rating, reviews, loading: reviewsLoading, hasMore: hasMoreReviews,
@@ -186,12 +145,7 @@ watchEffect(() => {
   }
 })
 
-/**
- * 預選第一個可購買的規格。
- *
- * 不預選「第一個」而是「第一個可買的」：把使用者放在一個
- * 按下去就會失敗的狀態上，是設計者偷懶而不是使用者的錯。
- */
+/** 預選第一個可購買的規格。 不預選「第一個」而是「第一個可買的」：把使用者放在一個 按下去就會失敗的狀態上，是設計者偷懶而不是使用者的錯。 */
 const selectedSkuId = ref<number | null>(null)
 watchEffect(() => {
   if (selectedSkuId.value === null && product.value) {
@@ -200,14 +154,7 @@ watchEffect(() => {
 })
 
 /**
- * 庫存。
- *
- * **另外請求，不併進商品頁的 SSR**——這一頁是 ISR 快取的，
- * 庫存跟著被快取的話會顯示過期的數字，而使用者是照著它決定要不要買。
- * 與評分同一個判斷：變動頻率不同的資料不共用快取。
- *
- * 失敗時整份留空，畫面就不顯示庫存狀態。fail-open：
- * 庫存查詢掛掉不該讓人連商品都看不到。
+ * 庫存。 **另外請求，不併進商品頁的 SSR**——這一頁是 ISR 快取的， 庫存跟著被快取的話會顯示過期的數字，而使用者是照著它決定要不要買。 與評分同一個判斷：變動頻率不同的資料不共用快取。 失敗時整份留空，畫面就不顯示庫存狀態。fail-open： 庫存查詢掛掉不該讓人連商品都看不到。
  */
 const stock = ref<Record<number, SkuStockView>>({})
 

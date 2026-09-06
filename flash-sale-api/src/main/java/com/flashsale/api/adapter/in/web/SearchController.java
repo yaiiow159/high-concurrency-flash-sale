@@ -23,15 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 import java.util.Map;
 
-/**
- * 商品搜尋（ADR-0012）。
- *
- * <p>搜尋端點是<b>公開</b>的——它不帶身分、不改狀態，
- * 而且是使用者進站的第一個動作。要求登入才能搜尋等於把人擋在門外。
- *
- * <p>索引維護與商品上下架則在 {@code /api/v1/admin/**} 底下，
- * 由 {@code SecurityConfig} 統一要求 {@code seckill:admin} scope。
- */
+/** 商品搜尋（ADR-0012）。 */
 @RestController
 @Tag(name = "搜尋", description = "商品搜尋與索引維護")
 public class SearchController {
@@ -86,16 +78,7 @@ public class SearchController {
         return ApiResponse.ok(reconciliationUseCase.reconcile(repair));
     }
 
-    /**
-     * 後台的商品清單。
-     *
-     * <p>回<b>所有狀態</b>的商品，與前台那支不同——看不到草稿的話，
-     * 剛建好的商品就找不到入口去上架它。
-     *
-     * <p>頁大小的上限夾在<b>後端</b>：後台的資料量比前台大一個數量級，
-     * 而它的使用者只有幾個人。他們按一下「載入全部」的成本，
-     * 會由當下所有正在下單的使用者一起承擔（ADR-0015 決策 4）。
-     */
+    /** 後台的商品清單。 */
     @GetMapping("/api/v1/admin/products")
     @Operation(summary = "後台商品清單", description = "含草稿與已下架；頁大小上限 100")
     public ApiResponse<List<ProductView>> listAll(
@@ -107,12 +90,7 @@ public class SearchController {
                 Math.max(page, 0), Math.clamp(size, 1, MAX_ADMIN_PAGE_SIZE)));
     }
 
-    /**
-     * 建立商品。
-     *
-     * <p>回 {@code 201}：一件商品真的被建立了。它是 {@code DRAFT}，
-     * 還不會出現在商店或搜尋索引裡——上架是下一個獨立的動作。
-     */
+    /** 建立商品。 */
     @PostMapping("/api/v1/admin/products")
     @Operation(summary = "建立商品", description = "至少一個規格；建立後為 DRAFT，需另外上架")
     public ResponseEntity<ApiResponse<ProductView>> create(

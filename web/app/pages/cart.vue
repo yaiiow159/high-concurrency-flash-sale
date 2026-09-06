@@ -5,14 +5,7 @@ import { useCartStore } from '~/stores/cart'
 import type { CartItemView, CartView } from '~/types/api'
 
 /**
- * 購物車。
- *
- * **不做 SSR、不做 ISR**——購物車是每個人專屬的資料，
- * 進了被快取的 HTML 就等於發給下一個訪客。
- *
- * 未登入時內容在 localStorage，但那裡只有 skuId 與數量。
- * 商品名與價格得跟伺服器要——價格永遠由伺服器決定，
- * 存在瀏覽器裡的既會過期，也是使用者改得動的。
+ * 購物車。 **不做 SSR、不做 ISR**——購物車是每個人專屬的資料， 進了被快取的 HTML 就等於發給下一個訪客。 未登入時內容在 localStorage，但那裡只有 skuId 與數量。 商品名與價格得跟伺服器要——價格永遠由伺服器決定， 存在瀏覽器裡的既會過期，也是使用者改得動的。
  */
 const auth = useAuthStore()
 const cart = useCartStore()
@@ -37,12 +30,7 @@ async function refresh() {
   }
 }
 
-/**
- * 未登入時的價格查詢。
- *
- * 用目錄的**批次**端點（匿名開放）一次取回所有品項的商品名與價格。
- * 逐筆查在 50 個品項的購物車上就是 50 次往返，而這是使用者反覆重整的頁面。
- */
+/** 未登入時的價格查詢。 用目錄的**批次**端點（匿名開放）一次取回所有品項的商品名與價格。 逐筆查在 50 個品項的購物車上就是 50 次往返，而這是使用者反覆重整的頁面。 */
 async function priceLocalCart(): Promise<CartView> {
   if (cart.local.length === 0) {
     return { items: [], totalAmount: 0, totalQuantity: 0, removedCount: 0 }

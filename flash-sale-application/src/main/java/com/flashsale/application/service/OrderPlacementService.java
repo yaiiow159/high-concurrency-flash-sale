@@ -45,21 +45,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.Optional;
 
-/**
- * 一般下單：同步、單一交易。
- *
- * <p><b>整個流程包在一個交易裡，這是這條通道最大的優勢。</b>
- * 扣庫存與建訂單都寫 MySQL，任何一步失敗就整個回滾——
- * 不需要 Outbox 補償、不需要對帳兜底、不會有「庫存扣了但訂單沒建」的中間態。
- *
- * <p>秒殺通道付不起這個代價（單一熱點下交易會排隊塌陷），
- * 所以它用最終一致換吞吐，並為此背上補償、冪等、對帳三套機制。
- * 一般通道沒有那個需求，就不該付那個代價——
- * 把它也推進 MQ，換來的是「為什麼買一本書也要輪詢」。
- *
- * <p><b>價格一律由目錄決定。</b>呼叫端只說要買哪個 SKU、幾件；
- * 單價與商品快照都從 {@link Product} 取。前端若能決定價格，那就不叫價格了。
- */
+/** 一般下單：同步、單一交易。 */
 @Service
 public class OrderPlacementService implements PlaceOrderUseCase {
 
@@ -139,13 +125,7 @@ public class OrderPlacementService implements PlaceOrderUseCase {
         return OrderView.from(saved);
     }
 
-    /**
-     * {@inheritDoc}
-     *
-     * <p>{@code readOnly}：試算不該有能力改變任何東西。
-     * 這不只是最佳化——它讓「試算會不會不小心把券核銷掉」
-     * 從一個需要讀程式碼確認的問題，變成資料庫會擋下的事。
-     */
+    /** {@inheritDoc} */
     @Override
     @Transactional(readOnly = true)
     public CheckoutPreview preview(PreviewCommand command) {
@@ -178,17 +158,7 @@ public class OrderPlacementService implements PlaceOrderUseCase {
                 priced.total(), previewLines);
     }
 
-    /**
-     * 套用優惠，並把折後金額分攤回每一行。
-     *
-     * <p><b>候選優惠由伺服器決定，不由呼叫端傳入。</b>
-     * 呼叫端只能說「我要用這張券」，不能說「折我 500」——
-     * 與價格一律由目錄決定同一個道理。
-     *
-     * <p>券的核銷是這裡的最後一步，而且刻意留在下單交易之內（ADR-0013 決策 7）。
-     * 拆出去的話兩種順序都會壞：先核銷後建單則建單失敗時券白白消失，
-     * 先建單後核銷則訂單享了折扣但券還在。
-     */
+    /** 套用優惠，並把折後金額分攤回每一行。 */
     private Priced price(Long couponId, Long userId, List<OrderLine> lines,
                          String postalCode, ShippingMethod method, Instant now) {
         List<Promotion> candidates = new ArrayList<>(
@@ -231,12 +201,7 @@ public class OrderPlacementService implements PlaceOrderUseCase {
                 shipping.netFee(), shipping.zone());
     }
 
-    /**
-     * 算運費，並套用免運優惠。
-     *
-     * <p>沒有收貨地址時運費為 0——秒殺通道與試算尚未選地址的情況都會走到這裡。
-     * 那不是「免運」而是「還算不出來」，畫面要說得出差別。
-     */
+    /** 算運費，並套用免運優惠。 */
     private Shipping resolveShipping(List<OrderLine> lines, String postalCode,
                                      ShippingMethod method, BigDecimal goodsPayable,
                                      List<Promotion> promotions, Instant now) {
@@ -257,14 +222,7 @@ public class OrderPlacementService implements PlaceOrderUseCase {
         return new Shipping(netFee, discount, computed.zone());
     }
 
-    /**
-     * 訂單總重。
-     *
-     * <p>重量來自<b>商品目錄的當下值</b>而不是訂單行快照——
-     * 訂單行存的是價格與名稱的快照（那些是成交條件），
-     * 而重量是物流事實，它不該被凍結。商家把包裝改小了，
-     * 下一單就該用新的重量算。
-     */
+    /** 訂單總重。 */
     private int totalWeightOf(List<OrderLine> lines) {
         Map<Long, Sku> skusById = Product.skusById(productRepository
                 .findBySkuIds(lines.stream().map(OrderLine::skuId).toList()));
@@ -282,16 +240,7 @@ public class OrderPlacementService implements PlaceOrderUseCase {
     private record Shipping(BigDecimal netFee, AppliedDiscount discount, ShippingZone zone) {
     }
 
-    /**
-     * 券真的折到錢時才核銷它。
-     *
-     * <p>沒折到就不消耗——使用者選了一張未達門檻的券，券必須還在他手上。
-     *
-     * <p><b>擋住重複使用的是那句條件式 UPDATE，不是前面的 {@code ensureUsableBy}。</b>
-     * 「查券沒用過 → 建立訂單 → 標記已使用」是 read-modify-write，
-     * 兩個並行請求都會通過檢查。真正的防線是「檢查與寫入在同一個 SQL 語句內」，
-     * 因此這裡看的是受影響列數，不是任何 Java 端的判斷。
-     */
+    /** 券真的折到錢時才核銷它。 */
     private void redeemCouponIfUsed(Long couponId, Priced priced,
                                     OrderNo orderNo, Instant now) {
         boolean couponApplied = couponId != null
@@ -307,12 +256,7 @@ public class OrderPlacementService implements PlaceOrderUseCase {
         log.info("訂單 {} 核銷優惠券 {}", orderNo.value(), couponId);
     }
 
-    /**
-     * 檢查使用者指定的券，並把它的折抵規則加進候選清單。
-     *
-     * <p>券的擁有權檢查在聚合根裡，且回「不存在」而非「不是你的」——
-     * 後者等於確認這個券號有效，讓人可以靠窮舉找出別人的券。
-     */
+    /** 檢查使用者指定的券，並把它的折抵規則加進候選清單。 */
     private void addCouponRule(Long couponId, Long userId, Instant now,
                                List<Promotion> candidates) {
         if (couponId == null) {
@@ -332,7 +276,7 @@ public class OrderPlacementService implements PlaceOrderUseCase {
      * 定價結果。
      *
      * @param payable     <b>商品</b>折後應付。運費不在裡面——那條恆等式
-     *                    （各行分攤加總 == payable）是退款按行退的基礎
+     * （各行分攤加總 == payable）是退款按行退的基礎
      * @param shippingFee 已扣掉免運折抵的實收運費
      */
     private record Priced(List<OrderLine> lines, List<OrderDiscount> discounts,
@@ -345,16 +289,7 @@ public class OrderPlacementService implements PlaceOrderUseCase {
         }
     }
 
-    /**
-     * 從地址簿取出地址，並<b>當場快照</b>成訂單的收貨資訊。
-     *
-     * <p>訂單不存 {@code addressId}。使用者搬家改了地址簿之後，
-     * 三個月前那張已送達的訂單仍要顯示當初寄去的地方——
-     * 那是出貨紀錄與客訴處理的依據，不是一個顯示欄位。
-     *
-     * <p>擁有者檢查在聚合根裡，且刻意在扣庫存<b>之前</b>做：
-     * 用別人的地址 ID 下單應該直接被拒，不該先扣掉庫存再回滾。
-     */
+    /** 從地址簿取出地址，並<b>當場快照</b>成訂單的收貨資訊。 */
     private ShippingInfo resolveShippingInfo(PlaceOrderCommand command) {
         Address address = addressRepository.findById(command.addressId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.ADDRESS_NOT_FOUND));
@@ -367,12 +302,7 @@ public class OrderPlacementService implements PlaceOrderUseCase {
                 address.district(), address.streetAddress());
     }
 
-    /**
-     * 依 SKU 查目錄，組出帶快照與價格的訂單行。
-     *
-     * <p>快照是<b>寫死進訂單</b>的字串，不是對商品的引用：
-     * 商家日後改名或調價，歷史訂單不能跟著變。那是財務問題，不是顯示問題。
-     */
+    /** 依 SKU 查目錄，組出帶快照與價格的訂單行。 */
     private List<OrderLine> resolveLines(List<OrderItem> items) {
         // **一次批次查完，不要逐筆查。**
         //
@@ -402,15 +332,7 @@ public class OrderPlacementService implements PlaceOrderUseCase {
         return lines;
     }
 
-    /**
-     * 逐行扣減可售量。
-     *
-     * <p><b>失敗時拋例外讓整個交易回滾</b>，先前幾行已扣掉的量會一併復原。
-     * 這正是同步通道不需要補償機制的原因：回滾就是補償，而且是資料庫做的。
-     *
-     * <p>{@code sourceActivityId} 為 {@code null}——一般訂單不屬於任何活動，
-     * 扣的是可售池而非劃撥出去的額度（ADR-0008）。
-     */
+    /** 逐行扣減可售量。 */
     private void deductInventory(PlaceOrderCommand command, OrderNo orderNo,
                                  List<OrderLine> lines) {
         for (OrderLine line : lines) {

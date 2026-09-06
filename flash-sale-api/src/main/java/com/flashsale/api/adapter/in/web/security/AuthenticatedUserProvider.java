@@ -9,16 +9,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.Optional;
 
-/**
- * 從 SecurityContext 取出當前使用者 ID。
- *
- * <p>使用者 ID 取自標準的 {@code sub} claim。刻意<b>不</b>另外用自訂 claim（如 {@code userId}）：
- * {@code sub} 是 RFC 7519 定義的主體識別，任何符合規範的 IdP 都會提供，
- * 未來換成外部 IdP 時不必要求對方配合加欄位。
- *
- * <p>抽成獨立元件（而非塞進 ArgumentResolver）是為了讓 Interceptor 也能用同一套解析邏輯——
- * 兩處若各自實作，遲早會出現「限流認的使用者」與「下單認的使用者」不一致的詭異問題。
- */
+/** 從 SecurityContext 取出當前使用者 ID。 */
 @Component
 public class AuthenticatedUserProvider {
 

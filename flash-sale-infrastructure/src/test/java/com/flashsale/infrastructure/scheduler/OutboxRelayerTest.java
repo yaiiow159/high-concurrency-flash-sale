@@ -32,20 +32,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * Outbox 中繼器。
- *
- * <h2>這支測試存在的理由</h2>
- *
- * <p>中繼器原本是逐筆 {@code send().get()}，註解寫著
- * 「批次非同步投遞無法精確知道哪幾筆成功」。那句話是錯的，
- * 而它讓中繼器付出了每筆一次序列往返的代價
- * （生產者設了 {@code linger.ms=5}，單執行緒逐筆送等於每筆固定 +5ms）。
- *
- * <p>改成「先全部送出、再一起收」之後，<b>唯一真正要證明的就是那句話確實是錯的</b>：
- * 一批裡有成功有失敗時，每一筆都要被正確地個別標記，
- * 不能整批標成功、也不能整批標失敗。
- */
+/** Outbox 中繼器。 */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 @DisplayName("Outbox 中繼器")

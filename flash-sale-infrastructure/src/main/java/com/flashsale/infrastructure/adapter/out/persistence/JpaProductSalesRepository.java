@@ -16,23 +16,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
-/**
- * 銷量聚合。
- *
- * <h2>增量 UPDATE，不是讀出來加完再寫回</h2>
- *
- * <p>CLAUDE.md 7-3 那條規則：{@code SET x = x + ?}。
- * 寫成 read-modify-write 的話，兩個人同時買同一件商品，
- * 兩邊都讀到 10、各自寫回 11，於是有一筆銷售從聚合上消失——
- * 而訂單表裡還在。
- *
- * <h2>冪等靠唯一索引，不靠先查再寫</h2>
- *
- * <p>「先查有沒有計入過、再決定要不要加」同樣是 read-modify-write，
- * 兩個並行的消費者都會通過檢查。真正的防線是
- * {@code uk_product_sales_applied} 這個唯一索引：
- * 先插入流水，插得進去才動聚合。
- */
+/** 銷量聚合。 */
 @Repository
 public class JpaProductSalesRepository implements ProductSalesRepository {
 
@@ -85,12 +69,7 @@ public class JpaProductSalesRepository implements ProductSalesRepository {
         return true;
     }
 
-    /**
-     * 佔位。插得進去代表這一筆還沒被計入過。
-     *
-     * <p>靠唯一索引擋重複，而不是靠先查再寫——後者兩個並行的消費者
-     * 都會通過檢查，然後各加一次。
-     */
+    /** 佔位。插得進去代表這一筆還沒被計入過。 */
     private boolean claim(String refNo, String direction) {
         try {
             entityManager.createNativeQuery("""

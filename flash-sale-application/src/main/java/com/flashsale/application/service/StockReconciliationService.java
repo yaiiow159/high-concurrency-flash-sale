@@ -29,19 +29,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * 庫存對帳服務。
  *
- * <p>核對恆等式：{@code Redis 餘量 + Σ(未取消訂單數量) = 活動總庫存}。
- *
- * <p><b>偵測與修復刻意分離，且修復預設關閉。</b>
- * 理由是「自動修復」與「自動破壞」之間只隔著一個 bug：
- * 若對帳邏輯本身算錯，自動修復會拿著錯誤的結論去改動正確的資料，
- * 造成比它要修的問題嚴重得多的後果。
- *
- * <p>因此只有<b>能被證明安全</b>的那一類偏差才納入自動修復：
- * 孤兒扣減（庫存已扣、訂單不存在、且已超過寬限期）。
- * 這類紀錄有明確的判定依據，且修復方向只會「歸還」庫存，不會憑空製造可賣量。
- *
- * <p>反方向的偏差（{@code OVERSELL_RISK}）一律不自動處理——
- * 下修餘量會讓正在進行中的合法請求無故失敗，必須由人判斷。
+ * <p><b>自動修復預設關閉</b>，且只處理能被證明安全的偏差：孤兒扣減且已過寬限期。
+ * {@code OVERSELL_RISK} 方向一律人工——下修餘量會讓進行中的合法請求無故失敗。
  */
 @Service
 public class StockReconciliationService implements StockReconciliationUseCase {
@@ -127,37 +116,12 @@ public class StockReconciliationService implements StockReconciliationUseCase {
         return result;
     }
 
-    /**
-     * Redis 有庫存，但 MySQL 沒有對應的劃撥額度撐著。
-     *
-     * <p><b>這是雙模型獨有的失效方式，前面兩條恆等式都抓不到它。</b>
-     * 「Redis 餘量 vs 訂單數」問的是「賣掉的有沒有被記錄」，
-     * 「庫存數字 vs 流水」問的是「MySQL 這邊的帳對不對」——
-     * 兩邊各自都可以完全平，而那批貨仍然不屬於任何人。
-     *
-     * <p>實際發生過一次：活動釋放後，預熱排程在一分鐘內把庫存寫回 Redis，
-     * 而 {@code allocated} 已經歸零。當下兩套對帳都回報帳平，
-     * Redis 卻握著 50 件沒人付過帳的貨，一般通道會把同一批再賣一次。
-     *
-     * <p>預熱端已經加了守門擋住這條路徑，但對帳不能只依賴「寫入端不會出錯」——
-     * 對帳存在的理由正是「總會有某個寫入路徑出錯」。
-     */
+    /** Redis 有庫存，但 MySQL 沒有對應的劃撥額度撐著。 */
     private boolean isStockUnbacked(SeckillActivity activity) {
         return inventoryRepository.isReleased(activity.id(), activity.skuId());
     }
 
-    /**
-     * 掃描並（視設定）修復孤兒扣減。
-     *
-     * <p>判定一筆綁定是孤兒需要<b>同時</b>滿足兩個條件：
-     * <ol>
-     *   <li>資料庫查無此訂單號</li>
-     *   <li>訂單號的產生時間已超過寬限期</li>
-     * </ol>
-     *
-     * <p>第二個條件不可省略。剛產生幾秒的訂單很可能只是還在 MQ 佇列裡排隊，
-     * 此時退庫，等訊息真的被消費時訂單仍會建立——<b>庫存退了但訂單還在，就是超賣</b>。
-     */
+    /** 掃描並（視設定）修復孤兒扣減。 */
     private OrphanOutcome handleOrphanBindings(Long activityId) {
         Instant orphanThreshold = clock.instant().minus(policy.orphanGracePeriod());
         AtomicInteger detected = new AtomicInteger();
@@ -227,12 +191,7 @@ public class StockReconciliationService implements StockReconciliationUseCase {
         }
     }
 
-    /**
-     * 輸出對帳結果。
-     *
-     * <p>帳平時只記 debug——對帳每十分鐘跑一次，全部記 info 會把日誌淹掉，
-     * 真正的異常反而被埋起來。趨勢觀測交給指標，日誌只留給需要人看的事。
-     */
+    /** 輸出對帳結果。 */
     private void report(ActivityReconciliation result) {
         metrics.recordReconciliation(result);
         if (result.verdict().requiresAttention()) {

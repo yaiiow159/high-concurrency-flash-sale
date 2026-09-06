@@ -2,13 +2,7 @@ package com.flashsale.application.port.in.dto;
 
 import java.util.List;
 
-/**
- * 評分聚合對帳結果。
- *
- * <p><b>只列不平的商品</b>，帳平的不佔回應——與積分、庫存對帳同一個做法。
- *
- * @param driftCount 不平的商品數
- */
+/** 評分聚合對帳結果。 */
 public record RatingReconciliation(int driftCount, List<Drift> drifts, boolean balanced) {
 
     /**
@@ -28,10 +22,7 @@ public record RatingReconciliation(int driftCount, List<Drift> drifts, boolean b
         }
     }
 
-    /**
-     * {@code balanced} 是<b>真正的欄位</b>而不是導出方法——
-     * 導出方法不會被 Jackson 序列化進 record 的 JSON，呼叫端拿不到它。
-     */
+    /** {@code balanced} 是<b>真正的欄位</b>而不是導出方法—— 導出方法不會被 Jackson 序列化進 record 的 JSON，呼叫端拿不到它。 */
     public static RatingReconciliation of(List<Drift> drifts) {
         return new RatingReconciliation(drifts.size(), drifts, drifts.isEmpty());
     }

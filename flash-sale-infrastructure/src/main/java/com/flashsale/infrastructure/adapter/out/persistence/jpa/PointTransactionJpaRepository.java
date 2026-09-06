@@ -21,12 +21,7 @@ public interface PointTransactionJpaRepository extends JpaRepository<PointTransa
     Optional<PointTransactionEntity> findByUserIdAndReasonAndRefNo(
             Long userId, String reason, String refNo);
 
-    /**
-     * 對帳用：流水加總。
-     *
-     * <p>餘額是快照、流水才是真實來源，因此「兩者不一致」是一個
-     * 查得出來的問題——而查得出來的問題才有機會被修。
-     */
+    /** 對帳用：流水加總。 */
     @Query("select coalesce(sum(t.delta), 0) from PointTransactionEntity t where t.userId = :userId")
     long sumDelta(@Param("userId") Long userId);
 }

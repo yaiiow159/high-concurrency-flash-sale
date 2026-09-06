@@ -12,13 +12,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/**
- * 事件分派。
- *
- * <p>這段先前在六個消費端各寫一次，而<b>漏寫它的後果不是拋例外，
- * 是安靜地處理錯的事件</b>——Jackson 反序列化到不相符的類別時，
- * 缺少的欄位變成 null 而不是報錯。
- */
+/** 事件分派。 */
 @DisplayName("事件分派")
 class DomainEventRouterTest {
 

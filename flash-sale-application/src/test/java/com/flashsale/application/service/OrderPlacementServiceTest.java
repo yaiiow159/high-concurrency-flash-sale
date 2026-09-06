@@ -60,12 +60,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * 一般下單。
- *
- * <p>這條通道的全部主張是「同步、單一交易」，因此測試要盯的是：
- * 價格不由呼叫端決定、失敗時不留下半成品、重送不會下第二單。
- */
+/** 一般下單。 */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 @DisplayName("一般下單")
@@ -608,12 +603,7 @@ class OrderPlacementServiceTest {
                 .thenReturn(List.of(product(ProductStatus.ON_SHELF)));
     }
 
-    /**
-     * 運費費率。與遷移種下的本島級距一致。
-     *
-     * <p>放進 {@code givenAddress} 而不是每個測試各自 stub：
-     * 有地址就一定會算運費，兩件事本來就綁在一起。
-     */
+    /** 運費費率。與遷移種下的本島級距一致。 */
     private void givenShippingRates() {
         when(shippingRateRepository.findAll()).thenReturn(List.of(
                 new ShippingRate(ShippingMethod.HOME_DELIVERY, ShippingZone.MAIN_ISLAND,

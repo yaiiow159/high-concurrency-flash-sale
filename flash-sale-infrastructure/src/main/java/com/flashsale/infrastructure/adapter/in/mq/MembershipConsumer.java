@@ -13,27 +13,7 @@ import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Component;
 
-/**
- * 訂單完成時發積分。
- *
- * <p>與其他消費端共用同一個 topic 但各自的 group，因此都收到完整的事件流、
- * 互不影響。共用 group 的話一則事件只會被其中一個消費掉。
- *
- * <h2>事件只帶 ID，金額自己去查</h2>
- *
- * <p>{@link OrderCompletedEvent} 只有 {@code orderNo} 與 {@code userId}。
- * 積分要用實付金額算，而那個值從訂單讀當下的狀態取得——
- * 與 {@code ProductIndexConsumer} 同一個判斷（ADR-0012）：
- * 事件自帶內容會讓事件結構跟著消費端的需求演化，
- * 而佇列裡還躺著舊格式的事件。
- *
- * <h2>冪等在儲存庫，不在這裡</h2>
- *
- * <p>Outbox 是至少一次語意，重放是常態不是異常。這裡不做任何
- * 「處理過了嗎」的檢查——那種檢查在兩個並行的重放下會同時通過。
- * 真正的防線是 {@code point_transaction} 的
- * {@code (user_id, reason, ref_no)} 唯一索引。
- */
+/** 訂單完成時發積分。 */
 @Component
 public class MembershipConsumer {
 

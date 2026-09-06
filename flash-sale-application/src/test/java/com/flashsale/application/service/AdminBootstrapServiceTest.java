@@ -28,11 +28,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * 初始管理員。
- *
- * <p>這幾條測試守的不是「功能能不能用」，而是<b>它不會變成一條提權後門</b>。
- */
+/** 初始管理員。 */
 @DisplayName("初始管理員")
 class AdminBootstrapServiceTest {
 

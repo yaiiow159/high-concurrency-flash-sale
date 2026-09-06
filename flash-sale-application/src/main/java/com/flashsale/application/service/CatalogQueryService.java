@@ -29,12 +29,7 @@ import java.util.stream.Collectors;
 import java.util.Map;
 import java.util.Set;
 
-/**
- * 商品目錄查詢服務。
- *
- * <p>分頁上限刻意設得保守：商品列表是對外開放的端點，
- * 沒有上限的話任何人都能用 {@code size=1000000} 讓資料庫掃全表。
- */
+/** 商品目錄查詢服務。 */
 @Service
 public class CatalogQueryService implements CatalogQueryUseCase {
 
@@ -101,14 +96,7 @@ public class CatalogQueryService implements CatalogQueryUseCase {
                 .toList();
     }
 
-    /**
-     * 把「點了哪個類目」翻譯成「要涵蓋哪些類目」（ADR-0022）。
-     *
-     * <p>回傳 {@code null} 代表不篩選。<b>子樹涵蓋整棵樹時刻意回 null</b>：
-     * 點根類目等於「全部商品」，此時那個包含每一個類目 ID 的
-     * {@code in (...)} 沒有任何作用，卻會讓優化器放棄主鍵反向掃描、
-     * 退回索引加排序，正好踩中 ADR-0021 要避開的懸崖。
-     */
+    /** 把「點了哪個類目」翻譯成「要涵蓋哪些類目」（ADR-0022）。 */
     private Set<Long> resolveCategoryFilter(Long categoryId) {
         if (categoryId == null) {
             return null;

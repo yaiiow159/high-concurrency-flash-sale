@@ -10,17 +10,7 @@ import java.security.SecureRandom;
 import java.util.Base64;
 import java.util.HexFormat;
 
-/**
- * 以 {@link SecureRandom} 產生不可預測的令牌。
- *
- * <p>256 bits 的熵：即使攻擊者能每秒嘗試一兆次，窮舉所需時間仍遠超過宇宙年齡。
- * 用 {@code UUID.randomUUID()} 只有 122 bits，雖然實務上也夠，
- * 但既然成本相同就沒有理由選少的。
- *
- * <p><b>雜湊用 SHA-256 而非 BCrypt</b>，與密碼的處理刻意不同：
- * token 本身已是高熵隨機值，不存在字典攻擊的可能，
- * 慢雜湊只會讓每次 refresh 多花數十毫秒卻換不到任何安全性。
- */
+/** 以 {@link SecureRandom} 產生不可預測的令牌。 */
 @Component
 public class SecureRandomTokenGenerator implements SecureTokenGenerator {
 

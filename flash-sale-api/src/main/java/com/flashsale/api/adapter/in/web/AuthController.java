@@ -20,17 +20,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * 認證 API。
- *
- * <p><b>取代了先前的開發用發證端點</b>。那個端點不做任何身分驗證，
- * 存在的唯一理由是「沒有別的方式能拿到令牌」——現在有了真正的註冊登入，
- * 那個理由不再成立，後門就該關掉。
- *
- * <p>令牌設計見 {@code RefreshToken} 聚合根：
- * access token 是短命的 JWT（無狀態、驗證零成本），
- * refresh token 是可撤銷的不透明字串（每次續期輪替，並偵測重用）。
- */
+/** 認證 API。 */
 @RestController
 @RequestMapping("/api/v1/auth")
 @Tag(name = "認證", description = "註冊、登入、續期、登出")
@@ -48,12 +38,7 @@ public class AuthController {
         this.userQueryUseCase = userQueryUseCase;
     }
 
-    /**
-     * 註冊。
-     *
-     * <p>回 201 而非 200：這裡確實建立了一個新資源。
-     * 與搶購的 202 形成對照——狀態碼要誠實反映系統做了什麼。
-     */
+    /** 註冊。 */
     @PostMapping("/register")
     @SecurityRequirements
     @Operation(summary = "註冊帳號")
@@ -69,12 +54,7 @@ public class AuthController {
         return ApiResponse.ok(authenticationUseCase.login(request.toCommand()));
     }
 
-    /**
-     * 續期。
-     *
-     * <p>每次呼叫都會<b>輪替</b>——舊的 refresh token 立刻失效，用戶端必須改用新的。
-     * 若拿已輪替過的 token 來換，代表該憑證曾外洩，整條輪替鏈會被撤銷。
-     */
+    /** 續期。 */
     @PostMapping("/refresh")
     @SecurityRequirements
     @Operation(summary = "續期", description = "以 refresh token 換新令牌組；舊的 refresh token 立即失效")
@@ -82,12 +62,7 @@ public class AuthController {
         return ApiResponse.ok(authenticationUseCase.refresh(request.refreshToken()));
     }
 
-    /**
-     * 登出。
-     *
-     * <p>回 204 且<b>一律成功</b>——即使 token 無效也不回報錯誤。
-     * 回報「這個 token 不存在」等於提供一支驗證 token 是否有效的 API。
-     */
+    /** 登出。 */
     @PostMapping("/logout")
     @SecurityRequirements
     @Operation(summary = "登出", description = "撤銷 refresh token；無效的 token 靜默忽略")

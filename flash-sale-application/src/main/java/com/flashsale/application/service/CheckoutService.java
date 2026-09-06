@@ -21,18 +21,7 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 
-/**
- * 從購物車結帳。
- *
- * <p><b>刻意做成薄薄一層，把下單邏輯完全交給 {@link PlaceOrderUseCase}。</b>
- * 價格重新取、庫存扣減、地址快照、冪等——那些規則只該有一份實作。
- * 若這裡自己再寫一次下單流程，兩份實作遲早會分岔，
- * 而分岔的那一天不會有任何錯誤訊息。
- *
- * <p>整個流程在同一個交易裡：下單失敗則購物車不清空，
- * 購物車清空失敗則訂單一起回滾。少了這個保證，
- * 使用者會看到「訂單建立了但購物車還在」而重複下單。
- */
+/** 從購物車結帳。 */
 @Service
 public class CheckoutService implements CheckoutUseCase {
 
@@ -53,17 +42,7 @@ public class CheckoutService implements CheckoutUseCase {
         this.orderRepository = orderRepository;
     }
 
-    /**
-     * {@inheritDoc}
-     *
-     * <p>{@code readOnly}：試算不該有能力改變任何東西。
-     * 這不只是最佳化——它讓「試算會不會不小心核銷掉券」
-     * 從一個需要讀程式碼確認的問題，變成資料庫會擋下的事。
-     *
-     * <p>空購物車回<b>全零的試算</b>而不是拋例外：使用者清空購物車時
-     * 頁面會重新試算一次，那不是錯誤，不該讓畫面跳出一個紅框。
-     * 真正該擋下空購物車的是 {@link #checkout}。
-     */
+    /** {@inheritDoc} */
     @Override
     @Transactional(readOnly = true)
     public CheckoutPreview preview(Long userId, Long couponId, Long addressId) {

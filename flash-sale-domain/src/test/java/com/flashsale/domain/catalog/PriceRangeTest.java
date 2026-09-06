@@ -7,13 +7,7 @@ import java.math.BigDecimal;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * 價格區間。
- *
- * <p>這裡每一條處理的都是<b>使用者手滑</b>，而不是攻擊。
- * 手滑回 400 只會讓他盯著兩個看起來都沒問題的數字，
- * 而正確的行為是猜出他想要什麼。
- */
+/** 價格區間。 */
 @DisplayName("價格區間")
 class PriceRangeTest {
 

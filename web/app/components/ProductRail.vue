@@ -2,15 +2,7 @@
 import type { RouteLocationRaw } from 'vue-router'
 import type { ProductRatingView, ProductView } from '~/types/api'
 
-/**
- * 一列商品，帶標題與「看更多」。
- *
- * <p>首頁的「熱銷排行」「最新上架」與商品頁的「同類商品」都是這個形狀。
- * 分開寫三份的話，間距與卡片大小會慢慢各走各的，
- * 而使用者看到的是同一個網站前後不一致。
- *
- * @param ranked 顯示名次。只有排行榜要——「最新上架」標 1234 沒有意義
- */
+/** 一列商品，帶標題與「看更多」。 */
 withDefaults(defineProps<{
   title: string
   products: ProductView[]

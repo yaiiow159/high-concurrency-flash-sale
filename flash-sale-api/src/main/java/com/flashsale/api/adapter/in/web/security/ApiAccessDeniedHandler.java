@@ -15,12 +15,7 @@ import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 
-/**
- * 權限不足（403）的回應。
- *
- * <p>與 401 的差別：401 是「你是誰我不知道」，403 是「我知道你是誰，但你不能做這件事」。
- * 混用會讓前端無法判斷該重新登入還是該顯示權限不足。
- */
+/** 權限不足（403）的回應。 */
 @Component
 public class ApiAccessDeniedHandler implements AccessDeniedHandler {
 

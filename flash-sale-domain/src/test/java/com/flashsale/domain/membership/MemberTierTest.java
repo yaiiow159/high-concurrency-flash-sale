@@ -8,13 +8,7 @@ import java.math.BigDecimal;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * 會員等級與積分回饋。
- *
- * <p>這裡釘住的是<b>激勵方向</b>：等級由累計消費決定而不是積分餘額，
- * 因為用餘額算會讓「花積分」變成「降級」——而花積分正是我們希望使用者做的事。
- * 這條規則寫錯不會拋任何例外，只會讓整個機制安靜地反過來。
- */
+/** 會員等級與積分回饋。 */
 @DisplayName("會員等級")
 class MemberTierTest {
 

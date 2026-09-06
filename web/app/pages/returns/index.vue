@@ -5,18 +5,11 @@ import type { DeepReadonly } from 'vue'
 import type { ReturnRequestView } from '~/types/api'
 
 /**
- * composable 刻意把清單設為 readonly——列表頁只該讀，改動一律走 API。
- * 因此這裡的輔助函式也宣告成 readonly，而不是回頭放寬 composable：
- * 為了讓一個 helper 的型別好寫而拆掉封裝，是本末倒置。
+ * composable 刻意把清單設為 readonly——列表頁只該讀，改動一律走 API。 因此這裡的輔助函式也宣告成 readonly，而不是回頭放寬 composable： 為了讓一個 helper 的型別好寫而拆掉封裝，是本末倒置。
  */
 type ReadonlyReturn = DeepReadonly<ReturnRequestView>
 
-/**
- * 我的退貨。
- *
- * 與訂單列表一樣<b>不做 SSR、不做 ISR</b>——這是每個人專屬的資料，
- * 進了被快取的 HTML 就等於發給下一個訪客。
- */
+/** 我的退貨。 與訂單列表一樣<b>不做 SSR、不做 ISR</b>——這是每個人專屬的資料， 進了被快取的 HTML 就等於發給下一個訪客。 */
 const auth = useAuthStore()
 const { returns, loading, error, load } = useReturns()
 
@@ -31,12 +24,7 @@ function summarise(request: ReadonlyReturn): string {
     : first.skuSnapshot
 }
 
-/**
- * 一句話說明「現在輪到誰做什麼」。
- *
- * 只顯示狀態名稱不夠——「已核准」之後買家要不要做事，
- * 取決於這張單需不需要寄回，而那不是狀態本身看得出來的。
- */
+/** 一句話說明「現在輪到誰做什麼」。 只顯示狀態名稱不夠——「已核准」之後買家要不要做事， 取決於這張單需不需要寄回，而那不是狀態本身看得出來的。 */
 function nextAction(request: ReadonlyReturn): string {
   switch (request.status) {
     case 'REQUESTED':

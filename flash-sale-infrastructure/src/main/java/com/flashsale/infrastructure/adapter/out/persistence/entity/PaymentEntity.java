@@ -13,14 +13,7 @@ import jakarta.persistence.Version;
 import java.math.BigDecimal;
 import java.time.Instant;
 
-/**
- * 付款單的持久化模型。
- *
- * <p><b>{@code order_no} 的唯一約束是防重複收款的結構性保證。</b>
- * 一張訂單至多一張付款單；失敗後的重試沿用同一張單而非新建，
- * 讓「這張訂單收了幾次錢」成為一個明確的事實，
- * 而不需要靠掃描多筆紀錄推斷。
- */
+/** 付款單的持久化模型。 */
 @Entity
 @Table(name = "payment",
         uniqueConstraints = {

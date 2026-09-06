@@ -1,16 +1,7 @@
 <script setup lang="ts">
 import type { ProductRatingView, ProductView } from '~/types/api'
 
-/**
- * 商品卡。
- *
- * <p>抽成元件是因為它出現在<b>三個地方</b>：全部商品、首頁的熱銷與最新、
- * 商品頁底下的同類推薦。先前只有一處，複製到第二處的當下就該抽——
- * 三份各自演化的話，同一個商品在不同頁面會長得不一樣，
- * 而那會讓人以為是兩件不同的東西。
- *
- * @param rank 排行榜名次；不傳就不顯示。只有熱銷榜會用到
- */
+/** 商品卡。 */
 const props = withDefaults(defineProps<{
   product: ProductView
   rating?: ProductRatingView | null

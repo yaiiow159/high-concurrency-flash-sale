@@ -10,20 +10,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
-/**
- * 庫存補償服務——Saga 補償鏈的末端執行者。
- *
- * <p><b>為什麼補償要獨立成一個非同步步驟，而不是在關單的交易裡直接退 Redis？</b>
- * 因為 Redis 無法加入資料庫交易。若在交易內退庫而交易隨後回滾，庫存就會憑空多出來——
- * 這是比少賣更嚴重的超賣。
- *
- * <p>正確作法是「先在 DB 交易內把關單與退庫事件一起 commit，再由此服務消費事件退庫」。
- * 事件投遞是至少一次，因此退庫操作本身必須冪等——由 Lua 腳本以 {@code requestId} 保證。
- *
- * <p><b>多品項後改為逐筆退回。</b> 一張訂單可能佔用多個活動的庫存，
- * 單品項時代那個扁平的「一個 activityId + 一個 quantity」在多品項下會漏退——
- * 而漏退的那些庫存不會有任何錯誤訊息，只會靜靜地消失。
- */
+/** 庫存補償服務——Saga 補償鏈的末端執行者。 */
 @Service
 public class StockCompensationService implements StockCompensationUseCase {
 

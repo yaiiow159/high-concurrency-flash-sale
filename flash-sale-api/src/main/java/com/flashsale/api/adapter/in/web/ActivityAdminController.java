@@ -14,18 +14,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * 活動上下架。
- *
- * <p>與 {@code ActivityController} 分開而不是加在它下面，理由與履約、退貨相同：
- * 那一支的路徑是公開查詢用的，這一支整段掛在 {@code /api/v1/admin/**} 底下，
- * 由 {@code SecurityConfig} 統一要求 {@code seckill:admin} scope。
- * 混在同一個 controller 裡靠方法上的註解區分權限，少一個就是漏洞。
- *
- * <p><b>這兩個端點存在的理由是快取失效。</b>
- * 先前活動狀態只能靠直接改資料庫變更，而那條路沒有地方可以掛失效邏輯——
- * 緊急下架之後最壞 6 分鐘內請求還是進得來、庫存照樣扣。
- */
+/** 活動上下架。 */
 @RestController
 @RequestMapping("/api/v1/admin/activities")
 @Tag(name = "活動維運", description = "上下架")
@@ -43,13 +32,7 @@ public class ActivityAdminController {
         this.activityQueryUseCase = activityQueryUseCase;
     }
 
-    /**
-     * 後台的活動清單。
-     *
-     * <p>含草稿與已下架——看不到草稿的話，剛建好的活動就找不到入口去上架它。
-     * 庫存餘量是<b>當下</b>的 Redis 值，不經快取：維運剛下架一檔活動、
-     * 後台卻因為快取還顯示上架中，他會再按一次，而那才是危險的地方。
-     */
+    /** 後台的活動清單。 */
     @GetMapping
     @Operation(summary = "後台活動清單", description = "含草稿與已下架；頁大小上限 100")
     public ApiResponse<List<ActivityView>> listAll(
