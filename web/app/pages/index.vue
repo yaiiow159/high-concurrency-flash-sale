@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { errorMessage } from '~/composables/useApi'
+import { useAuthStore } from '~/stores/auth'
 import type {
   ActivityView, ApiResponse, CategoryView, HomeLayoutView, HomeSectionView,
-  ProductImageView, ProductRatingView,
+  ProductImageView, ProductRatingView, ProductView,
 } from '~/types/api'
 
 /**
@@ -68,7 +69,27 @@ function moreLink(section: HomeSectionView) {
   return sort ? { path: '/products', query: { sort } } : { path: '/products' }
 }
 
-onMounted(loadDecorations)
+/** 最近看過。未登入時是空的，那一區整個不出現。 */
+const auth = useAuthStore()
+const recentlyViewed = ref<ProductView[]>([])
+
+async function loadRecentlyViewed() {
+  if (!auth.isAuthenticated) {
+    return
+  }
+  try {
+    const { request } = useApi()
+    recentlyViewed.value = await request<ProductView[]>(
+      '/api/v1/products/recently-viewed?limit=8', { authenticated: true })
+  } catch {
+    recentlyViewed.value = []
+  }
+}
+
+onMounted(() => {
+  void loadDecorations()
+  void loadRecentlyViewed()
+})
 
 const { seo } = useSeo()
 seo({
@@ -185,6 +206,17 @@ seo({
         :more-to="moreLink(section)"
       />
     </template>
+
+    <!-- 最近看過放在版位之後：它是「回來繼續看」的入口，不是首頁的主張 -->
+    <ProductRail
+      v-if="recentlyViewed.length > 0"
+      eyebrow="Recently Viewed"
+      title="最近看過"
+      :products="recentlyViewed"
+      :ratings="ratings"
+      :images="images"
+      :more-to="null"
+    />
 
     <EmptyState v-if="sections.length === 0" title="目前沒有可以逛的商品。">
       <AppButton variant="secondary" size="sm" @click="navigateTo('/products')">
