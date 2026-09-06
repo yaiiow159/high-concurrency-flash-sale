@@ -68,6 +68,21 @@ public class JpaOrderRepository implements OrderRepository {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public Optional<String> findStaffNote(OrderNo orderNo) {
+        return jpaRepository.findByOrderNo(orderNo.value())
+                .map(com.flashsale.infrastructure.adapter.out.persistence.entity
+                        .OrderEntity::staffNote);
+    }
+
+    @Override
+    @Transactional
+    public void updateStaffNote(OrderNo orderNo, String note) {
+        jpaRepository.findByOrderNo(orderNo.value())
+                .ifPresent(entity -> entity.updateStaffNote(note));
+    }
+
+    @Override
     @Transactional
     public Optional<Order> findByOrderNoForUpdate(OrderNo orderNo) {
         return jpaRepository.findByOrderNoForUpdate(orderNo.value()).map(OrderMapper::toDomain);

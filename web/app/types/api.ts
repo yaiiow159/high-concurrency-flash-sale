@@ -77,7 +77,9 @@ export interface OrderView {
   shippingFee: number | null
   /** 這張訂單總共付了多少 = totalAmount + shippingFee。付款與退款上限以它為準 */
   payableAmount: number | null
-  shippingMethod: string | null
+  shippingMethod: string
+  /** 買家備註；沒填時後端不回這個欄位。 */
+  buyerNote?: string | null
   shipping: OrderShippingView | null
   status: string
   closeReason: string | null
@@ -621,4 +623,21 @@ export interface CarouselSlideConfig {
   enabled: boolean
   visibleFrom?: string
   visibleTo?: string
+}
+
+/** 商品問答。`answer` 為空代表還沒回答（只有提問者自己看得到）。 */
+export interface QuestionView {
+  questionId: number
+  productId: number
+  askedBy: string
+  content: string
+  answer?: string
+  answeredAt?: string
+  published: boolean
+  createdAt: string
+}
+
+export interface QuestionPage {
+  items: QuestionView[]
+  total: number
 }

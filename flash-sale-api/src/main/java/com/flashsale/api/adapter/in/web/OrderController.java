@@ -63,7 +63,8 @@ public class OrderController {
             @CurrentUser Long userId) {
 
         OrderView order = checkoutUseCase.checkout(userId, request.requestId(),
-                request.addressId(), request.couponId(), request.shippingMethod());
+                request.addressId(), request.couponId(), request.shippingMethod(),
+                request.buyerNote());
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(order));
     }
 

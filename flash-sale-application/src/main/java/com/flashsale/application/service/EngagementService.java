@@ -62,7 +62,7 @@ public class EngagementService implements EngagementUseCase {
     @Override
     @Transactional(readOnly = true)
     public List<ProductView> wishlist(Long userId, int page, int size) {
-        int capped = Math.min(Math.max(size, 1), MAX_PAGE_SIZE);
+        int capped = Math.clamp(size, 1, MAX_PAGE_SIZE);
         List<Long> ids = engagementRepository.findWishlistProductIds(
                 userId, capped, Math.max(page, 0) * capped);
         return inGivenOrder(ids);
@@ -108,14 +108,14 @@ public class EngagementService implements EngagementUseCase {
             return List.of();
         }
         return inGivenOrder(engagementRepository.findRecentlyViewed(
-                userId, Math.min(Math.max(limit, 1), MAX_RECENT)));
+                userId, Math.clamp(limit, 1, MAX_RECENT)));
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<ProductView> alsoViewed(Long productId, int limit) {
         return inGivenOrder(engagementRepository.findAlsoViewed(
-                productId, Math.min(Math.max(limit, 1), MAX_PAGE_SIZE)));
+                productId, Math.clamp(limit, 1, MAX_PAGE_SIZE)));
     }
 
     /**

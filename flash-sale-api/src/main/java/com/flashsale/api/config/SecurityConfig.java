@@ -101,7 +101,10 @@ public class SecurityConfig {
                                 // 也一起開放，而那是「我寫過哪些評價」，屬於個人資料
                                 "/api/v1/catalog/products/ratings",
                                 "/api/v1/catalog/products/*/rating",
-                                "/api/v1/catalog/products/*/reviews")
+                                "/api/v1/catalog/products/*/reviews",
+                                // 問答與評價同一個判準：它存在的意義就是幫
+                                // 「還沒買、也還沒登入」的人做決定
+                                "/api/v1/catalog/products/*/questions")
                         .permitAll()
                         // 其餘一律需要認證。用 anyRequest() 收尾而非逐條列舉，
                         // 新增端點時預設是「受保護」而非「開放」——安全的預設值。

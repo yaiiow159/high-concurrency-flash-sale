@@ -22,8 +22,13 @@ public interface CheckoutUseCase {
      * 券的核銷與訂單建立在同一個交易裡——分開做的話，
      * 建單失敗時券會白白消失（ADR-0013 決策 7）
      */
+    default OrderView checkout(Long userId, String requestId, Long addressId, Long couponId,
+                               ShippingMethod shippingMethod) {
+        return checkout(userId, requestId, addressId, couponId, shippingMethod, null);
+    }
+
     OrderView checkout(Long userId, String requestId, Long addressId, Long couponId,
-                       ShippingMethod shippingMethod);
+                       ShippingMethod shippingMethod, String buyerNote);
 
     /**
      * 購物車結帳試算：不建訂單、不扣庫存、不核銷券。

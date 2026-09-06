@@ -58,7 +58,14 @@ public interface PlaceOrderUseCase {
      */
     record PlaceOrderCommand(Long userId, String requestId, Long addressId,
                              List<OrderItem> lines, Long couponId,
-                             ShippingMethod shippingMethod) {
+                             ShippingMethod shippingMethod, String buyerNote) {
+
+        /** 沒有備註的下單。多載而不是逼所有呼叫端補一個 null。 */
+        public PlaceOrderCommand(Long userId, String requestId, Long addressId,
+                                 List<OrderItem> lines, Long couponId,
+                                 ShippingMethod shippingMethod) {
+            this(userId, requestId, addressId, lines, couponId, shippingMethod, null);
+        }
 
         /** 不用券、宅配的下單。 */
         public PlaceOrderCommand(Long userId, String requestId, Long addressId,

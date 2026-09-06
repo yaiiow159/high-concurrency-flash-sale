@@ -61,6 +61,20 @@ public class OrderEntity {
             updatable = false)
     private BigDecimal shippingFee;
 
+    /** 買家備註。與金額同樣 {@code updatable = false}——它是出貨依據。 */
+    @Column(name = "buyer_note", length = 200, updatable = false)
+    private String buyerNote;
+
+    /**
+     * 內部註記。
+     *
+     * <p><b>與買家備註分成兩欄，不可共用。</b> 共用的話，客服寫的
+     * 「疑似黃牛」會出現在買家的訂單頁上——那不是靠「記得別亂寫」能避免的。
+     * 這一欄永遠不會出現在買家看得到的端點上。
+     */
+    @Column(name = "staff_note", length = 500)
+    private String staffNote;
+
     @Column(name = "shipping_method", nullable = false, length = 24, updatable = false)
     private String shippingMethod;
 
@@ -112,7 +126,8 @@ public class OrderEntity {
     public OrderEntity(String orderNo, Long userId, String channel, String requestId,
                        BigDecimal totalAmount, String status, Instant createdAt,
                        Instant paidAt, String closeReason,
-                       BigDecimal shippingFee, String shippingMethod) {
+                       BigDecimal shippingFee, String shippingMethod, String buyerNote) {
+        this.buyerNote = buyerNote;
         this.shippingFee = shippingFee;
         this.shippingMethod = shippingMethod;
         this.orderNo = orderNo;
@@ -124,6 +139,19 @@ public class OrderEntity {
         this.createdAt = createdAt;
         this.paidAt = paidAt;
         this.closeReason = closeReason;
+    }
+
+    public String buyerNote() {
+        return buyerNote;
+    }
+
+    public String staffNote() {
+        return staffNote;
+    }
+
+    /** 內部註記可以改：它是營運的工作筆記，不是訂單事實的一部分。 */
+    public void updateStaffNote(String note) {
+        this.staffNote = note;
     }
 
     /** 寫入收貨資訊快照。 */

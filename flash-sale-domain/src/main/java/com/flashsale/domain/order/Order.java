@@ -39,6 +39,17 @@ public final class Order {
     private final BigDecimal shippingFee;
 
     private final ShippingMethod shippingMethod;
+
+    /**
+     * 買家備註。
+     *
+     * <p>與訂單金額同樣<b>建立後不可變</b>——它是出貨依據，
+     * 事後能改的話「當初怎麼交代的」就沒有真實來源了。
+     */
+    private final String buyerNote;
+
+    /** 備註長度上限，與 DDL 的 VARCHAR(200) 一致。 */
+    private static final int MAX_BUYER_NOTE = 200;
     /** 收貨資訊快照，可能為 null。 */
     private final ShippingInfo shippingInfo;
     private final Instant createdAt;
@@ -57,7 +68,8 @@ public final class Order {
                   List<OrderLine> lines, BigDecimal totalAmount, ShippingInfo shippingInfo,
                   OrderStatus status, Instant createdAt, Instant paidAt,
                   String closeReason, List<OrderDiscount> discounts, long version,
-                  BigDecimal shippingFee, ShippingMethod shippingMethod) {
+                  BigDecimal shippingFee, ShippingMethod shippingMethod, String buyerNote) {
+        this.buyerNote = normalizeNote(buyerNote);
         this.shippingFee = shippingFee == null ? BigDecimal.ZERO : shippingFee;
         this.shippingMethod = shippingMethod == null
                 ? ShippingMethod.HOME_DELIVERY : shippingMethod;
@@ -108,6 +120,16 @@ public final class Order {
                               List<OrderLine> lines, ShippingInfo shippingInfo,
                               List<OrderDiscount> discounts, BigDecimal payable,
                               BigDecimal shippingFee, ShippingMethod shippingMethod, Instant now) {
+        return place(orderNo, userId, requestId, lines, shippingInfo, discounts, payable,
+                shippingFee, shippingMethod, null, now);
+    }
+
+    /** 帶買家備註。 */
+    public static Order place(OrderNo orderNo, Long userId, String requestId,
+                              List<OrderLine> lines, ShippingInfo shippingInfo,
+                              List<OrderDiscount> discounts, BigDecimal payable,
+                              BigDecimal shippingFee, ShippingMethod shippingMethod,
+                              String buyerNote, Instant now) {
         Objects.requireNonNull(shippingInfo, "一般訂單必須有收貨資訊");
 
         // 三個數字必須自洽：總額 = 各行實付的加總，且 = 小計 − 折扣加總。
@@ -135,7 +157,7 @@ public final class Order {
 
         Order order = new Order(orderNo, userId, OrderChannel.NORMAL, requestId,
                 lines, payable, shippingInfo, OrderStatus.PENDING_PAYMENT,
-                now, null, null, discounts, 0L, shippingFee, shippingMethod);
+                now, null, null, discounts, 0L, shippingFee, shippingMethod, buyerNote);
         order.registerEvent(OrderCreatedEvent.of(order, now));
         return order;
     }
@@ -156,7 +178,9 @@ public final class Order {
                 List.of(line), line.subtotal(), null, OrderStatus.PENDING_PAYMENT,
                 // 秒殺通道沒有運費：它連地址都不收，自然算不出運費。
                 // 真要收的話是另一條路徑（下單後補地址），那是另一個決定
-                now, null, null, List.of(), 0L, BigDecimal.ZERO, ShippingMethod.HOME_DELIVERY);
+                now, null, null, List.of(), 0L, BigDecimal.ZERO, ShippingMethod.HOME_DELIVERY,
+                // 秒殺沒有備註欄：那條路徑上多一個輸入框就多一份延遲
+                null);
         order.registerEvent(OrderCreatedEvent.of(order, now));
         return order;
     }
@@ -186,9 +210,39 @@ public final class Order {
                                 Instant createdAt, Instant paidAt, String closeReason,
                                 List<OrderDiscount> discounts, long version,
                                 BigDecimal shippingFee, ShippingMethod shippingMethod) {
+        return restore(orderNo, userId, channel, requestId, lines, totalAmount, shippingInfo,
+                status, createdAt, paidAt, closeReason, discounts, version,
+                shippingFee, shippingMethod, null);
+    }
+
+    public static Order restore(OrderNo orderNo, Long userId, OrderChannel channel, String requestId,
+                                List<OrderLine> lines, BigDecimal totalAmount,
+                                ShippingInfo shippingInfo, OrderStatus status,
+                                Instant createdAt, Instant paidAt, String closeReason,
+                                List<OrderDiscount> discounts, long version,
+                                BigDecimal shippingFee, ShippingMethod shippingMethod,
+                                String buyerNote) {
         return new Order(orderNo, userId, channel, requestId, lines, totalAmount,
                 shippingInfo, status, createdAt, paidAt, closeReason, discounts, version,
-                shippingFee, shippingMethod);
+                shippingFee, shippingMethod, buyerNote);
+    }
+
+    /** 空白與純空白字串都當成沒填，避免資料庫裡出現一堆看不見的空字串。 */
+    private static String normalizeNote(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        String trimmed = value.trim();
+        if (trimmed.length() > MAX_BUYER_NOTE) {
+            throw new BusinessException(ErrorCode.INVALID_PARAMETER,
+                    "備註不可超過 " + MAX_BUYER_NOTE + " 字");
+        }
+        return trimmed;
+    }
+
+    /** 買家備註；沒填時為 {@code null}。 */
+    public String buyerNote() {
+        return buyerNote;
     }
 
     /** 付款成功。 */

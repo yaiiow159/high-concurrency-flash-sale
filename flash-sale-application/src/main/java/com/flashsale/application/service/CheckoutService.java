@@ -70,7 +70,7 @@ public class CheckoutService implements CheckoutUseCase {
     @Override
     @Transactional
     public OrderView checkout(Long userId, String requestId, Long addressId, Long couponId,
-                              ShippingMethod shippingMethod) {
+                              ShippingMethod shippingMethod, String buyerNote) {
         // 沒指定就宅配。多數人不會特別選，而讓它變成必填只是多一個會出錯的欄位
         ShippingMethod method = shippingMethod == null
                 ? ShippingMethod.HOME_DELIVERY : shippingMethod;
@@ -110,7 +110,7 @@ public class CheckoutService implements CheckoutUseCase {
                 cart.items().stream()
                         .map(item -> new PlaceOrderUseCase.OrderItem(item.skuId(), item.quantity()))
                         .toList(),
-                couponId, method));
+                couponId, method, buyerNote));
 
         cartUseCase.clear(userId);
         log.info("購物車結帳完成 userId={}, orderNo={}, 品項數={}",

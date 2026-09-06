@@ -204,20 +204,24 @@ class NotificationDispatchServiceTest {
         @Test
         @DisplayName("通知類型只涵蓋會改變使用者預期的里程碑")
         void onlyUserFacingMilestones() {
-            // 系統有八個領域事件，這裡只該有五個通知類型。
-            // order.created 在尖峰時每秒上萬筆、而且使用者正盯著畫面；
+            // 判準是「使用者需不需要因為它做什麼」。
+            //
+            // 不通知的：order.created 在尖峰時每秒上萬筆、而且使用者正盯著畫面；
             // payment.succeeded 從買家角度與 order.paid 是同一件事；
             // payment.refund-required 是內部競態補償，買家看不懂。
             //
-            // 這條在「順手為新事件加一個通知」時會失敗，而那正是要的：
-            // 加之前先想清楚使用者是否需要因為它做什麼
+            // RESTOCKED 過得了這一關：使用者主動訂閱、而且他確實要去買——
+            // 那是這份清單裡唯一一個「不通知他就做不了事」的類型。
+            //
+            // 這條在「順手為新事件加一個通知」時會失敗，而那正是要的
             assertThat(NotificationType.values())
                     .containsExactlyInAnyOrder(
                             NotificationType.ORDER_PAID,
                             NotificationType.ORDER_SHIPPED,
                             NotificationType.ORDER_COMPLETED,
                             NotificationType.ORDER_CANCELLED,
-                            NotificationType.REFUND_SENT);
+                            NotificationType.REFUND_SENT,
+                            NotificationType.RESTOCKED);
         }
     }
 }

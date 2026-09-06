@@ -25,6 +25,8 @@ public record OrderView(
         /** 這張訂單總共付了多少 = totalAmount + shippingFee。付款與退款上限以它為準。 */
         BigDecimal payableAmount,
         String shippingMethod,
+        /** 買家備註；沒填為 null。內部註記不在這裡——那是後台專用。 */
+        String buyerNote,
         Shipping shipping,
         String status,
         String closeReason,
@@ -89,6 +91,7 @@ public record OrderView(
                 order.shippingFee(),
                 order.payableAmount(),
                 order.shippingMethod().name(),
+                order.buyerNote(),
                 Shipping.from(order.shippingInfo()),
                 order.status().name(),
                 order.closeReason(),
@@ -100,8 +103,11 @@ public record OrderView(
 
     /** 庫存已扣減、訂單仍在非同步建立中。 */
     public static OrderView processing(String orderNo, Queue queue) {
+        // 依序：orderNo, userId, channel, lines, subtotal, discounts, totalAmount,
+        // shippingFee, payableAmount, shippingMethod, buyerNote, shipping,
+        // status, closeReason, createdAt, paidAt, processing, queue
         return new OrderView(orderNo, null, null, List.of(), null, List.of(), null,
-                null, null, null, null,
+                null, null, null, null, null,
                 "PROCESSING", null, null, null, true, queue);
     }
 }

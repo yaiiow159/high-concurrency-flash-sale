@@ -239,6 +239,9 @@ const stockHint = computed(() => {
     : { text: '有現貨', urgent: false }
 })
 
+/** 缺貨：庫存查得到而且回報沒貨。查不到就不算——那是「不知道」不是「沒有」。 */
+const soldOut = computed(() => selectedStock.value?.inStock === false)
+
 const selectedSku = computed<SkuView | null>(
   () => product.value?.skus.find((sku) => sku.skuId === selectedSkuId.value) ?? null,
 )
@@ -447,6 +450,8 @@ watchEffect(() => {
           同類商品。放在評價**之後**：使用者看完評價才會決定要不要繼續找，
           放在評價之前等於在他還沒判斷完就叫他離開。
         -->
+        <ProductQuestions class="mt-12" :product-id="Number(productId)" />
+
         <ProductRail
           v-if="alsoViewed.length > 0"
           class="mt-12"
@@ -516,18 +521,29 @@ watchEffect(() => {
           </p>
 
           <div class="mt-6 flex flex-col gap-2.5">
-            <AppButton
-              variant="secondary"
-              size="lg"
-              block
-              :disabled="!selectedSku?.purchasable || addingToCart"
-              @click="addToCart"
-            >
-              {{ addingToCart ? '加入中⋯' : '加入購物車' }}
-            </AppButton>
-            <AppButton size="lg" block :disabled="!canBuy" @click="buy">
-              {{ submitting ? '處理中⋯' : '立即購買' }}
-            </AppButton>
+            <!--
+              缺貨時把兩顆購買鈕換成「有貨通知我」。
+              留著一顆按不下去的按鈕只是讓人一直去按它。
+            -->
+            <RestockAlertButton
+              v-if="soldOut && selectedSkuId !== null"
+              :key="selectedSkuId"
+              :sku-id="selectedSkuId"
+            />
+            <template v-else>
+              <AppButton
+                variant="secondary"
+                size="lg"
+                block
+                :disabled="!selectedSku?.purchasable || addingToCart"
+                @click="addToCart"
+              >
+                {{ addingToCart ? '加入中⋯' : '加入購物車' }}
+              </AppButton>
+              <AppButton size="lg" block :disabled="!canBuy" @click="buy">
+                {{ submitting ? '處理中⋯' : '立即購買' }}
+              </AppButton>
+            </template>
           </div>
         </template>
 

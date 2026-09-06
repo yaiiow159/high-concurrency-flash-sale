@@ -112,6 +112,9 @@ useHead({ title: `訂單 ${orderNo}` })
                 <span class="figure ml-3 text-sm text-ink-faint">{{ order.shipping.phone }}</span>
               </p>
               <p class="mt-1 text-sm text-ink-muted">{{ order.shipping.fullAddress }}</p>
+              <p v-if="order.buyerNote" class="mt-3 border-t border-line pt-3 text-sm">
+                <span class="text-ink-faint">備註：</span>{{ order.buyerNote }}
+              </p>
             </AppCard>
           </section>
 

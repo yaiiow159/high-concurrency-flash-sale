@@ -33,6 +33,9 @@ const discounts = computed(() => preview.value?.discounts ?? [])
  */
 let requestId: string | null = null
 
+/** 買家備註。送出後就固定了——它是出貨依據，不該事後能改。 */
+const buyerNote = ref('')
+
 const items = computed(() => cart.remote?.items ?? [])
 const canSubmit = computed(
   () => items.value.length > 0
@@ -111,6 +114,7 @@ async function submit() {
         requestId,
         addressId: selectedAddressId.value,
         couponId: selectedCouponId.value,
+        buyerNote: buyerNote.value.trim() || null,
       },
     })
     requestId = null
@@ -254,6 +258,20 @@ seo({ title: '結帳', noindex: true })
           :shipping-zone="preview?.shippingZone"
           size="xl"
         />
+
+        <div class="mt-5">
+          <label class="text-sm text-ink-muted" for="buyer-note">備註（選填）</label>
+          <textarea
+            id="buyer-note"
+            v-model="buyerNote"
+            rows="2"
+            maxlength="200"
+            class="field mt-1.5 resize-y"
+            placeholder="例如：請放管理室、勿放信箱"
+          />
+          <!-- 明講不可改：使用者以為之後能編輯的話，發現不能改時會直接打客服 -->
+          <p class="mt-1 text-xs text-ink-faint">送出後不可修改。</p>
+        </div>
 
         <AppButton class="mt-6" size="lg" block :disabled="!canSubmit" @click="submit">
           {{ submitting ? '處理中⋯' : '確認下單' }}
