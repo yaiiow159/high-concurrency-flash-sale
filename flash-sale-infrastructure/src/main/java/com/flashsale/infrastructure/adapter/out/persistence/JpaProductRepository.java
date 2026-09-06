@@ -56,10 +56,34 @@ public class JpaProductRepository implements ProductRepository {
     @Override
     @Transactional
     public Product save(Product product) {
-        ProductEntity entity = product.id() == null
-                ? newEntity(product)
-                : updateEntity(product);
-        return toDomain(jpaRepository.save(entity));
+        boolean isNew = product.id() == null;
+        ProductEntity entity = isNew ? newEntity(product) : updateEntity(product);
+        ProductEntity saved = jpaRepository.save(entity);
+        if (isNew) {
+            ensureRankingRows(saved.getId());
+        }
+        return toDomain(saved);
+    }
+
+    /**
+     * 讓新商品在兩張排行表上都有一列。熱銷與評分排序由排行表驅動
+     * （見 {@code ProductListingQuery}），少了這一列商品會從排序中安靜消失。
+     */
+    private void ensureRankingRows(Long productId) {
+        entityManager.createNativeQuery("""
+                        insert into product_sales (product_id, sold_quantity, order_count)
+                        values (:productId, 0, 0)
+                        on duplicate key update product_id = product_id
+                        """)
+                .setParameter("productId", productId)
+                .executeUpdate();
+        entityManager.createNativeQuery("""
+                        insert into product_rating (product_id, rating_sum, rating_count)
+                        values (:productId, 0, 0)
+                        on duplicate key update product_id = product_id
+                        """)
+                .setParameter("productId", productId)
+                .executeUpdate();
     }
 
     private ProductEntity newEntity(Product product) {
