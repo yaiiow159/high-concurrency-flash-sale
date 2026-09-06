@@ -34,6 +34,9 @@ public interface CatalogQueryUseCase {
                              BigDecimal minPrice, BigDecimal maxPrice, int size);
 
     /** 批次查庫存。 */
+    /** 依 id 批次取上架商品，順序不保證，呼叫端自己排。 */
+    List<ProductView> findProductsByIds(List<Long> productIds);
+
     List<SkuStockView> findStock(List<Long> skuIds);
 
     /**

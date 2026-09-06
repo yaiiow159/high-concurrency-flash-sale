@@ -16,7 +16,8 @@ export function useProductMedia() {
       .join('')
   }
 
-  async function upload(productId: number, file: File): Promise<ProductImageView> {
+  /** 把位元組送進物件儲存，回傳物件鍵。掛到哪裡由呼叫端決定——商品圖與輪播圖共用這一段。 */
+  async function uploadObject(file: File): Promise<string> {
     const sha256 = await sha256Of(file)
 
     const auth = await request<UploadAuthorization>(
@@ -40,13 +41,17 @@ export function useProductMedia() {
         throw new Error(`上傳失敗（${response.status}）`)
       }
     }
+    return auth.objectKey
+  }
 
+  async function upload(productId: number, file: File): Promise<ProductImageView> {
+    const objectKey = await uploadObject(file)
     return await request<ProductImageView>(
       `/api/v1/admin/products/${productId}/images`,
       {
         method: 'POST',
         authenticated: true,
-        body: { objectKey: auth.objectKey, contentType: file.type, byteSize: file.size },
+        body: { objectKey, contentType: file.type, byteSize: file.size },
       })
   }
 
@@ -59,5 +64,5 @@ export function useProductMedia() {
     return await request<ProductImageView[]>(`/api/v1/catalog/products/${productId}/images`)
   }
 
-  return { upload, remove, listImages, errorMessage }
+  return { uploadObject, upload, remove, listImages, errorMessage }
 }

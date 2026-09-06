@@ -148,6 +148,44 @@ public class JpaProductRepository implements ProductRepository {
                 .toList();
     }
 
+    /** 依 id 批次取上架商品。首頁人工選品用，已下架的不會回來。 */
+    @Override
+    @Transactional(readOnly = true)
+    public List<ProductSummary> findOnShelfSummariesByIds(List<Long> productIds) {
+        if (productIds == null || productIds.isEmpty()) {
+            return List.of();
+        }
+        @SuppressWarnings("unchecked")
+        List<Object[]> rows = entityManager.createNativeQuery("""
+                        select p.id, p.category_id, p.name, p.brand
+                        from product p
+                        where p.id in (:ids) and p.status = 'ON_SHELF'
+                        """)
+                .setParameter("ids", productIds)
+                .getResultList();
+        if (rows.isEmpty()) {
+            return List.of();
+        }
+
+        List<ProductSummary> found = rows.stream()
+                .map(row -> new ProductSummary(
+                        ((Number) row[0]).longValue(),
+                        ((Number) row[1]).longValue(),
+                        (String) row[2],
+                        (String) row[3],
+                        ProductStatus.ON_SHELF,
+                        null,
+                        null))
+                .toList();
+
+        Map<Long, BigDecimal> lowestPrices = jpaRepository
+                .findLowestPrices(found.stream().map(ProductSummary::id).toList()).stream()
+                .collect(Collectors.toMap(row -> (Long) row[0], row -> (BigDecimal) row[1]));
+        return found.stream()
+                .map(summary -> summary.withLowestPrice(lowestPrices.get(summary.id())))
+                .toList();
+    }
+
     /** 商店列表查詢：<b>固定兩次</b>查詢，與頁大小、與翻到第幾頁都無關。 */
     @Override
     @Transactional(readOnly = true)

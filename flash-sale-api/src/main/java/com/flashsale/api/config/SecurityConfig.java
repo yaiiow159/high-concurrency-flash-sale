@@ -82,6 +82,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET,
                                 "/api/v1/activities", "/api/v1/activities/**",
                                 "/api/v1/catalog/**",
+                                // 首頁版型不含任何身分資料，是它能被 ISR 與 CDN 快取的前提
+                                "/api/v1/home",
                                 // 搜尋不帶身分也不改狀態，而且是使用者進站的第一個動作。
                                 // 要求登入才能搜尋等於把人擋在門外
                                 "/api/v1/search/products",
