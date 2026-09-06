@@ -59,6 +59,15 @@ public class RedissonDistributedLock implements DistributedLock {
         }
     }
 
+    /**
+     * <b>{@code leaseTime} 在這個實作裡不會被使用。</b>
+     *
+     * <p>無參數的 {@code tryLock()} 會啟用看門狗，只要持有執行緒還活著就自動續期，
+     * 那比任何預估的租期都準——排程實際跑多久很難事先猜對。
+     *
+     * <p>參數留著是因為它屬於埠的簽章，換成沒有看門狗的實作時會需要它。
+     * 但要知道：<b>現在調呼叫端那個常數不會有任何效果。</b>
+     */
     @Override
     public boolean tryExecuteWithLock(String lockKey, Duration leaseTime, Runnable action) {
         RLock lock = redissonClient.getLock(lockKey);
