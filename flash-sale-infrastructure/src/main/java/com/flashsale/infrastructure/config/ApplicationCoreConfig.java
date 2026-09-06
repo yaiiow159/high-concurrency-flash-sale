@@ -25,7 +25,7 @@ import java.time.Clock;
 @Configuration
 @EnableConfigurationProperties({FlashSaleProperties.class, JwtProperties.class, PaymentProperties.class,
         AdmissionProperties.class,
-        MediaProperties.class})
+        MediaProperties.class, BootstrapAdminProperties.class})
 public class ApplicationCoreConfig {
 
     /**

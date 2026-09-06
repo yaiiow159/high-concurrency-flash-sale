@@ -490,6 +490,34 @@ curl -X POST localhost:8080/api/v1/seckill/orders -H "Content-Type: application/
 回 `202 Accepted` 與訂單號，再以訂單號輪詢結果（尚未落庫時回 `PROCESSING`，而非 404）。
 **重送相同的 `requestId` 會拿到同一張訂單**，庫存只扣一次。
 
+### 進後台
+
+註冊出來的帳號一律是 `CUSTOMER`，而系統裡**沒有任何端點能提升角色**——
+提權端點自己就需要 admin 權限，那是先有雞還是先有蛋。
+第一個管理員因此由設定注入，啟動時建立：
+
+```bash
+BOOTSTRAP_ADMIN_EMAIL=ops@example.com BOOTSTRAP_ADMIN_PASSWORD=change-me-please mvn spring-boot:run -pl flash-sale-api
+```
+
+以這組帳密登入後，導覽列會出現「後台」，即 `/admin`。
+
+三件事值得知道：
+
+- **只在系統中還沒有任何管理員時生效一次。** 已經有管理員就完全不動作——
+  否則這份設定會變成一條永久有效的提權後門：拿到環境變數的人隨時能把
+  任意帳號變成管理員，而且看起來完全像正常啟動
+- **信箱已註冊過的話是「提升」而非「建立」，且不覆寫密碼。**
+  順手重設密碼會讓這份設定多一個能力：覆寫任意既有帳號的密碼
+- **沒有預設值。** 不設就不啟用；只設信箱沒設密碼會**當場讓啟動失敗**，
+  而不是安靜略過——那會讓人以為建好了，直到打不開後台才發現
+
+正式環境用完應該把設定移掉，之後的管理員由已有的管理員在後台指派。
+
+> 前端的 `/admin` 路由守衛**不是安全邊界**，它只決定看不看得到後台的殼。
+> 改 JS 就能讓入口出現，但那沒有意義——`/api/v1/admin/**` 仍然要
+> `seckill:admin` scope（[ADR-0015](docs/adr/0015-operations-console.md)）。
+
 ---
 
 ## API

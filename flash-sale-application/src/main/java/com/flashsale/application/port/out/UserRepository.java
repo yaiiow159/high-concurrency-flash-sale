@@ -2,6 +2,7 @@ package com.flashsale.application.port.out;
 
 import com.flashsale.domain.identity.Email;
 import com.flashsale.domain.identity.User;
+import com.flashsale.domain.identity.UserRole;
 
 import java.util.Optional;
 
@@ -23,4 +24,12 @@ public interface UserRepository {
     Optional<User> findByEmail(Email email);
 
     Optional<User> findById(Long userId);
+
+    /**
+     * 系統中是否已經有這個角色的帳號。
+     *
+     * <p>只有初始管理員的建立會用到：它必須是「第一個」才成立，
+     * 否則設定檔就變成一條永久有效的提權後門。
+     */
+    boolean existsByRole(UserRole role);
 }
