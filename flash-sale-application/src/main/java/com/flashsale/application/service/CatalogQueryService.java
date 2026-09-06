@@ -76,6 +76,18 @@ public class CatalogQueryService implements CatalogQueryUseCase {
 
     @Override
     @Transactional(readOnly = true)
+    public List<ProductView> findProductsByIds(List<Long> productIds) {
+        if (productIds == null || productIds.isEmpty()) {
+            return List.of();
+        }
+        List<Long> capped = productIds.stream().distinct().limit(MAX_PAGE_SIZE).toList();
+        return productRepository.findOnShelfSummariesByIds(capped).stream()
+                .map(ProductView::fromSummary)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<SkuStockView> findStock(List<Long> skuIds) {
         if (skuIds == null || skuIds.isEmpty()) {
             return List.of();

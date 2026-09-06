@@ -28,6 +28,7 @@ const SECTIONS: Array<{ title: string, items: NavItem[] }> = [
     items: [
       { to: '/admin/products', label: '商品管理' },
       { to: '/admin/activities', label: '秒殺活動' },
+      { to: '/admin/home', label: '首頁版型' },
     ],
   },
   {

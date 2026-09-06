@@ -25,6 +25,9 @@ public interface ProductRepository {
     /** 所有已上架商品的 ID。 */
     java.util.Set<Long> findOnShelfIds();
 
+    /** 依 id 批次取上架商品。首頁的人工選品用，已下架的不會回來。 */
+    List<ProductSummary> findOnShelfSummariesByIds(List<Long> productIds);
+
     /**
      * 依類目列出已上架商品。
      *

@@ -564,3 +564,61 @@ export interface ExchangeResult {
   pointsSpent: number
   balanceAfter: number
 }
+
+/** 首頁版位類型。 */
+export type HomeSectionType = 'CAROUSEL' | 'PRODUCT_RAIL' | 'CATEGORY_GRID' | 'FLASH_SALE'
+
+/** 商品版位的內容來源。 */
+export type HomeProductSource = 'BEST_SELLING' | 'NEWEST' | 'TOP_RATED' | 'CATEGORY' | 'CURATED'
+
+export interface CarouselSlideView {
+  slideId: number
+  imageUrl: string
+  title?: string
+  linkUrl?: string
+}
+
+export interface HomeSectionView {
+  sectionId: number
+  type: HomeSectionType
+  title: string
+  subtitle?: string
+  /** 只有輪播版位有值。 */
+  slides: CarouselSlideView[]
+  /** 只有商品版位有值。 */
+  products: ProductView[]
+}
+
+/** 首頁一次給完的內容，避免首頁打五六次請求。 */
+export interface HomeLayoutView {
+  sections: HomeSectionView[]
+}
+
+/** 後台看到的版位設定，含停用與不在期間內的。 */
+export interface HomeSectionConfig {
+  sectionId: number
+  type: HomeSectionType
+  title: string
+  subtitle?: string
+  source?: HomeProductSource
+  categoryId?: number
+  productIds: number[]
+  itemLimit: number
+  sortOrder: number
+  enabled: boolean
+  visibleFrom?: string
+  visibleTo?: string
+}
+
+export interface CarouselSlideConfig {
+  slideId: number
+  objectKey: string
+  /** 後台預覽用的完整網址，由後端組。 */
+  imageUrl: string
+  title?: string
+  linkUrl?: string
+  sortOrder: number
+  enabled: boolean
+  visibleFrom?: string
+  visibleTo?: string
+}

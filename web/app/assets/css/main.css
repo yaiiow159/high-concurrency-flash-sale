@@ -146,6 +146,21 @@
     font-variant-numeric: tabular-nums;
   }
 
+  /* 表單欄位。原本每個表單各自拼一次，同一個輸入框在不同頁面長得不一樣 */
+  .field {
+    width: 100%;
+    border-radius: theme('borderRadius.sm');
+    border: 1px solid var(--line);
+    background: var(--surface);
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+  }
+
+  .field:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -1px;
+  }
+
   /* 段落標籤：小、全大寫、加字距，標示區塊而不搶主內容的視覺重量 */
   .eyebrow {
     font-size: 0.6875rem;
