@@ -66,6 +66,268 @@
 
 ---
 
+## 架構與流程
+
+### 分層：依賴方向只能由外往內
+
+**編譯期依賴**（`ArchitectureTest` 強制，違規在 CI 就擋下）：
+
+```
+api ──▶ infrastructure ──▶ application ──▶ domain
+                                              零框架依賴
+```
+
+`application` 只宣告它需要什麼（Port 介面），實作由 `infrastructure` 提供。
+所以**應用層拿不到 `RedisTemplate` 這個類別**——不是「不該用」，
+而是模組依賴上就用不了。
+
+**執行期的呼叫方向不一樣**，這是最容易看混的地方：
+
+```
+   HTTP
+     │
+     ▼
+   api ─────▶ application（Use Case）
+                     │
+          ┌──────────┴───────────┐
+          ▼                      ▼
+       domain            infrastructure（Port 的實作）
+    純運算，零 I/O                 │
+                                  ▼
+                    Redis / MySQL / Kafka / ES / S3
+```
+
+編譯期 `infrastructure` 在 `application` 外面，執行期卻是 `application`
+呼叫它——**依賴反轉就是這個意思**。
+
+一次搶購請求的實際軌跡：
+
+```
+SeckillController.seckill(@CurrentUser Long userId, SeckillRequest)   api
+        │  身分取自 JWT 的 sub claim，不是請求體
+        ▼
+SeckillUseCase.attempt(SeckillCommand)                        application（介面）
+        ▼
+SeckillApplicationService.execute(...)                        application（實作）
+        │  只認得 Port：ActivityRepository / StockRepository / MessagePublisher
+        │
+        ├──▶ SeckillActivity.ensurePurchasableAt(now)                   domain
+        │       活動有沒有開賣、有沒有結束、是不是上架中——純運算
+        │
+        └──▶ RedisStockRepository.deduct(...)              infrastructure（配接器）
+                Lua 腳本，唯一的強一致點
+```
+
+**業務規則在 domain，I/O 在 infrastructure，兩者都由 application 編排。**
+「活動結束後不能下單」這條規則因此可以注入固定時鐘直接測，不必起 Redis。
+
+### 模組結構
+
+```
+flash-sale-domain          純 Java，零框架依賴 ← ArchUnit 強制
+  activity/ catalog/ order/ payment/ identity/ stock/
+  promotion/ review/ membership/ aftersales/ shipping/ shared/
+
+flash-sale-application     Use Case 編排 + Port 介面
+  port/in/  入站埠      port/out/  出站埠      service/  實作
+
+flash-sale-infrastructure  出站配接器
+  adapter/out/redis/        Lua 扣減、Redisson 鎖、請求追蹤
+  adapter/out/cache/        多級快取（Decorator）、售罄標記
+  adapter/out/persistence/  JPA + Outbox
+  adapter/out/search/       Elasticsearch 讀模型
+  adapter/out/media/        S3 相容物件儲存
+  adapter/{in,out}/mq/      Kafka 生產者、消費者、DLQ 補償
+  scheduler/                Outbox 中繼、逾期關單、庫存預熱、對帳
+
+flash-sale-api             HTTP 入站配接器 + 組裝根
+```
+
+### 秒殺下單：一次請求的完整路徑
+
+`SeckillApplicationService.execute` 的六個步驟，**由便宜到昂貴**：
+
+```
+① rejectIfSoldOutLocally      Caffeine 本機標記        0 次網路
+② rejectIfQueueOverloaded     入場控制                 0 次網路（排程每 5 秒取樣）
+③ loadPurchasableActivity     L1 → L2 → L3            L1 命中則 0 次
+④ orderNoGenerator.next()     Snowflake               0 次網路
+⑤ deductStock                 Redis Lua               1 次 Redis  ← 全系統唯一強一致點
+⑥ publishOrCompensate         markAccepted + Kafka    2 次 Redis + 1 次 Kafka
+        │
+        ▼
+   202 Accepted { orderNo }
+```
+
+幾個關鍵：
+
+- **① 與 ② 在任何遠端呼叫之前。** 秒殺 99.9% 的請求注定失敗，
+  越早擋下越好——實測售罄路徑（1,460 QPS）比有庫存時（1,244）還快
+- **③ 之後才發號。** 號碼發了卻沒扣到庫存只是浪費一個號，
+  反過來（先扣後發）則會有扣減找不到對應訂單號的空窗
+- **⑤ 回傳「重複」時直接回放既有訂單號**，不再往下走。
+  同一個 `requestId` 重送永遠拿到同一張訂單，庫存只扣一次
+- **⑥ 失敗要立刻退庫。** Kafka 投遞不出去代表訂單永遠不會被建立，
+  此時不退庫，那份庫存就永久漏掉了
+
+> 熱路徑穩態下是 **3 次 Redis 往返 + 1 次 Kafka**。
+> 其中 `markAccepted` 佔了 2 次（HSET 與 EXPIRE 分開送），
+> 折進扣減的 Lua 或改用 pipeline 可以省掉一次——目前還沒做。
+
+**沒有任何一步碰資料庫。** 這是削峰能成立的根本原因，
+也是 CLAUDE.md 把「熱路徑禁止 DB 讀寫」列為鐵則的理由。
+
+### 一般下單：同一個問題的相反答案
+
+```
+POST /api/v1/orders  ──▶  OrderPlacementService.place   @Transactional
+                            │
+                            ├ ① requestId 已有訂單？→ 直接回傳（冪等第一層）
+                            ├ ② 解析收貨地址 → 快照進訂單
+                            ├ ③ 解析訂單行 → 商品名與單價快照
+                            ├ ④ 扣庫存（MySQL 條件式 UPDATE）
+                            ├ ⑤ 定價：促銷 → 券 → 運費
+                            ├ ⑥ 核銷券
+                            ├ ⑦ saveIfAbsent（冪等第三層：唯一索引）
+                            └ ⑧ 事件寫進 outbox_event ← 同一個交易
+                            │
+                            ▼
+                     201 Created  完整訂單
+```
+
+**④ 排在 ⑤ 之前是刻意的**：庫存不足是最常見的失敗，先擋掉就不必為註定失敗的請求算優惠；
+而且券的核銷排在最後，扣庫存失敗時交易一起回滾，券自然不會被消耗掉。
+
+**這條通道完全不需要補償**。任一步失敗，資料庫回滾就是補償——
+連同前幾行已扣的庫存一起還原。秒殺那條需要的 Outbox 補償、DLQ、對帳兜底，
+在這裡一個都用不上（[ADR-0006](docs/adr/0006-dual-order-channels.md)）。
+
+### 事件流：一個 Outbox，九個消費端
+
+系統有**兩條進 Kafka 的路，而它們不能互換**：
+
+```
+  秒殺熱路徑                              有資料庫交易的地方
+  （沒有 DB 交易）                         （建單、付款、出貨、退貨…）
+       │                                         │
+       │ 直接 publish                             │ 與資料寫入同一個交易
+       ▼                                         ▼
+  seckill.order.create                     ┌──────────────┐
+  （12 分區，鍵=orderNo）                    │ outbox_event │
+       │                                   └──────┬───────┘
+       │                                          │ 每 1 秒，跨節點互斥
+       ▼                                          ▼
+  SeckillOrderConsumer ×6                  OutboxRelayScheduler
+       │                                          │
+       │ 建單（落庫）                               ▼
+       └───────────────────────────────▶  seckill.order.event
+                                            （6 分區）
+                                                  │
+                        ┌─────────────────────────┼─────────────────┐
+                        ▼                         ▼                 ▼
+                  補償 / 出貨 / 銷量         積分 / 通知 / 退款    索引 / 縮圖
+```
+
+**熱路徑用不了 Outbox**，因為 Outbox 的全部意義是「與資料庫寫入同一個交易」，
+而熱路徑上一次 DB 都不能碰。所以它改用「投遞失敗就當場退庫」——
+用一個補償動作換掉一次資料庫往返。
+
+反過來，**只要有交易可用的地方就一律走 Outbox**：訂單存在與下游收到通知
+是同一件事，不需要分散式交易協調者（[ADR-0004](docs/adr/0004-outbox-saga-over-seata.md)）。
+
+| 消費端 | group | 觸發事件 | 併行 | 做什麼 |
+|---|---|---|---|---|
+| `SeckillOrderConsumer` | `seckill-order-creator` | `order.create` 主題（非 Outbox） | 6 | 非同步建單 |
+| `SeckillCompensationConsumer` | `seckill-stock-compensator` | `order.cancelled` | 3 | 退回 Redis 庫存 |
+| `FulfillmentConsumer` | `fulfillment-shipment-creator` | `order.paid` | 2 | 建立出貨單 |
+| `ProductSalesConsumer` | `product-sales` | `order.paid` | 2 | 累計銷量 |
+| `MembershipConsumer` | `membership-points` | `order.completed` | 2 | 發積分、更新等級 |
+| `NotificationConsumer` | `notification-dispatcher` | paid / shipped / completed / cancelled / refund | 2 | 寫入待發通知 |
+| `RefundConsumer` | `aftersales-refund-executor` | `refund.requested` | 1 | 執行退款 |
+| `ProductIndexConsumer` | `catalog-search-indexer` | `product.index-changed` | 1 | 同步 Elasticsearch |
+| `ImageVariantConsumer` | `catalog-image-variants` | `product.image-attached` | 1 | 產生縮圖 |
+
+**每個 group 各自消費整個主題**，彼此不影響——積分掛掉不會拖到出貨。
+
+新增消費端時要回答兩個問題（CLAUDE.md 鐵則 4）：「重複投遞會怎樣」與
+「**把歷史全部重跑一次會怎樣**」。第二題是因為 `auto-offset-reset: earliest`，
+新的 group 第一次上線會重放整個主題——會員積分那個消費端上線時就這樣
+追溯處理了所有歷史訂單。答案不是「沒事」的動作（寄信、扣款、呼叫外部 API）
+就不該放在消費端裡。
+
+### 訂單生命週期
+
+四個狀態機各自獨立，以事件相連——**訂單只記里程碑，細節在各自的聚合裡**：
+
+```
+訂單  PENDING_PAYMENT ──▶ PAID ──▶ SHIPPED ──▶ COMPLETED
+            │                │        │           │
+            │                └────────┴───────────┴──▶ REFUNDED（終態）
+            ├──逾時／取消──▶ CANCELLED（終態）
+            └──────────────▶ FAILED（終態）
+
+付款  PENDING ──▶ SUCCEEDED ──▶ REFUND_PENDING ──▶ PARTIALLY_REFUNDED ──▶ REFUNDED
+          └──▶ FAILED
+
+出貨  READY ──▶ IN_TRANSIT ──▶ DELIVERED
+                   ▲ │
+                   └─┴──▶ FAILED（可重送，不是終態）
+
+退貨  REQUESTED ──▶ APPROVED ──▶ RECEIVED ──▶ REFUNDED
+          └──▶ REJECTED    └──▶ CANCELLED
+```
+
+**`PAID → CANCELLED` 是被禁止的**，而這條線很容易畫錯：取消會發出
+`order.cancelled` 讓補償服務退庫，但錢已經收了——那會製造出
+「庫存退了、錢沒退」的路徑，而逾時關單排程隨時可能踩到它。
+已付款要退錢一律走退貨，那有自己的狀態機。
+
+判準是：**訂單狀態只收錄「會改變買家能做什麼」的轉折**。
+`PAID → SHIPPED` 要收錄（出貨前可自由取消，出貨後必須走退貨）；
+「運送中 → 派送中」不收錄（買家能做的事沒變）。
+這條線一鬆掉，訂單狀態機會長成物流狀態的副本，而副本永遠慢一步。
+
+**配送失敗不是終態**，與訂單刻意鎖死終態是不同的取捨：訂單終態牽涉金流與庫存，
+回頭一次就可能多退一次錢；配送失敗只是「東西還在路上」，重試沒有不可逆的副作用。
+
+### 補償：四道防線，一道比一道慢
+
+秒殺是最終一致的，所以每一種失敗都要有人接住：
+
+| 失敗 | 誰接住 | 多久 |
+|---|---|---|
+| Kafka 投遞失敗 | `publishOrCompensate` 當場退庫 | 毫秒 |
+| 消費端重試耗盡 | DLQ + `DomainEventDeadLetterConsumer` | 秒 |
+| 使用者沒付款 | `ExpiredOrderScheduler` 關單 → `order.cancelled` → 退庫 | 30 秒一輪 |
+| 以上全部失效 | `StockReconciliationService` 對帳 | 10 分鐘一輪 |
+
+**最後一道只在能被證明安全時才自動修**（孤兒扣減，且已過寬限期）。
+`OVERSELL_RISK` 方向一律人工——下修餘量會讓進行中的合法請求無故失敗。
+
+### 背景排程
+
+全部採跨節點互斥（`tryExecuteWithLock`），例外在表格裡註明：
+
+| 排程 | 週期 | 做什麼 |
+|---|---|---|
+| `OutboxRelayScheduler` | 1 秒 | 把 PENDING 事件投進 Kafka |
+| `ExpiredOrderScheduler` | 30 秒 | 逾時關單並退庫 |
+| `NotificationDeliveryScheduler` | 30 秒 | 寄出待發通知 |
+| `PaymentRefundScheduler` | 60 秒 | 掃描待退款的付款單 |
+| `StockWarmupRunner` | 60 秒 | 補上缺失的 Redis 庫存鍵 |
+| `QueueDepthScheduler` | 5 秒 | 取樣建單佇列深度（**不互斥**：每個節點各自要有樣本） |
+| `SnowflakeNodeIdGuard.renew` | 10 秒 | 續自己的節點編號租約（**不互斥**：加鎖反而會讓租約過期） |
+| `StockReconciliationScheduler` | 10 分鐘 | 三條庫存恆等式對帳 |
+| `SearchIndexReconciliationScheduler` | 15 分鐘 | 比對 ES 與資料庫 |
+| `StockReleaseScheduler` | 30 分鐘 | 活動結束後把未售量還回可售池 |
+| `RefreshTokenCleanupScheduler` | 每日 04:15 | 清掉過期的 refresh token |
+
+新增排程時**跨節點互斥是必答題**——問法與消費端冪等完全相同：
+「同時被跑兩次會怎樣？」`NotificationDeliveryScheduler` 就漏過一次，
+兩個節點會讓使用者收到兩封一樣的信，而紀錄上只有一筆。
+
+---
+
 ## 效能實測
 
 以下數字全部量自 **2026-09-06 的本機實測**，種入 50,004 商品 / 100,007 SKU / 225 類目。
@@ -175,41 +437,18 @@
 **② Kafka 分區鍵選了 `activityId`**（[ADR-0020](docs/adr/0020-order-create-partition-key.md)）
 
 秒殺活動**依定義就只有一個活動**，於是全部訊息落在同一個分區，
-六個消費者只有一個在做事。改用 `orderNo` 之後吞吐量提升約 4.8 倍。
+六個消費者只有一個在做事。當時實測 78,037 則訊息**全部落在 partition 6**，
+其餘 11 個分區是空的：建單 38 TPS，而入口每秒接得下 1,448 筆。
+
+改用 `orderNo` 之後，同一組配置量到 **213 筆/秒**（本次壓測數字，見上表）。
 分區鍵要選的是「**同一個什麼必須有序**」——是同一張訂單，不是同一場活動。
+訂單號高基數、均勻散佈，而且同一張訂單的重投仍然落在同一分區。
 
 **③ 商品列表的 N+1**
 
 `toDomain` 碰到了延遲載入的 `getSkus()`，而 `asSummary()` 隨即把它們丟掉——
 量到 `size=100` 時打出 102 次 SELECT。改用投影後固定為常數次查詢。
 **寫的時候完全看不出來**，因為那一行長得像單純的型別轉換。
-
----
-
-## 模組結構
-
-```
-flash-sale-domain          純 Java，零框架依賴 ← ArchUnit 強制
-  activity/ catalog/ order/ payment/ identity/ stock/
-  promotion/ review/ membership/ aftersales/ shipping/ shared/
-
-flash-sale-application     Use Case 編排 + Port 介面
-  port/in/  入站埠      port/out/  出站埠      service/  實作
-
-flash-sale-infrastructure  出站配接器
-  adapter/out/redis/        Lua 扣減、Redisson 鎖、請求追蹤
-  adapter/out/cache/        多級快取（Decorator）、售罄標記
-  adapter/out/persistence/  JPA + Outbox
-  adapter/out/search/       Elasticsearch 讀模型
-  adapter/out/media/        S3 相容物件儲存
-  adapter/{in,out}/mq/      Kafka 生產者、消費者、DLQ 補償
-  scheduler/                Outbox 中繼、逾期關單、庫存預熱、對帳
-
-flash-sale-api             HTTP 入站配接器 + 組裝根
-```
-
-依賴方向嚴格由外往內。**應用層拿不到 `RedisTemplate` 這個類別**——
-不是「不該用」，而是模組依賴上就用不了。
 
 ---
 
@@ -309,19 +548,14 @@ Session 每個請求都要讀一次 Redis，等於在熱路徑上憑空增加一
 
 ### 雙下單通道：202 與 201 的差別不是風格問題
 
-| | 一般下單 | 秒殺 |
-|---|---|---|
-| 成功狀態碼 | `201 Created` | `202 Accepted` |
-| 一致性 | 單一交易，失敗全回滾 | 最終一致，靠補償 |
-| 庫存 | MySQL 條件式 UPDATE | Redis Lua |
+兩條路徑的走法見上面的〈架構與流程〉，這裡只講為什麼不統一。
 
-`202` 的意思是「收到了，還沒做」——秒殺回它是誠實的。一般下單回 `201` 也是誠實的。
-統一成同一個狀態碼就是對其中一邊說謊。
+`202` 的意思是「收到了，還沒做」——秒殺回它是誠實的，訂單真的還沒建立。
+一般下單回 `201` 也是誠實的，交易已提交、訂單確實存在。
+**統一成同一個狀態碼就是對其中一邊說謊。**
 
-**一般通道刻意做成同步。** 它沒有削峰需求，推進 MQ 換來的是「為什麼買一本書也要輪詢」，
-而且失去交易帶來的免費正確性：任一品項庫存不足，整筆連同先前已扣的量一起回滾——
-**回滾就是補償，而且是資料庫做的**。這條通道因此完全不需要 Outbox 補償或退庫冪等
-（[ADR-0006](docs/adr/0006-dual-order-channels.md)）。
+一般通道刻意做成同步：它沒有削峰需求，推進 MQ 換來的是「為什麼買一本書也要輪詢」，
+而且會失去交易帶來的免費正確性（[ADR-0006](docs/adr/0006-dual-order-channels.md)）。
 
 ### 庫存雙模型：兩套機制，以「劃撥」隔開
 
