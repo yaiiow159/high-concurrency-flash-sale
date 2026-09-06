@@ -1,13 +1,24 @@
 package com.flashsale.api.architecture;
 
 import com.tngtech.archunit.core.domain.JavaClasses;
+import com.tngtech.archunit.core.domain.JavaMethod;
+import com.tngtech.archunit.core.domain.JavaModifier;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.library.Architectures;
+import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
+import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import static org.assertj.core.api.Assertions.assertThat;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
@@ -119,5 +130,44 @@ class ArchitectureTest {
                 .should().beInterfaces()
                 .because("Port 是抽象邊界，出現具體類別代表邊界已被穿透")
                 .check(classes);
+    }
+
+    /**
+     * Resilience4j 從自己的套件反射呼叫降級方法，非 public 會拿到
+     * {@code IllegalAccessException}，再被包成 {@code UndeclaredThrowableException}
+     * 往外丟——熔斷器打開的當下，本來要回 503 的請求變成 500。
+     *
+     * <p><b>低流量下永遠測不到</b>：熔斷器不開，降級方法就一次也不會被呼叫。
+     * 這條規則是壓測踩到之後補的。
+     */
+    @Test
+    @DisplayName("Resilience4j 的降級方法必須是 public")
+    void fallbackMethodsMustBePublic() {
+        Set<String> fallbackNames = classes.stream()
+                .flatMap(type -> type.getMethods().stream())
+                .flatMap(method -> Stream.of(
+                        method.tryGetAnnotationOfType(CircuitBreaker.class)
+                                .map(CircuitBreaker::fallbackMethod),
+                        method.tryGetAnnotationOfType(RateLimiter.class)
+                                .map(RateLimiter::fallbackMethod)))
+                .flatMap(Optional::stream)
+                .filter(name -> !name.isEmpty())
+                .collect(Collectors.toSet());
+
+        // 規則本身要能失敗才有意義：一個都沒找到代表註解掃描壞了，
+        // 而那會讓這條測試永遠綠燈
+        assertThat(fallbackNames)
+                .as("應該至少找得到一個降級方法，否則這條規則等於沒在跑")
+                .isNotEmpty();
+
+        List<JavaMethod> offenders = classes.stream()
+                .flatMap(type -> type.getMethods().stream())
+                .filter(method -> fallbackNames.contains(method.getName()))
+                .filter(method -> !method.getModifiers().contains(JavaModifier.PUBLIC))
+                .toList();
+
+        assertThat(offenders)
+                .as("降級方法必須 public，否則熔斷器打開時會回 500 而不是 503")
+                .isEmpty();
     }
 }
