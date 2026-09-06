@@ -20,20 +20,20 @@ public class JpaRestockSubscriptionRepository implements RestockSubscriptionRepo
     /**
      * 訂閱。
      *
-     * <p>唯一索引是 {@code (user_id, sku_id, notified_at)}，而 MySQL 的唯一索引
-     * 允許多個 NULL——所以「未通知」只能有一筆，已通知的歷史可以留很多筆。
-     * 這裡不能用 {@code on duplicate key}：NULL 不會觸發衝突，重訂會多插一列。
+     * <p>單句 upsert，靠 {@code uk_restock_pending} 擋重複（V29）。
+     *
+     * <p>先前寫成 {@code insert ... where not exists}，因為當時的唯一鍵含
+     * {@code notified_at}，而 NULL 不會觸發衝突。那個寫法在 REPEATABLE READ 下
+     * 會取 gap lock——<b>實測連點四次會有兩次 deadlock</b>，使用者看到的是
+     * 一顆按了沒反應的按鈕。
      */
     @Override
     @Transactional
     public void subscribe(Long userId, Long skuId, Instant now) {
         entityManager.createNativeQuery("""
                         insert into restock_subscription (user_id, sku_id, created_at)
-                        select :userId, :skuId, :now from dual
-                        where not exists (
-                            select 1 from restock_subscription
-                            where user_id = :userId and sku_id = :skuId and notified_at is null
-                        )
+                        values (:userId, :skuId, :now)
+                        on duplicate key update created_at = created_at
                         """)
                 .setParameter("userId", userId)
                 .setParameter("skuId", skuId)

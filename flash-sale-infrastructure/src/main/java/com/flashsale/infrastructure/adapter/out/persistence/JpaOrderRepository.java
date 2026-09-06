@@ -78,8 +78,7 @@ public class JpaOrderRepository implements OrderRepository {
     @Override
     @Transactional
     public void updateStaffNote(OrderNo orderNo, String note) {
-        jpaRepository.findByOrderNo(orderNo.value())
-                .ifPresent(entity -> entity.updateStaffNote(note));
+        jpaRepository.updateStaffNote(orderNo.value(), note);
     }
 
     @Override

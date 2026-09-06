@@ -67,6 +67,19 @@ public class JpaUserRepository implements UserRepository {
 
     @Override
     @Transactional(readOnly = true)
+    public java.util.Map<Long, String> findDisplayNames(java.util.Collection<Long> userIds) {
+        if (userIds == null || userIds.isEmpty()) {
+            return java.util.Map.of();
+        }
+        java.util.Map<Long, String> names = new java.util.HashMap<>();
+        for (Object[] row : jpaRepository.findDisplayNamesByIds(userIds)) {
+            names.put(((Number) row[0]).longValue(), (String) row[1]);
+        }
+        return names;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public boolean existsByRole(UserRole role) {
         return jpaRepository.existsByRole(role.name());
     }

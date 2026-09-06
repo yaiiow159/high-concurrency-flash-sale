@@ -7,6 +7,7 @@ import type {
 /**
  * 商品列表。 ISR 快取 5 分鐘。這一頁能被 CDN 快取的前提是**回應不含庫存與身分**： 商品描述幾週才改一次，庫存每秒變動數千次，混在一起整頁就失去快取價值。 目錄端點也全部開放匿名——帶 Authorization 的請求無法共用快取。
  */
+const { loadStatus } = useWishlist()
 const route = useRoute()
 const categoryId = computed(() => {
   const raw = route.query.category
@@ -209,6 +210,8 @@ async function loadRatings() {
     ])
     ratings.value = rating
     images.value = image
+    // 收藏狀態一次問完，不是每張卡片各查一次
+    await loadStatus([...new Set(ids)])
   } catch {
     ratings.value = {}
     images.value = {}

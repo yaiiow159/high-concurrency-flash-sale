@@ -10,6 +10,18 @@ public interface ProductQuestionRepository {
 
     ProductQuestion save(ProductQuestion question);
 
+    /**
+     * 回答並公開，<b>僅限還沒被回答的題目</b>。
+     *
+     * <p>回傳 0 代表別人先回答了。整列盲寫的話後到的人會靜默覆蓋先到的回答，
+     * 而兩邊的畫面都顯示成功。
+     */
+    int answerIfUnanswered(Long questionId, String answer, Long answeredBy,
+                           java.time.Instant answeredAt);
+
+    /** 只改公開旗標，不碰回答欄位——用過期快照整列寫回會把別人剛存的回答抹掉。 */
+    void setPublished(Long questionId, boolean published);
+
     Optional<ProductQuestion> findById(Long questionId);
 
     /** 商品頁看到的：只有已公開的，新到舊。 */

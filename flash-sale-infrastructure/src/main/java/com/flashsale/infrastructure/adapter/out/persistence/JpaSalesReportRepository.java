@@ -33,6 +33,16 @@ public class JpaSalesReportRepository implements SalesReportRepository {
     @PersistenceContext
     private EntityManager entityManager;
 
+    /**
+     * 概況。
+     *
+     * <p><b>件數的衍生表裡也要帶上同一組 WHERE。</b> 只寫在外層的話，
+     * 衍生表會先把整張 {@code order_line} 聚合成暫存表再 join——
+     * 查一天和查一年做同樣的工。實測 1.07 秒 vs 0.0018 秒，結果逐欄相同。
+     *
+     * <p>不可以偷懶改成平鋪的 {@code left join order_line}：訂單會被行數放大，
+     * 實測 35 筆變 51 筆、營收多算 74%。那種錯不會有任何東西發現。
+     */
     @Override
     @Transactional(readOnly = true)
     public SalesReportUseCase.Summary summarize(Instant from, Instant to) {
@@ -40,10 +50,14 @@ public class JpaSalesReportRepository implements SalesReportRepository {
                         select count(*), coalesce(sum(o.total_amount), 0),
                                coalesce(sum(l.qty), 0)
                         from orders o
-                        left join (select order_id, sum(quantity) qty from order_line
-                                   group by order_id) l on l.order_id = o.id
+                        left join (select l.order_id, sum(l.quantity) qty
+                                   from order_line l
+                                   join orders o2 on o2.id = l.order_id
+                                   where o2.status in %s
+                                     and o2.paid_at >= :from and o2.paid_at < :to
+                                   group by l.order_id) l on l.order_id = o.id
                         where o.status in %s and o.paid_at >= :from and o.paid_at < :to
-                        """.formatted(PAID_STATUSES))
+                        """.formatted(PAID_STATUSES, PAID_STATUSES))
                 .setParameter("from", Timestamp.from(from))
                 .setParameter("to", Timestamp.from(to))
                 .getSingleResult();

@@ -18,6 +18,14 @@ public interface UserRepository {
 
     Optional<User> findById(Long userId);
 
+    /**
+     * 批次取顯示名稱。
+     *
+     * <p>逐筆 {@code findById} 在列表上就是 N+1——同一個作者會被 JPA 的
+     * 一級快取蓋掉，所以那個問題只在作者不同時才現形，也就是真實情況。
+     */
+    java.util.Map<Long, String> findDisplayNames(java.util.Collection<Long> userIds);
+
     /** 系統中是否已經有這個角色的帳號。 */
     boolean existsByRole(UserRole role);
 }

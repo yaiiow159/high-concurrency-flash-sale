@@ -54,7 +54,7 @@ public class SalesReportService implements SalesReportUseCase {
     public List<TopProduct> topProducts(LocalDate from, LocalDate to, int limit) {
         Range range = Range.of(from, to, clock);
         return reportRepository.topProducts(range.from(), range.to(),
-                Math.min(Math.max(limit, 1), MAX_TOP_PRODUCTS));
+                Math.clamp(limit, 1, MAX_TOP_PRODUCTS));
     }
 
     /**

@@ -11,6 +11,7 @@ import com.flashsale.domain.shared.BusinessException;
 import com.flashsale.domain.shared.ErrorCode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -46,17 +47,17 @@ public class RestockNotificationService implements RestockNotificationUseCase {
     private static final int MAX_SKUS_PER_SCAN = 100;
 
     private final RestockSubscriptionRepository subscriptionRepository;
-    private final NotificationRepository notificationRepository;
     private final CatalogQueryUseCase catalogQuery;
+    private final Notifier notifier;
     private final Clock clock;
 
     public RestockNotificationService(RestockSubscriptionRepository subscriptionRepository,
-                                      NotificationRepository notificationRepository,
                                       CatalogQueryUseCase catalogQuery,
+                                      Notifier notifier,
                                       Clock clock) {
         this.subscriptionRepository = subscriptionRepository;
-        this.notificationRepository = notificationRepository;
         this.catalogQuery = catalogQuery;
+        this.notifier = notifier;
         this.clock = clock;
     }
 
@@ -92,26 +93,56 @@ public class RestockNotificationService implements RestockNotificationUseCase {
      * （退貨、逾時關單、活動釋放、人工補貨），逐條掛勾一定會漏掉某一條；
      * 而且回呼會讓庫存反過來依賴通知，方向是錯的。
      *
-     * <p>代價是最多晚一個掃描週期。對「到貨通知」來說那完全無所謂。
+     * <p><b>刻意沒有 {@code @Transactional}</b>：交易邊界在單一 SKU
+     * （{@link Notifier#notifyWaiters}）。包成一個大交易的話上限是
+     * 100 個 SKU × 500 人 = 五萬列的鎖撐到最後才提交，而補貨那一刻
+     * 正好是訂閱流量的尖峰——使用者會等到鎖逾時。
+     *
+     * <p>逐個 SKU try/catch：一個 SKU 失敗不該讓整輪停擺。
      */
     @Override
-    @Transactional
     public int notifyAllRestocked() {
         int total = 0;
         for (Long skuId : subscriptionRepository.findRestockedSkuIds(MAX_SKUS_PER_SCAN)) {
-            total += notifyWaiters(skuId);
+            try {
+                total += notifier.notifyWaiters(skuId);
+            } catch (RuntimeException e) {
+                log.warn("SKU {} 的到貨通知失敗，略過這一個", skuId, e);
+            }
         }
         return total;
     }
 
-    /**
-     * 補貨了，通知等待的人。
-     *
-     * <p><b>先標記已通知，再寫通知。</b> 反過來的話，寫到一半失敗重跑時
-     * 前面那些人會再收到一次——而重複的到貨通知比漏掉一次更讓人惱火。
-     * 標記在前，最壞是有人沒收到，那可以由他重新訂閱救回來。
-     */
     @Override
+    public int notifyWaiters(Long skuId) {
+        return notifier.notifyWaiters(skuId);
+    }
+
+    /**
+     * 單一 SKU 的通知，<b>自己就是交易邊界</b>。
+     *
+     * <p>拆成獨立 Bean 而不是同類別的方法：Spring 的交易是動態代理，
+     * 內部呼叫不會經過它，{@code @Transactional} 會安靜失效（CLAUDE.md 鐵則 6）。
+     */
+    @Component
+    public static class Notifier {
+
+        private static final Logger log = LoggerFactory.getLogger(Notifier.class);
+
+        private final RestockSubscriptionRepository subscriptionRepository;
+        private final NotificationRepository notificationRepository;
+        private final CatalogQueryUseCase catalogQuery;
+        private final Clock clock;
+
+        public Notifier(RestockSubscriptionRepository subscriptionRepository,
+                        NotificationRepository notificationRepository,
+                        CatalogQueryUseCase catalogQuery, Clock clock) {
+            this.subscriptionRepository = subscriptionRepository;
+            this.notificationRepository = notificationRepository;
+            this.catalogQuery = catalogQuery;
+            this.clock = clock;
+        }
+
     @Transactional
     public int notifyWaiters(Long skuId) {
         List<RestockSubscriptionRepository.Pending> waiters =
@@ -152,5 +183,6 @@ public class RestockNotificationService implements RestockNotificationUseCase {
 
         log.info("SKU {} 補貨，通知了 {} 個人", skuId, waiters.size());
         return waiters.size();
+    }
     }
 }
