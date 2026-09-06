@@ -51,17 +51,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * 商品評價。
- *
- * <p>這裡盯的是「誰能評」——那是這個功能的全部價值。
- * 評價一旦可以任意張貼，它就一文不值，而那不是慢慢發生的，
- * 是從第一則刷出來的評價開始的。
- *
- * <p>另外盯聚合的更新方式：新增用 {@code addRating}、修改用 {@code replaceRating}。
- * 把修改寫成「先移除再新增」會讓中間有一瞬間的筆數少一，
- * 而 mock 測試看得到那個差別。
- */
+/** 商品評價。 */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 @DisplayName("商品評價")

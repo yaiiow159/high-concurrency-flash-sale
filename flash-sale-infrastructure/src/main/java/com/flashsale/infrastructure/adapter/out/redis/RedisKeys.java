@@ -1,15 +1,6 @@
 package com.flashsale.infrastructure.adapter.out.redis;
 
-/**
- * Redis 鍵命名的唯一來源。
- *
- * <p>鍵名散落在各處是快取類系統最常見的維護災難——改一個前綴就要全域搜尋字串。
- * 集中在這裡後，鍵的結構變更只會影響一個檔案。
- *
- * <p><b>Hash Tag 設計</b>：同一活動的三個鍵都帶 {@code {a<id>}} 標籤，
- * Redis Cluster 會依大括號內的內容計算 slot，確保它們落在同一個節點。
- * <b>這是 Lua 腳本能在叢集模式下運作的前提</b>——跨 slot 的多鍵腳本會被 Redis 直接拒絕。
- */
+/** Redis 鍵命名的唯一來源。 */
 public final class RedisKeys {
 
     private static final String ACTIVITY_SLOT = "seckill:{a%d}:";

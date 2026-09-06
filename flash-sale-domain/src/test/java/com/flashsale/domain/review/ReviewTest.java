@@ -11,13 +11,7 @@ import java.time.Instant;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/**
- * 評價聚合根。
- *
- * <p>重點在修改窗口的兩個容易寫錯的地方：窗口從<b>發表</b>算起（不是從上次修改），
- * 以及 {@code edit} 回傳新實例而不是就地修改——
- * 聚合的更新需要舊評分，就地修改會讓舊值消失。
- */
+/** 評價聚合根。 */
 @DisplayName("商品評價")
 class ReviewTest {
 

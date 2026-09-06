@@ -14,17 +14,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * 退貨時運費退不退（ADR-0019 決策 7）。
- *
- * <p>{@code ReturnReason.isSellerFault()} 從一開始就存在，註解也寫著
- * 「決定運費由誰負擔」——但在運費做出來之前，<b>沒有任何地方用它算錢</b>。
- * 這組測試是那句註解第一次被兌現。
- *
- * <p>兩個條件是 AND，而它們各自漏掉的後果不同：
- * 漏掉「賣方責任」會讓每一筆退貨都退運費（商家吸收所有配送成本）；
- * 漏掉「全額退貨」會讓退一件商品就退掉整趟運費。
- */
+/** 退貨時運費退不退（ADR-0019 決策 7）。 */
 @DisplayName("退貨時的運費")
 class ShippingRefundRuleTest {
 

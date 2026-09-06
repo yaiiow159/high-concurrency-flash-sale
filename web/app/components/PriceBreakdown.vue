@@ -5,13 +5,7 @@ import type { OrderDiscount } from '~/types/api'
 const SHIPPING_SOURCE_TYPE = 'SHIPPING'
 
 /**
- * 金額明細：小計 → 逐筆折扣 → 應付。
- *
- * **折扣逐筆列出，不是一行「優惠 −2000」。**
- * 使用者問的是「為什麼折了 2000」，而那需要看到是哪幾個優惠。
- * 訂單頁與結帳頁共用這個元件，是為了讓「結帳時看到的」與
- * 「訂單成立後看到的」長得一模一樣——兩邊各寫一份，
- * 遲早會有一邊的四捨五入或排序不同，而使用者只會覺得系統在騙他。
+ * 金額明細：小計 → 逐筆折扣 → 應付。 **折扣逐筆列出，不是一行「優惠 −2000」。** 使用者問的是「為什麼折了 2000」，而那需要看到是哪幾個優惠。 訂單頁與結帳頁共用這個元件，是為了讓「結帳時看到的」與 「訂單成立後看到的」長得一模一樣——兩邊各寫一份， 遲早會有一邊的四捨五入或排序不同，而使用者只會覺得系統在騙他。
  */
 const props = withDefaults(defineProps<{
   subtotal: number | null | undefined
@@ -20,12 +14,7 @@ const props = withDefaults(defineProps<{
   payable: number | null | undefined
   /** 運費。undefined 代表這個情境沒有運費概念（例如秒殺訂單） */
   shippingFee?: number | null
-  /**
-   * 運費算不算得出來。
-   *
-   * false 時顯示「選擇地址後計算」而不是「NT$ 0」——
-   * 後者會讓使用者以為免運，然後在下一步被多收錢。
-   */
+  /** 運費算不算得出來。 false 時顯示「選擇地址後計算」而不是「NT$ 0」—— 後者會讓使用者以為免運，然後在下一步被多收錢。 */
   shippingKnown?: boolean
   /** 區域名稱，用來解釋為什麼離島比較貴 */
   shippingZone?: string | null
@@ -38,15 +27,7 @@ const showsShipping = computed(() => props.shippingFee !== undefined
   && props.shippingFee !== null)
 
 /**
- * 免運折抵**不可與商品折扣並排列出**。
- *
- * 它沒有從小計扣，而是從運費扣，而 `shippingFee` 傳進來時已經是實收淨額
- * （後端 `Order.shippingFee` 的語意就是「已扣掉免運折抵的實收運費」）。
- * 兩邊都列的話，同一筆優惠在畫面上出現兩次：
- * 使用者由上往下加會得到 2,997 − 80 = 2,917，而應付寫的是 2,997。
- *
- * 領域層的 `Order` 建構訂單時也是這樣切的（`!discount.appliesToShipping()`
- * 才計入行加總恆等式）——前端跟著同一條線切，兩邊才不會長出不同的解讀。
+ * 免運折抵**不可與商品折扣並排列出**。 它沒有從小計扣，而是從運費扣，而 `shippingFee` 傳進來時已經是實收淨額 （後端 `Order.shippingFee` 的語意就是「已扣掉免運折抵的實收運費」）。 兩邊都列的話，同一筆優惠在畫面上出現兩次： 使用者由上往下加會得到 2,997 − 80 = 2,917，而應付寫的是 2,997。 領域層的 `Order` 建構訂單時也是這樣切的（`!discount.appliesToShipping()` 才計入行加總恆等式）——前端跟著同一條線切，兩邊才不會長出不同的解讀。
  */
 const goodsDiscounts = computed(() => props.discounts
   .filter(discount => discount.sourceType !== SHIPPING_SOURCE_TYPE))

@@ -17,13 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
-/**
- * 會員中心。
- *
- * <p><b>每一支都以令牌裡的使用者為準，沒有任何 userId 參數。</b>
- * 積分是資產，讓呼叫端指定要看誰的餘額等於讓它看別人的錢包；
- * 而讓它指定要幫誰兌換，更是直接把別人的積分花掉。
- */
+/** 會員中心。 */
 @RestController
 @RequestMapping("/api/v1/membership")
 @Tag(name = "會員", description = "積分、等級與兌換")
@@ -61,16 +55,7 @@ public class MembershipController {
         return ApiResponse.ok(membershipUseCase.exchangeableCoupons(userId));
     }
 
-    /**
-     * 兌換優惠券。
-     *
-     * <p>積分唯一的用途。直接折抵訂單會讓退款變成兩種資產的組合，
-     * 而現在的退款路徑只認得錢（ADR-0016 決策 7）。
-     *
-     * <p><b>沒有冪等鍵。</b> 這是刻意的：兌換不是「同一個動作重送」，
-     * 而是「我要再換一張」——兩次點擊產生兩張券是<b>正確</b>的行為，
-     * 前提是點數真的夠。與下單那種「重送不該變成兩單」的語意相反。
-     */
+    /** 兌換優惠券。 */
     @PostMapping("/exchange/{promotionId}")
     @Operation(summary = "兌換優惠券", description = "扣點與發券同一個交易；點數不足則整筆失敗")
     public ApiResponse<MembershipUseCase.ExchangeResult> exchange(

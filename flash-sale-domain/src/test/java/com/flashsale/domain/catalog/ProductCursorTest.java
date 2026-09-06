@@ -10,12 +10,7 @@ import java.math.BigDecimal;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/**
- * keyset 游標與排序（ADR-0021）。
- *
- * <p>這裡壞掉的方式都不會拋錯：游標少了小數位會讓同一元內的商品重複或跳號，
- * 而那要翻到第幾頁才看得出來。
- */
+/** keyset 游標與排序（ADR-0021）。 */
 @DisplayName("商品游標與排序")
 class ProductCursorTest {
 

@@ -30,13 +30,7 @@ public class JpaUserRepository implements UserRepository {
         this.jpaRepository = jpaRepository;
     }
 
-    /**
-     * {@inheritDoc}
-     *
-     * <p>先查再寫仍然接住唯一鍵衝突——「先查再寫」在並發下只能減少衝突頻率，
-     * 消除不了它。真正保證唯一的是資料庫索引；這裡把它的例外翻譯成正常的業務結果，
-     * 讓應用層不必認得 Spring 的 {@code DataIntegrityViolationException}。
-     */
+    /** {@inheritDoc} */
     @Override
     @Transactional
     public Optional<User> createIfAbsent(User user) {

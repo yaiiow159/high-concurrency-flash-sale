@@ -20,27 +20,11 @@ export default defineNuxtConfig({
   },
 
   /**
-   * 渲染策略逐頁指定，而非全站一刀切。
-   *
-   * 秒殺頁是削峰漏斗的第 0 層：靜態部分必須由 CDN 完全承接，
-   * 100 萬次瀏覽不該有一次打到 origin。庫存數字則走獨立的輕量請求，
-   * 與頁面本體解耦——它變動極快，快取它只會讓使用者看到過期數字。
+   * 渲染策略逐頁指定，而非全站一刀切。 秒殺頁是削峰漏斗的第 0 層：靜態部分必須由 CDN 完全承接， 100 萬次瀏覽不該有一次打到 origin。庫存數字則走獨立的輕量請求， 與頁面本體解耦——它變動極快，快取它只會讓使用者看到過期數字。
    */
   routeRules: {
-    /*
-     * 公開頁面：`isr` 與 `cache` 兩個都給。
-     *
-     * **`isr` 單獨給是不夠的。** 它是平台層的指示——Vercel/Netlify 會在建置
-     * 產物裡讀它，而自架的 node-server preset 既不會建立快取、
-     * 也不會送出任何 `cache-control`，於是連前面擺一台通用 CDN 都不會快取。
-     *
-     * 實測（50,004 商品）：只寫 `isr: 300` 時，重複請求 `/products`
-     * 每一次都仍然打後端 5 次 SELECT，50 併發下只有 76 QPS、p50 629ms。
-     * `cache` 是 Nitro 自己的機制，在 node-server 上真的會生效，
-     * 同時也把 `cache-control` 送出去給 CDN。
-     *
-     * 兩個都留著：`isr` 對應部署到 Vercel 這類平台的情況，`cache` 對應自架。
-     */
+    // `isr` 與 `cache` 兩個都要給：`isr` 是平台層指示（Vercel/Netlify 才讀），
+    // 自架的 node-server 只認 `cache`。只寫 isr 的話實測完全沒有快取。
     '/': { isr: 60, cache: { maxAge: 60 } },
     '/seckill/**': { isr: 300, cache: { maxAge: 300 } },
 
@@ -49,22 +33,14 @@ export default defineNuxtConfig({
     '/products': { isr: 300, cache: { maxAge: 300 } },
     '/products/**': { isr: 300, cache: { maxAge: 300 } },
 
-    /**
-     * 訂單頁**絕不快取**。
-     *
-     * 訂單是每個使用者專屬的資料，被 CDN 快取等於把某個人的訂單
-     * 發給下一個訪客。這一條不是效能取捨，是安全邊界。
-     */
+    // 訂單頁絕不快取——那是安全邊界而非效能取捨：被 CDN 快取等於把某個人的訂單發給下一個訪客
     '/orders': { isr: false },
     '/orders/**': { isr: false },
 
     /** 通知同理：它帶著訂單號與金額，而且是寫給特定一個人看的。 */
     '/notifications': { isr: false },
 
-    /**
-     * 搜尋結果不快取：結果隨關鍵字而異，快取等於為每一種組合各存一份，
-     * 命中率趨近於零，卻要付出全部的儲存與失效成本。
-     */
+    /** 搜尋結果不快取：結果隨關鍵字而異，快取等於為每一種組合各存一份， 命中率趨近於零，卻要付出全部的儲存與失效成本。 */
     '/search': { isr: false },
 
     /** 退貨單同理：它帶著訂單號、商品與金額，是個人資料。 */
@@ -78,12 +54,7 @@ export default defineNuxtConfig({
     '/cart': { isr: false },
     '/checkout': { isr: false },
 
-    /**
-     * 代理到後端，避開 CORS。
-     *
-     * 這也更貼近正式環境：前後端在同一個網域後面，
-     * 而不是靠 CORS 標頭放行跨域——那在生產環境是額外的攻擊面。
-     */
+    /** 代理到後端，避開 CORS。 這也更貼近正式環境：前後端在同一個網域後面， 而不是靠 CORS 標頭放行跨域——那在生產環境是額外的攻擊面。 */
     '/api/v1/**': {
       proxy: { to: `${process.env.NUXT_API_BASE || 'http://localhost:8080'}/api/v1/**` },
     },

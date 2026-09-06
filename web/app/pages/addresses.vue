@@ -4,12 +4,7 @@ import { useAddresses } from '~/composables/useAddresses'
 import { useAuthStore } from '~/stores/auth'
 import type { AddressPayload, AddressView } from '~/types/api'
 
-/**
- * 收貨地址簿。
- *
- * <b>不做 SSR、不做 ISR</b>——地址是個資，進了被快取的 HTML 就等於
- * 發給下一個訪客。資料一律在客戶端掛載後才取。
- */
+/** 收貨地址簿。 <b>不做 SSR、不做 ISR</b>——地址是個資，進了被快取的 HTML 就等於 發給下一個訪客。資料一律在客戶端掛載後才取。 */
 const auth = useAuthStore()
 const { addresses, loading, error, load, add, update, remove, setDefault } = useAddresses()
 

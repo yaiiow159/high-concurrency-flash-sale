@@ -9,8 +9,8 @@ import java.time.Instant;
  * 領券中心上的一張券。
  *
  * @param claimed 這個人已經領過了。<b>領過的仍然要顯示</b>，
- *                只是按鈕變成「已領取」——把它從清單裡拿掉的話，
- *                使用者會以為活動結束了，然後跑去問客服
+ * 只是按鈕變成「已領取」——把它從清單裡拿掉的話，
+ * 使用者會以為活動結束了，然後跑去問客服
  */
 public record ClaimableCouponView(
         Long promotionId,

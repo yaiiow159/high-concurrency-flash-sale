@@ -20,24 +20,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
-/**
- * 建單佇列深度（ADR-0023）。
- *
- * <h2>問 broker，不問消費端</h2>
- *
- * <p>Kafka 客戶端自己會報 {@code records-lag-max}，但那個值只涵蓋
- * 該消費者<b>當下抓取到的分區</b>，而且消費者掛掉時指標會直接消失——
- * 而消費者掛掉正是最需要看到積壓的時候。
- *
- * <p>這裡改用 {@link AdminClient} 比對「消費組已提交的位移」與
- * 「日誌結尾位移」，與消費端的死活無關。
- *
- * <h2>速率取實測值</h2>
- *
- * <p>等待時間 = 積壓 ÷ 速率，而速率如果寫在設定檔裡，
- * 消費端加了機器之後那個數字就是錯的。這裡用兩次取樣之間
- * 位移的推進量現算，會自己跟上。
- */
+/** 建單佇列深度（ADR-0023）。 */
 @Component
 public class KafkaOrderQueueDepth implements OrderQueueDepth {
 
@@ -112,12 +95,7 @@ public class KafkaOrderQueueDepth implements OrderQueueDepth {
         return wait != UNKNOWN && wait > properties.maxWaitSeconds();
     }
 
-    /**
-     * 取樣一次。由排程觸發（見 {@code QueueDepthScheduler}）。
-     *
-     * <p><b>失敗時保留上一次的值，不歸零。</b> 歸零會讓入場控制在
-     * Kafka 不穩的當下自動放行——而那正是最不該放行的時候。
-     */
+    /** 取樣一次。由排程觸發（見 {@code QueueDepthScheduler}）。 */
     public void sample() {
         try {
             Map<TopicPartition, OffsetAndMetadata> committed = adminClient
@@ -159,13 +137,7 @@ public class KafkaOrderQueueDepth implements OrderQueueDepth {
         }
     }
 
-    /**
-     * 直接設定狀態，<b>僅供測試</b>。
-     *
-     * <p>入場控制的判斷邏輯（尤其是「資料不完整時不擋人」）必須能單獨驗證，
-     * 而那不該需要一個真的 Kafka——那會讓這幾條測試變成整合測試，
-     * 跑得慢、而且會因為環境而紅。
-     */
+    /** 直接設定狀態，<b>僅供測試</b>。 */
     void setStateForTest(long backlogValue, double drainRate) {
         backlog.set(backlogValue);
         drainRateMilli.set(Math.round(drainRate * 1000));

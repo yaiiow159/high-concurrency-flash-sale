@@ -4,22 +4,7 @@ import type {
   ActivityView, ApiResponse, CategoryView, ProductImageView, ProductPage, ProductRatingView,
 } from '~/types/api'
 
-/**
- * 首頁。
- *
- * <h2>首頁是入口，不是一個功能頁</h2>
- *
- * 先前這一頁只有秒殺活動網格——三張卡就結束了，逛不下去。
- * 電商的首頁要回答「我現在可以去哪裡」，而不是「這裡有什麼」。
- *
- * <h2>四個區塊全部用既有資料，沒有新的表或端點</h2>
- *
- * 限時搶購（活動）、熱銷（`sort=BEST_SELLING`）、最新上架（`sort=NEWEST`）、
- * 分類入口（類目樹）——這四份資料本來就都在，只是首頁一份都沒用。
- *
- * ISR 快取 60 秒。四個請求都在伺服器端一次做完，
- * 對使用者是一次往返；快取命中時是零次。
- */
+/** 首頁。 */
 const { data: activityData } = await useFetch<ApiResponse<ActivityView[]>>(
   '/api/v1/activities')
 const { data: categoryData } = await useFetch<ApiResponse<CategoryView[]>>(
@@ -34,21 +19,12 @@ const bestSelling = computed(() => bestSellingData.value?.data?.items ?? [])
 const newest = computed(() => newestData.value?.data?.items ?? [])
 
 /**
- * 分類入口只取**第二層**。
- *
- * 根類目只有一個（「3C 產品」），當入口等於沒有分。
- * 第三層有 210 個，全列出來就是上一輪踩過的那個坑——
- * 類目牆把內容擠出畫面。第二層是唯一一個「數量剛好、粒度也剛好」的層級。
+ * 分類入口只取**第二層**。 根類目只有一個（「3C 產品」），當入口等於沒有分。 第三層有 210 個，全列出來就是上一輪踩過的那個坑—— 類目牆把內容擠出畫面。第二層是唯一一個「數量剛好、粒度也剛好」的層級。
  */
 const categoryEntries = computed(() =>
   (categoryData.value?.data ?? []).flatMap((root) => root.children ?? []).slice(0, 12))
 
-/**
- * 評分。
- *
- * 與商品列表同一個做法：在客戶端另外取，不併進這一頁的 SSR——
- * 首頁是 ISR 快取的，評分跟著被快取會讓新評價要等快取過期才看得到。
- */
+/** 評分。 與商品列表同一個做法：在客戶端另外取，不併進這一頁的 SSR—— 首頁是 ISR 快取的，評分跟著被快取會讓新評價要等快取過期才看得到。 */
 const ratings = ref<Record<number, ProductRatingView>>({})
 const images = ref<Record<number, ProductImageView>>({})
 

@@ -8,15 +8,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
-/**
- * 訂單建立完成事件，供下游（通知、資料分析、履約）消費。
- *
- * <p><b>{@code schemaVersion} 是多品項重構帶進來的。</b>
- * 部署當下佇列裡還躺著舊格式（單品項）的訊息；新消費端若只認得新格式，
- * 那些訊息會全部進 DLQ——而這不會在測試環境出現，只在正式部署當下爆炸。
- *
- * <p>過渡期消費端應同時支援兩版，確認佇列清空後才移除舊版分支。
- */
+/** 訂單建立完成事件，供下游（通知、資料分析、履約）消費。 */
 public record OrderCreatedEvent(
         String eventId,
         int schemaVersion,

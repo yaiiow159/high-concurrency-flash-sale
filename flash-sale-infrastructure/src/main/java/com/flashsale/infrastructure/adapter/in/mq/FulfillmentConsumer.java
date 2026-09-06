@@ -10,17 +10,7 @@ import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Component;
 
-/**
- * 付款完成後建立出貨單。
- *
- * <p><b>冪等是必答題。</b>Outbox 是至少一次語意，同一個付款事件一定會被重複投遞，
- * 而重複建立的後果是同一張訂單出兩次貨。冪等由
- * {@code ShipmentRepository.saveIfAbsent} 與 {@code order_no} 的唯一索引共同保證。
- *
- * <p>與 {@code SeckillCompensationConsumer} 共用同一個 topic 但不同 group，
- * 因此兩邊各自收到完整的事件流，互不影響——
- * 若共用 group，一則事件只會被其中一個消費掉。
- */
+/** 付款完成後建立出貨單。 */
 @Component
 public class FulfillmentConsumer {
 

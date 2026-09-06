@@ -7,20 +7,10 @@ import com.flashsale.domain.order.event.OrderPaidEvent;
 
 import java.util.List;
 
-/**
- * 履約：出貨、配送狀態、送達。
- *
- * <p>出貨單由訂單付款事件觸發建立，而非下單當下——
- * 沒付錢的訂單不該進入揀貨佇列。
- */
+/** 履約：出貨、配送狀態、送達。 */
 public interface FulfillmentUseCase {
 
-    /**
-     * 消費 {@code order.paid} 事件建立出貨單。
-     *
-     * <p><b>必須冪等</b>：Outbox 是至少一次語意，同一個付款事件會被重複投遞。
-     * 重複建立的後果是同一張訂單出兩次貨。
-     */
+    /** 消費 {@code order.paid} 事件建立出貨單。 */
     void prepareShipment(OrderPaidEvent event);
 
     /** 交付承運商。物流單號必填。 */

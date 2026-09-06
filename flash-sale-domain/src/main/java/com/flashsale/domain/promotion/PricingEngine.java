@@ -10,24 +10,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
-/**
- * 優惠計算引擎（ADR-0013）。
- *
- * <h2>純函式：不查資料庫、不呼叫遠端、不看時鐘</h2>
- *
- * <p>輸入是「品項 + 可用的優惠規則 + 現在時刻」，輸出是折扣明細。
- * 時間由呼叫端傳入而不是自己讀——那是專案第 9 條鐵則，
- * 也讓「這張券在活動最後一秒還能不能用」變成一個可以寫死的測試。
- *
- * <p>優惠規則只會越長越複雜，而複雜的規則<b>只有在能被便宜地驗證時才安全</b>。
- * 把計算留在領域層、不帶任何 I/O，是為了讓
- * 「三件商品套用滿千折百再套八折券是多少」可以用單元測試窮舉。
- *
- * <h2>順序是業務決定，不是實作細節</h2>
- *
- * <p>先打八折再減 100，與先減 100 再打八折，差 20 元。
- * 順序由 {@link DiscountType} 的宣告順序決定，而且<b>只在那裡定義一次</b>。
- */
+/** 優惠計算引擎（ADR-0013）。 */
 public final class PricingEngine {
 
     /** 金額一律算到分。 */
@@ -36,16 +19,7 @@ public final class PricingEngine {
     private PricingEngine() {
     }
 
-    /**
-     * 計算一組品項可以套用哪些優惠。
-     *
-     * <p>收 {@link PricedItem} 而不是訂單行，是因為<b>結帳時還沒有訂單</b>——
-     * 購物車頁的「套用這張券會折多少」是在下單之前算的。
-     *
-     * @param items      要計價的品項
-     * @param promotions 候選優惠；引擎自己過濾掉不適用的
-     * @param now        用於判斷優惠是否在有效期內
-     */
+    /** 計算一組品項可以套用哪些優惠。 */
     public static PricingResult calculate(List<PricedItem> items,
                                           List<Promotion> promotions,
                                           Instant now) {
@@ -95,23 +69,7 @@ public final class PricingEngine {
         return new PricingResult(subtotal, applied, running, allocate(items, subtotal, running));
     }
 
-    /**
-     * 運費折抵。
-     *
-     * <p><b>對「商品折後金額」判斷門檻，對「運費」計算折抵。</b>
-     * 這正是 {@link DiscountType#SHIPPING} 排在最後一位的理由——
-     * 免運門檻看的是折後金額，而不是原價。
-     *
-     * <p>它<b>不在 {@link #calculate} 裡</b>，因為那個方法的輸出有一條恆等式
-     * （各行分攤加總 == 折後應付），而運費不分攤到行。
-     * 硬塞進去只會讓那條恆等式失效，而它正是退款按行退的基礎。
-     *
-     * <p>折抵夾在運費本身：免運券折不出比運費更多的錢。
-     *
-     * @param shippingFee  原始運費
-     * @param goodsPayable 商品折後應付，用於判斷門檻
-     * @return 折抵金額；沒有適用的優惠時是 0
-     */
+    /** 運費折抵。 */
     public static AppliedDiscount shippingDiscount(BigDecimal shippingFee,
                                                    BigDecimal goodsPayable,
                                                    List<Promotion> promotions,
@@ -135,26 +93,7 @@ public final class PricingEngine {
         return null;
     }
 
-    /**
-     * 把折後總額分攤回每一項。
-     *
-     * <p>退款要按行退，因此每一項的實付金額必須存在，
-     * 而且<b>加總必須等於訂單總額</b>——差一分錢，退完最後一行就對不平。
-     *
-     * <p>百分比分攤幾乎必然除不盡。規則（ADR-0013 決策 5）：
-     * <b>逐行無條件捨去到分，餘數加到金額最大的那一行。</b>
-     *
-     * <ul>
-     *   <li>捨去而非四捨五入：兩個方向都會錯，但「少折給使用者」會被客訴，
-     *       「多折」只會被財務發現——選一個會被發現的</li>
-     *   <li>餘數給最大行：給最小行時餘數佔該行的比例最大，
-     *       退那一行時的誤差最明顯</li>
-     * </ul>
-     *
-     * <p>這條規則的價值在於它<b>被寫下來且被測試釘住</b>，而不在於它是唯一正確的。
-     * 沒有明文規則時，每個經手的人都會用自己的直覺，
-     * 而那些直覺加總起來就是對不平的帳。
-     */
+    /** 把折後總額分攤回每一項。 */
     private static List<BigDecimal> allocate(List<PricedItem> items,
                                              BigDecimal subtotal,
                                              BigDecimal payable) {
@@ -199,7 +138,7 @@ public final class PricingEngine {
      *
      * @param payable       折後應付
      * @param lineAllocations 每一項分攤到的實付金額，順序與傳入的品項相同。
-     *                        <b>加總必然等於 {@code payable}</b>
+     * <b>加總必然等於 {@code payable}</b>
      */
     public record PricingResult(
             BigDecimal subtotal,

@@ -36,13 +36,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/**
- * 認證與授權的行為測試。
- *
- * <p>這些測試存在的理由很直接：<b>權限設定的錯誤不會讓任何東西「壞掉」</b>——
- * 少一條規則，端點就默默對全世界開放，功能測試依然全綠。
- * 只有明確斷言「沒帶令牌必須被擋」，這類漏洞才會在 CI 被抓到。
- */
+/** 認證與授權的行為測試。 */
 @WebMvcTest(controllers = {SeckillController.class, ActivityController.class})
 @Import({SecurityConfig.class, WebMvcConfig.class, CurrentUserArgumentResolver.class,
         AuthenticatedUserProvider.class, ApiAuthenticationEntryPoint.class, ApiAccessDeniedHandler.class})

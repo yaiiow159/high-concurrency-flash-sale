@@ -40,39 +40,13 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-/**
- * 退貨退款服務（ADR-0011）。
- *
- * <h2>可退數量的計算是防重複退款的第二層</h2>
- *
- * <p>「這件商品還能退幾個」等於<b>訂單行數量 − 所有仍佔用額度的退貨單上的數量</b>。
- * 關鍵在「仍佔用額度」包含還在審核中的單（見 {@code ReturnStatus.holdsReturnQuota}）——
- * 只算已退款的，買家可以在第一張單還在審核時開第二張，兩張都會過。
- *
- * <h2>庫存一律回到一般庫存，絕不回秒殺池</h2>
- *
- * <p>即使這一行來自秒殺活動也一樣。活動可能早就結束並釋放過額度了，
- * 把量寫回 Redis 等於復活一個已釋放的活動——那正是 ADR-0008 明文禁止、
- * 且實際發生過的超賣路徑。
- *
- * <h2>金流呼叫不在交易裡</h2>
- *
- * <p>{@link #refund} 只做三件事：扣減付款聚合根的可退額度、翻轉退貨單狀態、
- * 寫入 outbox。真正打金流與回補庫存的是消費端。
- * 遠端呼叫留在交易裡，會把資料庫交易的存活時間綁在對方的回應時間上，
- * 而逾時的結果是「不知道錢送出去了沒」。
- */
+/** 退貨退款服務（ADR-0011）。 */
 @Service
 public class ReturnService implements ReturnUseCase {
 
     private static final Logger log = LoggerFactory.getLogger(ReturnService.class);
 
-    /**
-     * 可以申請退貨的訂單狀態。
-     *
-     * <p>{@code PENDING_PAYMENT} 不在其中——錢都還沒收，
-     * 「退款」無從退起，那個情境的正確操作是取消訂單。
-     */
+    /** 可以申請退貨的訂單狀態。 */
     private static final Set<OrderStatus> RETURNABLE_STATUSES =
             Set.of(OrderStatus.PAID, OrderStatus.SHIPPED, OrderStatus.COMPLETED);
 
@@ -147,21 +121,9 @@ public class ReturnService implements ReturnUseCase {
     @Override
     @Transactional
     public ReturnRequestView open(OpenReturnCommand command) {
-        // ⚠ 這一行必須是本交易的第一個查詢，順序是正確性的一部分。
-        //
-        // 它做兩件事：鎖住訂單那一列，把同一張訂單的額度計算序列化；
-        // 以及——關鍵——確保後續的一致性讀取拿到的是最新資料。
-        //
-        // InnoDB 在 REPEATABLE READ 下，交易的讀取快照建立於**第一次一致性讀取**。
-        // 若在取鎖之前先跑了任何一般 SELECT，快照就在那一刻定型；
-        // 之後即使等到鎖、對手也已 commit，後續的一般 SELECT 仍讀不到它的寫入。
-        // 這不是假設：先前把冪等查詢放在取鎖之前，八個併發執行緒
-        // 對一張只買 2 件的訂單全部申請成功，累計 16 件
+        // ⚠ 必須是本交易的第一個查詢。REPEATABLE READ 的讀取快照建立於第一次一般 SELECT，
+        // 排在取鎖之前的話，後續讀取看不到對手已提交的寫入——實測併發全部超額通過
         // （ReturnConcurrencyIntegrationTest 會抓到）。
-        //
-        // FOR UPDATE 本身是當前讀、永遠讀得到最新已提交資料，
-        // 但它不建立快照——所以只要它排在最前面，
-        // 之後的一般 SELECT 才會以「拿到鎖的那一刻」為基準。
         Order order = requireOwnedOrderForUpdate(command.orderNo(), command.userId());
 
         // 冪等：逾時重送同一個 requestId 拿回同一張退貨單。
@@ -275,16 +237,8 @@ public class ReturnService implements ReturnUseCase {
             log.info("訂單 {} 已全額退款", order.orderNo());
         }
 
-        // 積分扣回，**在同一個交易裡**。
-        //
-        // 走事件的話會開一個窗口：錢已經退了、積分還沒扣，而那段時間
-        // 剛好夠使用者把點兌換掉。同一個交易則兩者同生共死——
-        // 這是「不要跨資源」原則的又一次應用（兩邊都是這個資料庫）。
-        //
-        // 用訂單的實付總額算比例，而不是行小計加總：有折扣的訂單
-        // 兩者不同，而積分當初是按實付發的（ADR-0016 決策 5）。
-        // 積分扣回用**商品金額**，不含運費：積分當初是按商品實付發的
-        // （awardForOrder 收到的是 order.totalAmount()），扣回要用同一個基準
+        // 積分扣回放在同一個交易：走事件會開一個「錢退了、積分還沒扣」的窗口。
+        // 基準用商品實付（不含運費），與當初發點的基準一致
         membershipUseCase.clawbackForReturn(order.userId(), order.orderNo().value(),
                 returnNo, request.refundAmount(), order.totalAmount());
 
@@ -325,15 +279,7 @@ public class ReturnService implements ReturnUseCase {
                 .toList();
     }
 
-    /**
-     * 每個 SKU 還能退幾個。
-     *
-     * <p>已佔用額度的退貨單<b>包含審核中與已核准</b>，不只已退款的。
-     * 只扣已退款的，買家可以在第一張單還在審核時開第二張，兩張都會過。
-     *
-     * <p>反過來，被駁回與撤回的單必須把額度還回去，
-     * 否則被駁回一次的商品就永遠不能再申請了。
-     */
+    /** 每個 SKU 還能退幾個。 */
     private Map<Long, Integer> returnableQuantities(Order order) {
         Map<Long, Integer> remaining = new HashMap<>();
         for (OrderLine line : order.lines()) {
@@ -371,14 +317,8 @@ public class ReturnService implements ReturnUseCase {
         // 否則兩行各自對照原始餘額都會通過
         remaining.put(item.skuId(), available - item.quantity());
 
-        // 單價取自訂單行的快照，不是重新查商品——商家調價後歷史訂單不能跟著變。
-        //
-        // 退款金額則另外算：整單折扣是折在訂單上、退貨卻是退一行，
-        // 用「單價 × 數量」退的是使用者沒付過的錢。全額退貨會被付款金額上限擋下，
-        // 但部分退貨不會——那筆多退的錢仍在上限之內。
-        //
-        // returnedBefore 用「原數量 − 尚可退」推導而不是另外記，
-        // 因為 remaining 這張表本來就是為了額度檢查算出來的，兩者不該有兩個真實來源
+        // 退款金額按分攤後的實付算，不是「單價 × 數量」——後者退的是使用者沒付過的錢，
+        // 而部分退貨不會被付款上限擋下
         int returnedBefore = orderLine.quantity() - available;
         BigDecimal refund = orderLine.refundFor(returnedBefore, item.quantity());
 

@@ -6,13 +6,7 @@ import com.flashsale.domain.shared.DomainEvent;
 import java.time.Instant;
 import java.util.UUID;
 
-/**
- * 訂單完成（已送達）事件。
- *
- * <p>這是鑑賞期與退貨期限的<b>起算點</b>，因此 {@code occurredAt}
- * 之後會被當成業務時間而不只是紀錄時間——退貨期限從這一刻算起。
- * 補送或重放這個事件會連帶影響退貨權利，消費端必須冪等。
- */
+/** 訂單完成（已送達）事件。 */
 public record OrderCompletedEvent(
         String eventId,
         int schemaVersion,

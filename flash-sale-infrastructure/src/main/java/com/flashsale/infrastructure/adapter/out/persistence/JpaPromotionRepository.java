@@ -83,15 +83,7 @@ public class JpaPromotionRepository implements PromotionRepository {
                 .toList();
     }
 
-    /**
-     * {@inheritDoc}
-     *
-     * <p>{@code MANDATORY}：核銷必須跟著下單交易一起成功或一起回滾（ADR-0013 決策 7）。
-     * 自己開交易的話，訂單建立失敗時券已經核銷掉了——使用者的券白白消失。
-     * 用 {@code REQUIRED} 表面上也能達到同樣效果，但那會安靜地接受
-     * 「有人在交易外呼叫」，而那正是這裡最不能發生的事。
-     * 與 {@code EventOutbox.append} 同一個理由。
-     */
+    /** {@inheritDoc} */
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
     public boolean redeem(Long couponId, String orderNo, Instant usedAt) {
@@ -106,16 +98,7 @@ public class JpaPromotionRepository implements PromotionRepository {
                 .toList();
     }
 
-    /**
-     * {@inheritDoc}
-     *
-     * <p>券號用 {@code EX-} 前綴加 UUID 片段。<b>不用流水號</b>：
-     * 券號會被使用者看到也會被貼出來，可預測的號碼等於讓人猜得到別人的券。
-     * 猜到也用不了（核銷會檢查擁有者），但那不是把它做成可猜的理由。
-     *
-     * <p>有效期 30 天。寫死在這裡而不是設定檔——它是券的一部分，
-     * 改它等於改所有已發出的券的預期，值得一次明確的程式碼變更。
-     */
+    /** {@inheritDoc} */
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
     public String issueCoupon(Long userId, Long promotionId, Instant expiresAt) {
@@ -142,28 +125,7 @@ public class JpaPromotionRepository implements PromotionRepository {
         return Set.copyOf(couponJpaRepository.findClaimedPromotionIds(userId));
     }
 
-    /**
-     * 自行領一張券。
-     *
-     * <h2>不靠例外，也不靠受影響列數</h2>
-     *
-     * <p>兩個都試過，兩個都是錯的：
-     *
-     * <ul>
-     *   <li><b>攔 {@code DataIntegrityViolationException}</b>——唯一索引一衝突，
-     *       當下的交易就已經被標記為只能回滾，攔下例外也救不回來：
-     *       提交時改拋 {@code UnexpectedRollbackException}，
-     *       使用者看到「系統異常」而不是「你已經領過了」</li>
-     *   <li><b>看 {@code executeUpdate()} 的回傳值</b>——MySQL Connector/J
-     *       預設 {@code useAffectedRows=false}，回報的是<b>找到</b>的列數而不是
-     *       <b>變更</b>的列數，所以沒有變更的重複也會回 1。
-     *       實測第二次領取因此仍然回報成功</li>
-     * </ul>
-     *
-     * <p>改成回讀憑證比對：insert 用 {@code on duplicate key update} 保證不拋例外，
-     * 然後讀回這個 claim_key 上的 code——是我們這次產生的那組，才代表真的插進去了。
-     * 這與連線參數無關，也不會像 {@code INSERT IGNORE} 那樣連真正的錯誤一起吞掉。
-     */
+    /** 自行領一張券。 */
     @Override
     @Transactional
     public boolean claimCoupon(Long userId, Long promotionId, Instant expiresAt) {

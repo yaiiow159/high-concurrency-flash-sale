@@ -13,17 +13,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-/**
- * 付款聚合根。
- *
- * <p><b>金額在建立時從訂單複製，之後不可變。</b>
- * 若付款金額能被改動，「應付」與「實付」就會失去對應關係，
- * 對帳時無從判斷差額是折扣、退款、還是有人動了手腳。
- *
- * <p><b>冪等由狀態機保證</b>：真實金流閘道會重送回調（有些會送三、四次），
- * 重複套用同一筆成功結果時，{@code SUCCEEDED → SUCCEEDED} 不是合法轉移，
- * 呼叫端據此判定為重複而略過，不需要額外的去重表。
- */
+/** 付款聚合根。 */
 public final class Payment {
 
     private final Long id;
@@ -37,14 +27,7 @@ public final class Payment {
     private String gatewayTransactionId;
     private Instant paidAt;
     private String failureReason;
-    /**
-     * 累計已退金額。
-     *
-     * <p><b>退款上限守在這裡，而不是在退貨流程裡算</b>（ADR-0011 決策 6）。
-     * 系統裡已經有兩條會退錢的路徑——使用者退貨與 {@code PaymentRefundScheduler}
-     * 的競態補償——而後者看不到退貨單。把上限放在流程裡，
-     * 意味著每條路徑都要自己記得檢查；放進聚合根，繞不過去。
-     */
+    /** 累計已退金額。 */
     private BigDecimal refundedAmount;
     private final long version;
 
@@ -82,13 +65,7 @@ public final class Payment {
                 gatewayTransactionId, createdAt, paidAt, failureReason, refundedAmount, version);
     }
 
-    /**
-     * 標記收款成功。
-     *
-     * <p>此時錢已經真的收了。後續訂單能否入帳是另一件事——
-     * 即使訂單已被關閉，這一步仍必須先如實記錄，
-     * 否則帳上會顯示「沒收到錢」而現實是收到的。
-     */
+    /** 標記收款成功。 */
     public void markSucceeded(String gatewayTransactionId, Instant paidAt) {
         transitionTo(PaymentStatus.SUCCEEDED);
         this.gatewayTransactionId = Objects.requireNonNull(gatewayTransactionId,
@@ -102,12 +79,7 @@ public final class Payment {
         this.failureReason = reason;
     }
 
-    /**
-     * 收款成功但訂單已無法入帳，轉為待退款。
-     *
-     * <p>唯一的成因是「付款完成時逾時關單排程已先一步取消訂單」。
-     * 這是最終一致系統中無法完全避免的競態——只能誠實記錄並補償。
-     */
+    /** 收款成功但訂單已無法入帳，轉為待退款。 */
     public void markRefundRequired(String reason, Instant now) {
         transitionTo(PaymentStatus.REFUND_PENDING);
         this.failureReason = reason;
@@ -119,17 +91,7 @@ public final class Payment {
         this.refundedAmount = amount;
     }
 
-    /**
-     * 退回一筆金額——防重複退款的第三層，也是最後一層（ADR-0011 決策 7）。
-     *
-     * <p>前兩層（退貨單狀態機、訂單行累計數量）都在退貨的脈絡裡，
-     * 而 {@code PaymentRefundScheduler} 走的是另一條路，看不到退貨單。
-     * 這一層是唯一兩條路都會經過的地方。
-     *
-     * <p>退成全額時進 {@code REFUNDED}，否則進 {@code PARTIALLY_REFUNDED}。
-     * 狀態由金額推導而不是由呼叫端指定——那樣就會出現
-     * 「說是全退但金額只退了一半」的紀錄。
-     */
+    /** 退回一筆金額——防重複退款的第三層，也是最後一層（ADR-0011 決策 7）。 */
     public void applyRefund(BigDecimal delta, Instant now) {
         if (delta == null || delta.signum() <= 0) {
             throw new BusinessException(ErrorCode.INVALID_PARAMETER, "退款金額必須大於 0");
@@ -161,11 +123,7 @@ public final class Payment {
         this.gatewayTransactionId = null;
     }
 
-    /**
-     * 此付款是否已被終結，重複的閘道回調應直接略過。
-     *
-     * <p>真實金流閘道會重送回調，這是常態而非異常。
-     */
+    /** 此付款是否已被終結，重複的閘道回調應直接略過。 */
     public boolean isAlreadySettled() {
         return status != PaymentStatus.PENDING;
     }

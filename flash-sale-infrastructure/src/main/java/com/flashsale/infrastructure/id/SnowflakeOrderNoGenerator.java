@@ -7,12 +7,7 @@ import org.springframework.stereotype.Component;
 import java.time.Instant;
 import java.util.Optional;
 
-/**
- * 訂單號的 Snowflake 配接器。
- *
- * <p>只負責把通用的識別碼包裝成 {@link OrderNo}；演算法本身在
- * {@link SnowflakeIdGenerator}，與付款單號共用同一個實例。
- */
+/** 訂單號的 Snowflake 配接器。 */
 @Component
 public class SnowflakeOrderNoGenerator implements OrderNoGenerator {
 

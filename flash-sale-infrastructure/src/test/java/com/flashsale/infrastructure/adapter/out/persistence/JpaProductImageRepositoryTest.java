@@ -5,18 +5,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * 原生查詢讀 {@code TINYINT(1)} 的型別。
- *
- * <p>這條測試存在的理由是一個實機才發現的 {@code ClassCastException}：
- * {@code variants_ready} 被直接轉成 {@code Number}，
- * 而 Connector/J 預設把 {@code TINYINT(1)} 回成 {@link Boolean}，
- * 於是每一次掛載圖片都變成「系統異常」。
- *
- * <p><b>編譯期看不出來，單元測試 mock 掉 EntityManager 也看不出來</b>——
- * 只有真的打到 MySQL 才會炸。這裡把轉換本身鎖住，
- * 讓下一個人不必再踩一次。
- */
+/** 原生查詢讀 {@code TINYINT(1)} 的型別。 */
 @DisplayName("TINYINT(1) 旗標轉換")
 class JpaProductImageRepositoryTest {
 

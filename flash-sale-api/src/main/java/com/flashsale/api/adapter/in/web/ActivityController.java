@@ -43,13 +43,7 @@ public class ActivityController {
         return ApiResponse.ok(activityQueryUseCase.findById(activityId));
     }
 
-    /**
-     * 手動觸發庫存預熱。
-     *
-     * <p><b>{@code force=true} 會直接覆寫 Redis 餘量，把已賣出的量抹掉。</b>
-     * 這是維運補救用的最後手段，正式環境應以權限控制鎖死；
-     * 此處保持開放僅為方便本地驗證與壓測。
-     */
+    /** 手動觸發庫存預熱。 */
     @PostMapping("/{activityId}/warm-up")
     @Operation(summary = "手動預熱庫存", description = "force=true 會覆寫既有餘量，僅限維運補救")
     public ApiResponse<Map<String, Object>> warmUp(

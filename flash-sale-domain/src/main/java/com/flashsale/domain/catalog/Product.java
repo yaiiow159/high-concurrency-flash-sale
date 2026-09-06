@@ -14,16 +14,7 @@ import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-/**
- * 商品聚合根（SPU）。
- *
- * <p>SPU 描述「這是什麼商品」，SKU 描述「實際買賣的是哪一個規格」。
- * 價格與庫存都在 SKU 上（見 {@link Sku}）。
- *
- * <p><b>SKU 是本聚合的一部分</b>：它們的生命週期完全跟隨商品，
- * 也沒有獨立於商品之外的一致性需求。因此上下架是聚合層級的操作，
- * 不會出現「商品下架了但某個 SKU 還在賣」這種狀態。
- */
+/** 商品聚合根（SPU）。 */
 public final class Product {
 
     private final Long id;
@@ -80,22 +71,13 @@ public final class Product {
         registerEvent(ProductIndexChangedEvent.of(this, now));
     }
 
-    /**
-     * 下架。
-     *
-     * <p>下架不刪除資料——歷史訂單仍需要追溯「這是哪個商品」。
-     */
+    /** 下架。 */
     public void takeOffShelf(Instant now) {
         this.status = ProductStatus.OFF_SHELF;
         registerEvent(ProductIndexChangedEvent.of(this, now));
     }
 
-    /**
-     * 確認某個 SKU 當下可購買，不可購買時拋出帶精確錯誤碼的業務例外。
-     *
-     * <p>採「拋例外」而非回傳布林，讓呼叫端無法忽略失敗原因——
-     * 前端需要區分「商品已下架」與「規格不存在」以顯示不同文案。
-     */
+    /** 確認某個 SKU 當下可購買，不可購買時拋出帶精確錯誤碼的業務例外。 */
     public Sku requirePurchasableSku(Long skuId) {
         if (!status.isPurchasable()) {
             throw new BusinessException(ErrorCode.PRODUCT_NOT_PURCHASABLE,
@@ -187,21 +169,7 @@ public final class Product {
         return "Product{id=%s, name=%s, status=%s, skus=%d}".formatted(id, name, status, skus.size());
     }
 
-    /**
-     * 把一批商品攤平成「SKU ID → 商品」。
-     *
-     * <p>訂單、購物車、銷量都記的是 SKU，而它們需要的往往是商品——
-     * 這段攤平先前在四個地方各寫一次
-     * （{@code flatMap(p -> p.skus().stream().map(...))}），
-     * 而其中兩份是同一個 commit 裡寫的。
-     *
-     * <p>放在聚合根上而不是某個服務裡：它是關於「商品與 SKU 的關係」
-     * 的純函式，不屬於任何一個使用情境。
-     *
-     * <p>重複的 SKU ID 取先出現的那一個。理論上 SKU 不會跨商品重複，
-     * 但 {@code toMap} 碰到重複鍵預設會拋例外，
-     * 而為了一筆髒資料讓整張訂單建立不了並不划算。
-     */
+    /** 把一批商品攤平成「SKU ID → 商品」。 */
     public static Map<Long, Product> bySkuId(Collection<Product> products) {
         return products.stream()
                 .flatMap(product -> product.skus().stream()

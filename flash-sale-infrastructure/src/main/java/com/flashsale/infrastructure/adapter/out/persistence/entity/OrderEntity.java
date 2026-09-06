@@ -20,17 +20,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * 訂單的持久化模型。
- *
- * <p><b>{@code request_id} 的唯一約束是全系統防重複下單的最後一道防線。</b>
- * Redis 冪等、MQ 冪等都可能因為鍵過期或消費組重置而失效，
- * 唯有資料庫的唯一索引是永久且無條件成立的。
- *
- * <p>訂單行採 {@code CascadeType.ALL} 且 {@code FetchType.LAZY}：
- * 行是訂單聚合的一部分，生命週期完全跟隨訂單；
- * 而列表查詢只需要訂單本身，不該無條件把行一起撈出來（N+1 的來源）。
- */
+/** 訂單的持久化模型。 */
 @Entity
 @Table(
         name = "orders",
@@ -66,10 +56,7 @@ public class OrderEntity {
     @Column(name = "total_amount", nullable = false, precision = 12, scale = 2, updatable = false)
     private BigDecimal totalAmount;
 
-    /**
-     * 運費。<b>不計入 total_amount</b>（ADR-0019 決策 1）——
-     * 那條恆等式是退款按行退的基礎，而運費不分攤到行。
-     */
+    /** 運費。<b>不計入 total_amount</b>（ADR-0019 決策 1）—— 那條恆等式是退款按行退的基礎，而運費不分攤到行。 */
     @Column(name = "shipping_fee", nullable = false, precision = 12, scale = 2,
             updatable = false)
     private BigDecimal shippingFee;
@@ -77,15 +64,7 @@ public class OrderEntity {
     @Column(name = "shipping_method", nullable = false, length = 24, updatable = false)
     private String shippingMethod;
 
-    /**
-     * 收貨資訊快照，全部 {@code updatable = false}。
-     *
-     * <p>與金額同理（見 ADR-0007 與 CLAUDE.md 規則 7-2）：訂單記錄的是
-     * 「當初要寄到哪裡」，不是「這個使用者現在住哪」。使用者搬家改了地址簿，
-     * 已成立的訂單不能跟著變——那是出貨紀錄與客訴處理的依據。
-     *
-     * <p>秒殺訂單建立當下沒有地址，因此全部可為 null。
-     */
+    /** 收貨資訊快照，全部 {@code updatable = false}。 */
     @Column(name = "ship_recipient", length = 32, updatable = false)
     private String shipRecipient;
 
@@ -147,14 +126,7 @@ public class OrderEntity {
         this.closeReason = closeReason;
     }
 
-    /**
-     * 寫入收貨資訊快照。
-     *
-     * <p>只在建立時呼叫一次。之後即使有人再呼叫，JPA 也不會把值寫進資料庫——
-     * 那些欄位是 {@code updatable = false}。這個「呼叫了卻沒效果」的行為
-     * 是刻意的最後防線：它讓「訂單建立後改地址」失敗得安靜但無害，
-     * 而不是安靜地成功。
-     */
+    /** 寫入收貨資訊快照。 */
     public void applyShippingInfo(String recipient, String phone, String postalCode,
                                   String region, String district, String street) {
         this.shipRecipient = recipient;
@@ -190,10 +162,7 @@ public class OrderEntity {
     }
 
     /** 加入訂單行並維護雙向關聯——只設一邊會讓 JPA 寫不出外鍵。 */
-    /**
-     * 折扣明細。用 {@code @OrderBy("id")} 而不是 {@code @OrderColumn}：
-     * 折扣沒有「使用者排的順序」這種語意，只需要每次查詢排列相同。
-     */
+    /** 折扣明細。用 {@code @OrderBy("id")} 而不是 {@code @OrderColumn}： 折扣沒有「使用者排的順序」這種語意，只需要每次查詢排列相同。 */
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true,
             fetch = FetchType.LAZY)
     @OrderBy("id")

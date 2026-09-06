@@ -34,16 +34,7 @@ public class JpaCartRepository implements CartRepository {
         return Cart.restore(userId, items);
     }
 
-    /**
-     * 全量覆寫。
-     *
-     * <p><b>刪掉再重寫，而不是逐筆 diff。</b>購物車最多 50 個品項，
-     * 整批重寫的成本可以忽略；而 diff 邏輯要處理新增、刪除、改數量三種情況，
-     * 每一種都是一個會漏掉的分支。少寫的那些分支就是少掉的 bug。
-     *
-     * <p>代價是 {@code id} 每次都會變，因此 {@code id} 不可被當成
-     * 對外的穩定識別——購物車的識別是 {@code (userId, skuId)}。
-     */
+    /** 全量覆寫。 */
     @Override
     @Transactional
     public void save(Cart cart) {

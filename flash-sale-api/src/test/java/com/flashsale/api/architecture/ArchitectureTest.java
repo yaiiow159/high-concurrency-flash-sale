@@ -22,17 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
-/**
- * 架構規則的自動化驗證。
- *
- * <p><b>為什麼架構要寫成測試？</b>
- * 寫在 README 裡的分層約定，會在專案的第三個月被某個趕死線的人打破——
- * 通常只是「先 import 一下 JPA，之後再重構」，然後就永遠留在那裡了。
- * 分層腐化從來不是一次大崩壞，而是一連串看似無害的小妥協。
- *
- * <p>把約定寫成會失敗的測試，違規在 code review 之前就會被 CI 擋下，
- * 而且擋下的理由清楚寫在錯誤訊息裡，不需要有人在 PR 下面留言解釋一次。
- */
+/** 架構規則的自動化驗證。 */
 @DisplayName("架構約束")
 class ArchitectureTest {
 
@@ -134,11 +124,8 @@ class ArchitectureTest {
 
     /**
      * Resilience4j 從自己的套件反射呼叫降級方法，非 public 會拿到
-     * {@code IllegalAccessException}，再被包成 {@code UndeclaredThrowableException}
-     * 往外丟——熔斷器打開的當下，本來要回 503 的請求變成 500。
-     *
-     * <p><b>低流量下永遠測不到</b>：熔斷器不開，降級方法就一次也不會被呼叫。
-     * 這條規則是壓測踩到之後補的。
+     * {@code IllegalAccessException}——熔斷器打開的當下，該回 503 的請求變成 500。
+     * 低流量下測不到：熔斷器不開，降級方法就一次也不會被呼叫。
      */
     @Test
     @DisplayName("Resilience4j 的降級方法必須是 public")

@@ -35,13 +35,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * 從購物車結帳。
- *
- * <p>這一層很薄，下單邏輯完全交給 {@link PlaceOrderUseCase}。
- * 因此測試盯的是它自己多做的那幾件事：<b>冪等的檢查順序</b>、
- * 擋下已下架的品項、以及成功後清空購物車。
- */
+/** 從購物車結帳。 */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 @DisplayName("購物車結帳")

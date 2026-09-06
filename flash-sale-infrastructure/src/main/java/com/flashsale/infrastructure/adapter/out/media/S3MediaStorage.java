@@ -21,12 +21,7 @@ import java.time.Duration;
 import java.util.HashSet;
 import java.util.Set;
 
-/**
- * S3 相容的物件儲存（ADR-0027）。
- *
- * <p>用 AWS SDK 而不是 MinIO 專用客戶端：介面是 S3 相容的，
- * 綁 MinIO 的客戶端等於把本機開發用的東西帶進正式環境的相依裡。
- */
+/** S3 相容的物件儲存（ADR-0027）。 */
 @Component
 public class S3MediaStorage implements MediaStorage {
 
@@ -42,13 +37,7 @@ public class S3MediaStorage implements MediaStorage {
         this.properties = properties;
     }
 
-    /**
-     * 簽一個可以 PUT 的臨時 URL。
-     *
-     * <p><b>把 content type 與長度綁進簽章</b>：不綁的話，
-     * 拿到這個 URL 的人可以上傳任何東西、任意大小到我們的桶裡——
-     * 而預簽名 URL 會出現在瀏覽器的網路面板上，不是秘密。
-     */
+    /** 簽一個可以 PUT 的臨時 URL。 */
     @Override
     public String presignUpload(String objectKey, String contentType, long byteSize,
                                 Duration ttl) {
@@ -95,13 +84,7 @@ public class S3MediaStorage implements MediaStorage {
         return properties.publicBaseUrl() + "/" + objectKey;
     }
 
-    /**
-     * 物件在不在。
-     *
-     * <p>上傳回報之後用它確認，<b>而不是相信前端說的</b>——
-     * 位元組不經過伺服器的代價是伺服器也不知道上傳有沒有成功，
-     * 而「前端說成功了」與「物件真的在」是兩件事。
-     */
+    /** 物件在不在。 */
     @Override
     public boolean exists(String objectKey) {
         try {

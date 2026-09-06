@@ -6,12 +6,7 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
-/**
- * 認證相關的請求體。
- *
- * <p>集中在一個檔案裡，因為它們是同一組緊密相關的小契約，
- * 拆成三個檔案只會增加瀏覽成本而不增加清晰度。
- */
+/** 認證相關的請求體。 */
 public final class AuthRequests {
 
     private AuthRequests() {
@@ -28,13 +23,7 @@ public final class AuthRequests {
         }
     }
 
-    /**
-     * 登入。
-     *
-     * <p>刻意<b>不</b>對密碼加 {@code @Size} 之類的格式驗證——
-     * 那會讓「密碼長度不足」與「帳號密碼錯誤」回不同的錯誤，
-     * 攻擊者可據此推斷密碼規則。登入只該有一種失敗結果。
-     */
+    /** 登入。 */
     public record Login(
             @NotBlank String email,
             @NotBlank String password

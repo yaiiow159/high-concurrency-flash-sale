@@ -39,13 +39,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * 庫存劃撥與釋放。
- *
- * <p>這裡守的是 ADR-0008 的核心主張：秒殺庫存是從一般庫存<b>切出來</b>的獨立額度，
- * 不是同一批貨的兩個視角。切出去、收回來這兩個動作若有任何一邊出錯，
- * 雙模型就退化成「兩個真實來源」，而那必然超賣。
- */
+/** 庫存劃撥與釋放。 */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 @DisplayName("庫存劃撥與釋放")

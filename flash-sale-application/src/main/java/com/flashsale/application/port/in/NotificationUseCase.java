@@ -9,12 +9,7 @@ public interface NotificationUseCase {
 
     List<NotificationView> listForUser(Long userId, int page, int size);
 
-    /**
-     * 未讀數。
-     *
-     * <p>單獨一個端點而不是塞在列表回應裡：導覽列上的紅點需要它，
-     * 而那一頁通常不會同時載入整份通知列表。
-     */
+    /** 未讀數。 */
     long unreadCount(Long userId);
 
     /** 標記已讀。重複標記不視為錯誤——兩個分頁同時開著是正常操作。 */

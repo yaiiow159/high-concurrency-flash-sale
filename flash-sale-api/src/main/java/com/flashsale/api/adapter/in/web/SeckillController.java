@@ -25,20 +25,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * 搶購 API。
- *
- * <p>Controller 只做四件事：取出認證身分、驗證輸入格式、委派給 Use Case、決定 HTTP 語意。
- * 一行業務邏輯都不該出現在這裡——真正的規則屬於領域層，
- * 混進 Controller 就再也無法脫離 HTTP 測試它。
- *
- * <p><b>兩層防護的分工</b>：
- * <ul>
- *   <li>{@code @RateLimiter}：單機整體限流，保護這台機器的執行緒池與連線池</li>
- *   <li>{@code @CircuitBreaker}：Redis／Kafka 故障時快速失敗，
- *       不讓請求執行緒全部卡在逾時等待上（這是雪崩的典型起點）</li>
- * </ul>
- */
+/** 搶購 API。 */
 @RestController
 @RequestMapping("/api/v1/seckill")
 @Tag(name = "秒殺", description = "搶購與訂單查詢")
@@ -55,13 +42,7 @@ public class SeckillController {
         this.orderQueryUseCase = orderQueryUseCase;
     }
 
-    /**
-     * 發起搶購。
-     *
-     * <p>回 <b>202 Accepted</b> 而非 201 Created：此刻訂單還沒建立，只是庫存預扣成功、
-     * 建單訊息已投遞。用 201 會讓前端誤以為訂單已存在而立刻跳轉。
-     * HTTP 狀態碼要誠實反映系統的真實狀態。
-     */
+    /** 發起搶購。 */
     @PostMapping("/orders")
     @Operation(summary = "發起搶購", description = "庫存預扣成功後回傳訂單號，訂單由非同步流程建立")
     @RateLimiter(name = RESILIENCE_INSTANCE, fallbackMethod = "seckillFallback")
@@ -74,22 +55,7 @@ public class SeckillController {
         return ResponseEntity.accepted().body(ApiResponse.ok(ticket));
     }
 
-    /**
-     * Resilience4j 的降級方法。
-     *
-     * <p>簽章必須與原方法一致，並在<b>最後</b>多一個 {@code Throwable} 參數。
-     *
-     * <p><b>業務例外必須原樣拋回</b>，否則「已售罄」會被降級成「系統繁忙」，
-     * 使用者看到的錯誤訊息與真實原因完全脫節，客服與監控也會被誤導。
-     * 降級只該處理基礎設施故障。
-     *
-     * <p><b>必須是 public。</b> Resilience4j 從它自己的套件反射呼叫這個方法，
-     * 宣告成 private 或 package-private 會拿到 {@code IllegalAccessException}，
-     * 再被包成 {@code UndeclaredThrowableException} 往外丟——
-     * 於是熔斷器打開的當下，本來要回 503 的請求變成 500。
-     * <b>這在低流量下永遠看不到</b>：熔斷器不開，降級方法就一次也不會被呼叫。
-     * 壓測時才發現的。
-     */
+    /** Resilience4j 的降級方法。 */
     public ResponseEntity<ApiResponse<SeckillTicket>> seckillFallback(
             Long userId, SeckillRequest request, Throwable throwable) {
 

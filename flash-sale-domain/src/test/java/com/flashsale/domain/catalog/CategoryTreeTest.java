@@ -9,26 +9,11 @@ import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * 類目子樹展開（ADR-0022）。
- *
- * <p>這裡壞掉的方式不會拋錯，只會讓某些商品從列表上消失——
- * 而使用者不會回報「我看不到本來就看不到的東西」。
- */
+/** 類目子樹展開（ADR-0022）。 */
 @DisplayName("類目樹")
 class CategoryTreeTest {
 
-    /**
-     * 一棵三層的樹，與種入的壓測資料同形狀：
-     * <pre>
-     * 1 3C 產品
-     * ├── 2 手機
-     * │   ├── 4 旗艦
-     * │   └── 5 平價
-     * └── 3 筆電
-     *     └── 6 輕薄
-     * </pre>
-     */
+    /** 一棵三層的樹，與種入的壓測資料同形狀： */
     private static CategoryTree threeLevels() {
         Category root = Category.root(1L, "3C 產品", 0);
         Category phone = Category.child(2L, root, "手機", 0);

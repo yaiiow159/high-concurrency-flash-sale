@@ -1,11 +1,5 @@
 /**
- * 後端 API 的型別。
- *
- * 目前手寫。正式的做法是從 springdoc 的 `/v3/api-docs` 以
- * `openapi-typescript` 自動產生，並在 CI 檢查產物有無 diff——
- * 讓後端改欄位時前端**編譯就失敗**，而不是上線後才在 console 看到 undefined。
- *
- * 這件事已列在 roadmap 的反模式清單（前後端契約漂移）。
+ * 後端 API 的型別。 目前手寫。正式的做法是從 springdoc 的 `/v3/api-docs` 以 `openapi-typescript` 自動產生，並在 CI 檢查產物有無 diff—— 讓後端改欄位時前端**編譯就失敗**，而不是上線後才在 console 看到 undefined。 這件事已列在 roadmap 的反模式清單（前後端契約漂移）。
  */
 
 export interface ApiResponse<T> {
@@ -46,21 +40,11 @@ export interface OrderLine {
   quantity: number
   /** 定價小計（單價 × 數量），折扣前 */
   subtotal: number
-  /**
-   * 整單折扣分攤後，這一行**實際付了多少**。
-   *
-   * 退貨頁要顯示的是這個數字而不是 subtotal——
-   * 使用者退一件商品拿回的錢，是他當初為那一件付的錢。
-   */
+  /** 整單折扣分攤後，這一行**實際付了多少**。 退貨頁要顯示的是這個數字而不是 subtotal—— 使用者退一件商品拿回的錢，是他當初為那一件付的錢。 */
   paidAmount: number
 }
 
-/**
- * 訂單上的一筆折扣快照。
- *
- * 存明細而不是一個總額：使用者問的是「為什麼折了 2000」，
- * 而那需要知道是哪幾個優惠、各折了多少（ADR-0013 決策 3）。
- */
+/** 訂單上的一筆折扣快照。 存明細而不是一個總額：使用者問的是「為什麼折了 2000」， 而那需要知道是哪幾個優惠、各折了多少（ADR-0013 決策 3）。 */
 export interface OrderDiscount {
   sourceType: string
   sourceId: number | null
@@ -106,17 +90,9 @@ export interface OrderView {
 }
 
 /**
- * 商品列表的一頁（keyset 分頁，ADR-0021）。
- *
- * `nextCursor` 由伺服器給，前端**原樣送回**即可——不要自己從
- * items 取最後一筆的 id，那等於把伺服器的排序鍵寫死在前端。
+ * 商品列表的一頁（keyset 分頁，ADR-0021）。 `nextCursor` 由伺服器給，前端**原樣送回**即可——不要自己從 items 取最後一筆的 id，那等於把伺服器的排序鍵寫死在前端。
  */
-/**
- * SKU 庫存。
- *
- * `available` 只在低於門檻時才有值——庫存量是商業情報，
- * 但「剩 3 件」對使用者是真實的購買訊號。
- */
+/** SKU 庫存。 `available` 只在低於門檻時才有值——庫存量是商業情報， 但「剩 3 件」對使用者是真實的購買訊號。 */
 export interface SkuStockView {
   skuId: number
   inStock: boolean
@@ -137,13 +113,7 @@ export interface ClaimableCouponView {
   claimed: boolean
 }
 
-/**
- * 商品圖片。
- *
- * **每個用途各有一個網址，由後端挑好**——前端不要自己拼變體名稱，
- * 那是後端的實作細節。變體還沒產生（或永遠不會，例如 WebP）時
- * 這三個欄位會是同一個原圖網址。
- */
+/** 商品圖片。 **每個用途各有一個網址，由後端挑好**——前端不要自己拼變體名稱， 那是後端的實作細節。變體還沒產生（或永遠不會，例如 WebP）時 這三個欄位會是同一個原圖網址。 */
 export interface ProductImageView {
   imageId: number
   /** 商品頁主視覺 */
@@ -177,12 +147,7 @@ export interface PaymentIntentView {
   status: string
 }
 
-/**
- * 排隊資訊。
- *
- * `estimatedWaitSeconds` 為 -1 代表**算不出來**，不是「不用等」——
- * 顯示成「約 0 秒」然後讓人等四十分鐘，比誠實說不知道更糟。
- */
+/** 排隊資訊。 `estimatedWaitSeconds` 為 -1 代表**算不出來**，不是「不用等」—— 顯示成「約 0 秒」然後讓人等四十分鐘，比誠實說不知道更糟。 */
 export interface OrderQueue {
   ahead: number
   estimatedWaitSeconds: number
@@ -270,12 +235,7 @@ export interface CouponView {
   expiresAt: string
 }
 
-/**
- * 結帳試算。
- *
- * 由**伺服器**算，前端只負責顯示。前端自己算折扣是錯的——
- * 兩邊算出不同答案時，使用者只會相信他先看到的那一個。
- */
+/** 結帳試算。 由**伺服器**算，前端只負責顯示。前端自己算折扣是錯的—— 兩邊算出不同答案時，使用者只會相信他先看到的那一個。 */
 export interface CheckoutPreview {
   subtotal: number
   discounts: OrderDiscount[]
@@ -285,10 +245,7 @@ export interface CheckoutPreview {
   /** 已扣掉免運折抵的實收運費 */
   shippingFee: number
   /**
-   * 有沒有足夠資訊算運費（選了地址沒有）。
-   *
-   * false 時 shippingFee 是 0，但那**不是免運**而是「還算不出來」——
-   * 畫面要說得出差別，否則使用者會以為免運然後在下一步被多收錢。
+   * 有沒有足夠資訊算運費（選了地址沒有）。 false 時 shippingFee 是 0，但那**不是免運**而是「還算不出來」—— 畫面要說得出差別，否則使用者會以為免運然後在下一步被多收錢。
    */
   shippingKnown: boolean
   /** 推導出來的區域名稱，用來解釋「為什麼這一單運費比較貴」 */
@@ -390,21 +347,12 @@ export interface ReturnLineView {
   skuSnapshot: string
   unitPrice: number
   quantity: number
-  /**
-   * 驗收結果。尚未驗收時後端會省略這個欄位，因此是 optional；
-   * 明確的 false 才代表「驗收過且判定不可再售」。
-   */
+  /** 驗收結果。尚未驗收時後端會省略這個欄位，因此是 optional； 明確的 false 才代表「驗收過且判定不可再售」。 */
   restockable?: boolean | null
 }
 
 /**
- * 退貨單。
- *
- * <b>時間戳記宣告成 optional 而不是 `string | null`</b>，因為後端序列化時
- * 會把 null 欄位整個省略——收到的是 `undefined` 而不是 `null`。
- * 宣告成 `string | null` 的話，`x !== null` 這種嚴格比較會對 `undefined` 回 true，
- * 於是「還沒發生的步驟」全部被當成已完成。這個 bug 真的發生過：
- * 一張還在待審核的退貨單，進度條三個階段全亮。
+ * 退貨單。 <b>時間戳記宣告成 optional 而不是 `string | null`</b>，因為後端序列化時 會把 null 欄位整個省略——收到的是 `undefined` 而不是 `null`。 宣告成 `string | null` 的話，`x !== null` 這種嚴格比較會對 `undefined` 回 true， 於是「還沒發生的步驟」全部被當成已完成。這個 bug 真的發生過： 一張還在待審核的退貨單，進度條三個階段全亮。
  */
 export interface ReturnRequestView {
   returnNo: string
@@ -424,12 +372,7 @@ export interface ReturnRequestView {
   refundedAt?: string | null
 }
 
-/**
- * 這張訂單現在能退什麼。
- *
- * 可退數量由後端算——「審核中的退貨單也佔用額度」是領域規則，
- * 前端再實作一次的話，症狀會是「畫面說可以退，送出卻被拒絕」。
- */
+/** 這張訂單現在能退什麼。 可退數量由後端算——「審核中的退貨單也佔用額度」是領域規則， 前端再實作一次的話，症狀會是「畫面說可以退，送出卻被拒絕」。 */
 export interface ReturnableLineView {
   skuId: number
   skuSnapshot: string
@@ -437,11 +380,7 @@ export interface ReturnableLineView {
   orderedQuantity: number
   /** 為 0 代表這一項已全部申請過，畫面應標成不可選 */
   returnableQuantity: number
-  /**
-   * 整單折扣分攤後，這一行**實際付了多少**。
-   *
-   * 預估退款要用它算——有折扣的訂單，unitPrice 是使用者沒有付過的錢。
-   */
+  /** 整單折扣分攤後，這一行**實際付了多少**。 預估退款要用它算——有折扣的訂單，unitPrice 是使用者沒有付過的錢。 */
   paidAmount: number
 }
 
@@ -472,11 +411,7 @@ export type NotificationType =
   | 'REFUND_SENT'
 
 /**
- * 站內信。
- *
- * `title` 與 `body` 是後端在建立當下算好的**快照**，前端不做任何字串組裝——
- * 在這裡拼字串等於讓「我們對使用者說過什麼」有第二個版本，
- * 而客訴時只有後端那份算數。
+ * 站內信。 `title` 與 `body` 是後端在建立當下算好的**快照**，前端不做任何字串組裝—— 在這裡拼字串等於讓「我們對使用者說過什麼」有第二個版本， 而客訴時只有後端那份算數。
  */
 export interface NotificationView {
   notificationId: number
@@ -492,11 +427,7 @@ export interface NotificationView {
 // ---------------------------------------------------------------------------
 
 /**
- * 搜尋結果（ADR-0012）。
- *
- * <b>沒有庫存欄位</b>，那是刻意的：索引的同步延遲是數秒，
- * 而庫存每秒都在變，放進來只會顯示一個必定過時的數字。
- * 價格是索引當下的快照，點進商品頁後會重新從 Catalog 讀。
+ * 搜尋結果（ADR-0012）。 <b>沒有庫存欄位</b>，那是刻意的：索引的同步延遲是數秒， 而庫存每秒都在變，放進來只會顯示一個必定過時的數字。 價格是索引當下的快照，點進商品頁後會重新從 Catalog 讀。
  */
 export interface ProductSearchHit {
   productId: number

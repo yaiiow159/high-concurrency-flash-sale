@@ -1,19 +1,6 @@
 package com.flashsale.domain.shipping;
 
-/**
- * 配送區域。
- *
- * <h2>由郵遞區號推導，不由使用者選</h2>
- *
- * <p>離島運費是本島的兩到三倍，而讓使用者自己選區域等於讓他選價格。
- * {@code ShippingInfo} 已經有郵遞區號，推導是純函式。
- *
- * <h2>推導不到就當本島</h2>
- *
- * <p>這個方向對商家不利（少收運費），但反過來（當成離島多收）
- * 會讓使用者在結帳頁看到一個他無法理解的金額——
- * 而那是一個他會直接關掉頁面的理由。
- */
+/** 配送區域。 */
 public enum ShippingZone {
 
     /** 台灣本島。 */
@@ -28,16 +15,7 @@ public enum ShippingZone {
         this.displayName = displayName;
     }
 
-    /**
-     * 從郵遞區號推導區域。
-     *
-     * <p>台灣的離島郵遞區號是固定的幾段，寫死在這裡而不是放設定檔——
-     * 它們是地理事實，不是可調的參數。行政區調整是幾十年一次的事，
-     * 而那時應該有一次明確的程式碼變更與一個測試。
-     *
-     * <p>只看前三碼：台灣的郵遞區號是 3+2 或 3+3 格式，
-     * 而區域完全由前三碼決定。
-     */
+    /** 從郵遞區號推導區域。 */
     public static ShippingZone fromPostalCode(String postalCode) {
         if (postalCode == null || postalCode.length() < 3) {
             return MAIN_ISLAND;

@@ -27,16 +27,8 @@ import java.util.List;
 /**
  * 會員積分與等級（ADR-0016）。
  *
- * <h2>這是第一個會被使用者主動嘗試套利的機制</h2>
- *
- * <p>庫存、訂單、退款的錯誤都是「系統做錯了」；積分的錯誤是
- * 「使用者發現了一個可以重複做的動作」。三條會被試的路徑：
- *
- * <ol>
- *   <li>買了拿積分 → 退貨拿回錢 → 積分留著 —— 由 {@link #clawbackForReturn} 擋下</li>
- *   <li>買到升級 → 退貨 → 等級留著 —— 累計消費也一起扣回</li>
- *   <li>同一則完成事件重放兩次 → 積分翻倍 —— 由唯一索引擋下</li>
- * </ol>
+ * <p>等級由<b>累計實付</b>決定而非積分餘額，否則一花積分就降級。
+ * 退貨要扣回積分與累計消費，且以流水裡那筆原始入帳為準，不可用當下等級重算。
  */
 @Service
 public class MembershipService implements MembershipUseCase {
@@ -81,15 +73,7 @@ public class MembershipService implements MembershipUseCase {
                 .toList();
     }
 
-    /**
-     * {@inheritDoc}
-     *
-     * <p>倍率取自<b>入帳當下</b>的等級。這表示這一單的回饋用的是升級前的倍率，
-     * 而升級的效果從下一單開始——這是可以有不同答案的商業決策，
-     * 但它必須是一個答案：用「入帳後的等級」會讓同一筆消費同時
-     * 決定等級又享受那個等級，而那在跨越門檻的那一單上會產生
-     * 一個使用者算不出來的數字。
-     */
+    /** {@inheritDoc} */
     @Override
     @Transactional
     public long awardForOrder(Long userId, String orderNo, BigDecimal paidAmount) {
@@ -118,13 +102,7 @@ public class MembershipService implements MembershipUseCase {
         return points;
     }
 
-    /**
-     * {@inheritDoc}
-     *
-     * <p>比例的基準是<b>流水裡那一筆原始入帳</b>，不是重算。
-     * 重算會用到當下的等級倍率，而使用者可能在這期間升級了——
-     * 於是「退一半的貨」會收回比當初給的還多的積分。
-     */
+    /** {@inheritDoc} */
     @Override
     @Transactional
     public long clawbackForReturn(Long userId, String orderNo, String returnNo,
@@ -161,15 +139,7 @@ public class MembershipService implements MembershipUseCase {
         return clawback;
     }
 
-    /**
-     * 按退款比例算要扣回多少點。
-     *
-     * <p>無條件<b>捨去</b>：扣回的方向對使用者有利，而少扣幾點不會有人客訴，
-     * 多扣會。這與積分入帳的捨去方向一致——兩邊都對使用者有利。
-     *
-     * <p>訂單總額為 0 或不明時退回「全部扣回」：那只會發生在資料異常的情況下，
-     * 而此時保守的選擇是不讓積分留下來。
-     */
+    /** 按退款比例算要扣回多少點。 */
     private static long proportionalClawback(long earnedPoints, BigDecimal refundAmount,
                                              BigDecimal orderTotal) {
         if (earnedPoints <= 0 || refundAmount == null || refundAmount.signum() <= 0) {
@@ -186,16 +156,7 @@ public class MembershipService implements MembershipUseCase {
                 .longValue();
     }
 
-    /**
-     * {@inheritDoc}
-     *
-     * <p>扣點與發券在<b>同一個交易</b>裡。分開做的話：
-     * 先扣點後發券則扣了點沒拿到券，先發券後扣點則拿到券卻沒扣點——
-     * 而後者是可以無限重複的。
-     *
-     * <p>扣點走條件式 UPDATE（{@code WHERE point_balance >= cost}），
-     * 兩個並行的兌換只有一個能成功。這與庫存扣減完全同形。
-     */
+    /** {@inheritDoc} */
     @Override
     @Transactional
     public ExchangeResult exchangeForCoupon(Long userId, Long promotionId) {

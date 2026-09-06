@@ -4,13 +4,7 @@ import com.flashsale.domain.promotion.Promotion;
 
 import java.math.BigDecimal;
 
-/**
- * 可以用積分兌換的券。
- *
- * <p>{@code affordable} 由後端算。前端拿餘額與價格自己比也行，
- * 但那個判斷會出現在三個地方（按鈕禁用、樣式、提示文字），
- * 而三處遲早會有一處寫成 {@code >} 而不是 {@code >=}。
- */
+/** 可以用積分兌換的券。 */
 public record ExchangeableCouponView(
         Long promotionId,
         String name,

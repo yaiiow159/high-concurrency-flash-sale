@@ -23,13 +23,7 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-/**
- * 商品圖片（ADR-0027）。
- *
- * <p>上傳是兩步：先要授權、瀏覽器直傳、再回報掛載。
- * 做成一步（收檔案）的話位元組會流過應用伺服器，
- * 而那條執行緒是秒殺熱路徑要用的。
- */
+/** 商品圖片（ADR-0027）。 */
 @Service
 public class ProductMediaService implements ProductMediaUseCase {
 
@@ -54,13 +48,7 @@ public class ProductMediaService implements ProductMediaUseCase {
         this.uploadTtl = uploadTtl.value();
     }
 
-    /**
-     * 預簽名 URL 的有效期。
-     *
-     * <p>包成一個型別而不是直接注入 {@code Duration}：
-     * 容器裡有好幾個 Duration 的候選，用型別區分比用
-     * {@code @Qualifier} 的字串安全——字串打錯要到啟動時才會發現。
-     */
+    /** 預簽名 URL 的有效期。 */
     public record MediaUploadTtl(Duration value) {
     }
 
@@ -115,13 +103,7 @@ public class ProductMediaService implements ProductMediaUseCase {
         return toView(image);
     }
 
-    /**
-     * 取消掛載。
-     *
-     * <p><b>只刪關聯，不刪物件</b>（ADR-0027 決策 5）：物件儲存不能參與
-     * 這個交易，而先刪物件的失敗模式是破圖。留下孤兒交給對帳——
-     * 孤兒只花錢，破圖直接砸在客人臉上。
-     */
+    /** 取消掛載。 */
     @Override
     @Transactional
     public void detach(Long productId, Long imageId) {
@@ -148,13 +130,7 @@ public class ProductMediaService implements ProductMediaUseCase {
                 .collect(Collectors.toMap(ProductImage::productId, this::toView,
                         (first, second) -> first));
     }
-    /**
-     * 每個用途各給一個網址。
-     *
-     * <p>由後端挑而不是讓前端拼變體名稱：命名規則是實作細節，
-     * 洩漏出去之後就再也改不動了。變體還沒好時 {@code keyFor}
-     * 會退回原圖，前端完全不必知道這件事。
-     */
+    /** 每個用途各給一個網址。 */
     private ProductImageView toView(ProductImage image) {
         return new ProductImageView(image.id(),
                 storage.publicUrl(image.keyFor(ImageVariant.DETAIL)),

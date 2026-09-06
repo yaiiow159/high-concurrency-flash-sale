@@ -41,16 +41,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * 搶購主流程的單元測試。
- *
- * <p>整個 Use Case 的依賴都是介面，因此這裡不需要 Redis、Kafka、資料庫，
- * 也不需要啟動 Spring——這是六角架構最直接的回報。
- * 對應到現實：這些測試在 CI 上只要幾百毫秒，開發時可以每次存檔就跑。
- *
- * <p>時間以固定 {@link Clock} 注入，因此「活動已結束」這類案例可以被穩定重現，
- * 而不必依賴測試執行當下的系統時間。
- */
+/** 搶購主流程的單元測試。 */
 @ExtendWith(MockitoExtension.class)
 class SeckillApplicationServiceTest {
 

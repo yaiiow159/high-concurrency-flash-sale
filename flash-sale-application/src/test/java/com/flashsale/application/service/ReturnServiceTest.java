@@ -52,18 +52,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * 退貨服務。
- *
- * <p>測試盯的是這一層自己負責的三件事：
- *
- * <ol>
- *   <li><b>可退數量的計算</b>——防重複退款的第二層。審核中的單也要佔額度，
- *       被駁回的單則要把額度還回去</li>
- *   <li><b>訂單狀態只在全額退完時才改</b>——部分退款不能終結訂單</li>
- *   <li><b>是否需要寄回由訂單狀態決定</b>，不由呼叫端指定</li>
- * </ol>
- */
+/** 退貨服務。 */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 @DisplayName("退貨服務")

@@ -35,17 +35,7 @@ public class JpaReviewRepository implements ReviewRepository {
         this.ratingJpaRepository = ratingJpaRepository;
     }
 
-    /**
-     * {@inheritDoc}
-     *
-     * <p>靠 {@code uk_review_order_sku} 唯一索引擋重複，而不是先查再寫——
-     * 先查再寫在兩個並行請求下兩邊都會通過檢查。
-     *
-     * <p>捕捉 {@link DataIntegrityViolationException} 後<b>不能繼續用同一個交易</b>：
-     * 例外已經把它標成 rollback-only。因此這裡只回空，
-     * 由呼叫端決定要不要開新交易去查既有的那一則——
-     * 這個坑在 {@code NotificationRepository} 踩過一次。
-     */
+    /** {@inheritDoc} */
     @Override
     @Transactional
     public Optional<Review> saveIfAbsent(Review review) {
@@ -103,15 +93,7 @@ public class JpaReviewRepository implements ReviewRepository {
         entity.applyEdit(review.rating().stars(), review.content(), review.updatedAt());
     }
 
-    /**
-     * {@inheritDoc}
-     *
-     * <p>受影響列數為 0 代表這個商品還沒有聚合列，補一列再重試。
-     * <b>這不是錯誤</b>——每件商品的第一則評價都會走到這裡。
-     *
-     * <p>補列本身也可能撞上並行的另一個「第一則評價」，
-     * 因此 INSERT 失敗時不放棄，直接重試 UPDATE：那代表別人已經補好了。
-     */
+    /** {@inheritDoc} */
     @Override
     @Transactional
     public void addRating(Long productId, Rating rating) {
@@ -122,13 +104,7 @@ public class JpaReviewRepository implements ReviewRepository {
         adjustBucket(productId, rating.stars(), 1);
     }
 
-    /**
-     * {@inheritDoc}
-     *
-     * <p>三個動作、筆數不動：總和加上差額、舊桶減一、新桶加一。
-     * 寫成「先 remove 再 add」的話，中間有一瞬間 {@code ratingCount} 少一，
-     * 而那一瞬間剛好有人讀到就會看到錯的平均分。
-     */
+    /** {@inheritDoc} */
     @Override
     @Transactional
     public void replaceRating(Long productId, Rating oldRating, Rating newRating) {
@@ -162,13 +138,7 @@ public class JpaReviewRepository implements ReviewRepository {
                         JpaReviewRepository::toDomain, (first, second) -> first));
     }
 
-    /**
-     * {@inheritDoc}
-     *
-     * <p>兩支查詢合起來：一支從聚合出發（數字對不上），
-     * 一支從 review 出發（連聚合列都沒有）。少了後者，
-     * 「有評價但商品頁顯示尚無評價」這種偏差永遠查不出來。
-     */
+    /** {@inheritDoc} */
     @Override
     @Transactional(readOnly = true)
     public List<RatingDrift> findRatingDrifts() {
@@ -197,14 +167,7 @@ public class JpaReviewRepository implements ReviewRepository {
         }
     }
 
-    /**
-     * 分佈桶的增減。
-     *
-     * <p>用 switch 而不是動態拼欄位名：拼欄位名要嘛引入字串串接，
-     * 要嘛也是一個 switch。而 switch 至少會在漏掉 case 時
-     * 被 {@code default} 的例外抓到——動態拼名漏掉的症狀是
-     * 「四星評價不會出現在長條圖上」，那要等到有人數長條圖才會被發現。
-     */
+    /** 分佈桶的增減。 */
     private void adjustBucket(Long productId, int stars, int delta) {
         switch (stars) {
             case 1 -> ratingJpaRepository.adjustCount1(productId, delta);

@@ -5,13 +5,7 @@ import com.flashsale.domain.shared.ErrorCode;
 
 import java.util.Arrays;
 
-/**
- * Redis Lua 庫存扣減腳本的回傳語意。
- *
- * <p>Lua 只能回傳整數，這裡把「魔術數字」翻譯成領域語彙——
- * 腳本與這個列舉是一組契約，任一方修改都必須同步，
- * {@code SeckillStockScriptTest} 會驗證兩者一致。
- */
+/** Redis Lua 庫存扣減腳本的回傳語意。 */
 public enum StockDeductionOutcome {
 
     /** 扣減成功。 */
@@ -51,11 +45,7 @@ public enum StockDeductionOutcome {
                         "Lua 腳本回傳了未定義的碼: " + code + "，腳本與 StockDeductionOutcome 已不同步"));
     }
 
-    /**
-     * 把非成功的結果轉為對應的業務例外。
-     *
-     * <p>集中映射可確保「腳本新增回傳碼卻忘了處理」在此處立刻暴露，而不是回傳一個模糊的系統錯誤。
-     */
+    /** 把非成功的結果轉為對應的業務例外。 */
     public BusinessException toException() {
         return switch (this) {
             case SUCCESS -> throw new IllegalStateException("成功結果不應轉為例外");

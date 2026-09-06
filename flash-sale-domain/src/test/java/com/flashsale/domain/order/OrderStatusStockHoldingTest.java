@@ -9,26 +9,11 @@ import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * 訂單狀態與「是否佔用庫存」的對應。
- *
- * <p><b>這支測試守的是一條寫在兩個地方的規則。</b>
- * {@code OrderStatus.holdsStock()} 是權威定義，
- * 但對帳的 JPQL 必須把同一份清單硬編碼一次（查詢要能下推到資料庫）。
- *
- * <p>兩邊一旦不同步，後果是<b>對帳把正常出貨誤判成庫存洩漏</b>——
- * 而那個告警會每十分鐘響一次，直到有人放棄看它為止。
- * 加入 {@code SHIPPED} 與 {@code COMPLETED} 時就差點漏掉這件事。
- */
+/** 訂單狀態與「是否佔用庫存」的對應。 */
 @DisplayName("訂單狀態與庫存佔用")
 class OrderStatusStockHoldingTest {
 
-    /**
-     * 對帳 JPQL 裡硬編碼的清單。
-     *
-     * <p>新增訂單狀態時，這裡與
-     * {@code OrderJpaRepository.sumActiveQuantityByActivity} 必須一起改。
-     */
+    /** 對帳 JPQL 裡硬編碼的清單。 */
     private static final Set<OrderStatus> RECONCILIATION_QUERY_STATUSES = EnumSet.of(
             OrderStatus.PENDING_PAYMENT,
             OrderStatus.PAID,

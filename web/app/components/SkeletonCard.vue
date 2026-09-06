@@ -1,11 +1,5 @@
 <script setup lang="ts">
-/**
- * 商品／訂單卡片的骨架。
- *
- * <p>形狀刻意與真實卡片一致（同樣的圓角、內距、行高），
- * 否則內容到位時版面會跳動——那正是骨架屏要解決的問題，
- * 做得不像反而製造了它本來要避免的東西。
- */
+/** 商品／訂單卡片的骨架。 */
 withDefaults(defineProps<{ variant?: 'product' | 'row' }>(), { variant: 'product' })
 </script>
 

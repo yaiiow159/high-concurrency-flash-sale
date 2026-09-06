@@ -15,12 +15,7 @@ public interface AddressJpaRepository extends JpaRepository<AddressEntity, Long>
 
     int countByUserId(Long userId);
 
-    /**
-     * 清掉該使用者其餘地址的預設旗標。
-     *
-     * <p>用單一 UPDATE 而非「撈出來逐筆改」：後者在地址數量多時是 N 次寫入，
-     * 而且中間任何一筆失敗都會留下兩筆預設地址的中間態。
-     */
+    /** 清掉該使用者其餘地址的預設旗標。 */
     @Modifying
     @Query("""
             update AddressEntity a set a.defaultAddress = false

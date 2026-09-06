@@ -12,15 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
-/**
- * 發件匣的 JPA 實作。
- *
- * <p>{@code Propagation.MANDATORY} 是這個類別最重要的一行：
- * 它要求呼叫端<b>必須</b>已經開啟交易，沒有交易就直接拋錯。
- * 若寫成 {@code REQUIRED}，某天有人在交易外呼叫 {@code append}，
- * 事件會脫離業務資料獨立 commit——Outbox 模式的原子性保證就此瓦解，
- * 而且會靜默地瓦解，直到某次故障才被發現。
- */
+/** 發件匣的 JPA 實作。 */
 @Component
 public class JpaEventOutbox implements EventOutbox {
 

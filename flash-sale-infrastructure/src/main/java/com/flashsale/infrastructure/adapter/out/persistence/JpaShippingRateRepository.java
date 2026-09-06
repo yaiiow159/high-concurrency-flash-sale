@@ -11,13 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
-/**
- * 運費費率的 JPA 實作。
- *
- * <p><b>沒有快取。</b> 費率表只有十幾筆、而且下單本來就是走資料庫的路徑
- * （一般下單全程在一個交易裡），多一次主鍵以外的小查詢可以忽略。
- * 加快取則多一個會過期的東西——而運費算錯的代價是每一單都錯。
- */
+/** 運費費率的 JPA 實作。 */
 @Repository
 public class JpaShippingRateRepository implements ShippingRateRepository {
 

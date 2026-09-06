@@ -5,27 +5,7 @@ import java.util.EnumSet;
 import java.util.Map;
 import java.util.Set;
 
-/**
- * 付款狀態機。
- *
- * <pre>
- *   PENDING ──成功──► SUCCEEDED ──無法入帳──► REFUND_PENDING ──► REFUNDED
- *      │  ▲                │             （訂單已被關閉）          ▲
- *      │  │                │                                      │
- *      │  │                ├──部分退款──► PARTIALLY_REFUNDED ──────┤
- *      │  │                │                    ↺                 │
- *      │  │                └──────────── 全額退款 ────────────────┘
- *      │  │
- *      └──┴─失敗──► FAILED ──重試──► PENDING
- * </pre>
- *
- * <p><b>{@code SUCCEEDED → REFUND_PENDING} 是這個狀態機最重要的一條轉移。</b>
- * 它對應一個真實的競態：使用者完成付款的同時，逾時關單排程正好把訂單取消。
- *
- * <p>此時錢<b>確實收了</b>，因此絕不能把付款標記為失敗——那會讓帳目與現實脫節，
- * 對帳時看到的是「沒收到錢」，但銀行那邊是收到的。
- * 正確做法是誠實記錄「收款成功、但無法入帳」，再走退款流程。
- */
+/** 付款狀態機。 */
 public enum PaymentStatus {
 
     /** 已建立，等待閘道回覆。 */
@@ -37,21 +17,10 @@ public enum PaymentStatus {
     /** 收款失敗，可重新發起。 */
     FAILED,
 
-    /**
-     * 收款成功但無法入帳，待退款。
-     *
-     * <p>唯一的成因是「付款完成時訂單已被關閉」。
-     * 這個狀態必須能被監控抓到——它代表有一筆錢暫時卡在系統裡。
-     */
+    /** 收款成功但無法入帳，待退款。 */
     REFUND_PENDING,
 
-    /**
-     * 已部分退款，仍有餘額在帳上。
-     *
-     * <p>不用「維持 SUCCEEDED，看金額就知道」，是因為 {@link #moneyReceived()}
-     * 與 {@link #requiresAttention()} 已經證明這個列舉會被拿來做判斷，
-     * 而一個「退了一半卻說收款成功」的狀態遲早會餵錯答案給某個判斷。
-     */
+    /** 已部分退款，仍有餘額在帳上。 */
     PARTIALLY_REFUNDED,
 
     /** 已全額退款。 */

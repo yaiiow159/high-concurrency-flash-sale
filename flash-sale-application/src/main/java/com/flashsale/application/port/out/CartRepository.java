@@ -5,13 +5,7 @@ import com.flashsale.domain.cart.Cart;
 import java.time.Instant;
 import java.util.Optional;
 
-/**
- * 購物車持久化埠（出站）。
- *
- * <p>沒有「建立購物車」這個操作：購物車就是某個使用者名下的品項集合，
- * {@code userId} 就是它的識別。多一張只有 id 與 user_id 的表頭，
- * 只會多出「使用者存在但購物車列不存在」這種要處理的中間態。
- */
+/** 購物車持久化埠（出站）。 */
 public interface CartRepository {
 
     /** 查無資料時回空車而非 {@code Optional.empty()}——沒加過東西的人也有購物車，只是空的。 */

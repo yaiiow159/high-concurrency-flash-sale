@@ -13,20 +13,7 @@ import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
-/**
- * 分散式鎖的 Redisson 實作。
- *
- * <p>選 Redisson 而非自己刻 {@code SET NX PX} 的理由，是自刻版本必須自行處理三件難事：
- * <ul>
- *   <li><b>解鎖的原子性</b>——「比對持有者再刪除」必須是 Lua，否則會誤刪別人的鎖</li>
- *   <li><b>看門狗續期</b>——業務執行時間超過 lease 時自動續租，避免鎖提前失效</li>
- *   <li><b>可重入</b>——同執行緒巢狀取鎖不會自我死鎖</li>
- * </ul>
- * 這三件事每一件都足以在半夜引發事故，不值得為了少一個依賴而自己重寫。
- *
- * <p><b>使用範圍</b>：僅用於低頻的互斥場景（庫存預熱、快取重建、排程節點互斥）。
- * 秒殺熱路徑上沒有任何一處使用它——詳見 ADR-0003。
- */
+/** 分散式鎖的 Redisson 實作。 */
 @Component
 public class RedissonDistributedLock implements DistributedLock {
 
@@ -59,15 +46,7 @@ public class RedissonDistributedLock implements DistributedLock {
         }
     }
 
-    /**
-     * <b>{@code leaseTime} 在這個實作裡不會被使用。</b>
-     *
-     * <p>無參數的 {@code tryLock()} 會啟用看門狗，只要持有執行緒還活著就自動續期，
-     * 那比任何預估的租期都準——排程實際跑多久很難事先猜對。
-     *
-     * <p>參數留著是因為它屬於埠的簽章，換成沒有看門狗的實作時會需要它。
-     * 但要知道：<b>現在調呼叫端那個常數不會有任何效果。</b>
-     */
+    /** <b>{@code leaseTime} 在這個實作裡不會被使用。</b> */
     @Override
     public boolean tryExecuteWithLock(String lockKey, Duration leaseTime, Runnable action) {
         RLock lock = redissonClient.getLock(lockKey);
@@ -85,13 +64,7 @@ public class RedissonDistributedLock implements DistributedLock {
         }
     }
 
-    /**
-     * 釋放鎖。
-     *
-     * <p>{@code isHeldByCurrentThread} 的檢查不可省略：若業務執行時間超過 lease 導致鎖已自動過期
-     * 並被他人取走，此時解鎖會拋 {@code IllegalMonitorStateException}，
-     * 在 finally 中拋出會覆蓋掉真正的業務例外。
-     */
+    /** 釋放鎖。 */
     private void releaseQuietly(RLock lock, String lockKey, boolean acquired) {
         if (!acquired) {
             return;

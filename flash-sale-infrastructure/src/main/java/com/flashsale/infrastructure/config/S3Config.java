@@ -17,14 +17,7 @@ import java.net.URI;
 @Configuration
 public class S3Config {
 
-    /**
-     * <b>path style 必須開啟。</b>
-     *
-     * <p>AWS 預設用 virtual-host style（{@code bucket.s3.amazonaws.com}），
-     * 而 MinIO 與多數自架的 S3 相容儲存走的是 path style
-     * （{@code endpoint/bucket}）。不開的話請求會打到一個
-     * 解析不出來的網域，錯誤訊息是 DNS 失敗——看不出跟 S3 設定有關。
-     */
+    /** <b>path style 必須開啟。</b> */
     private static S3Configuration pathStyle() {
         return S3Configuration.builder().pathStyleAccessEnabled(true).build();
     }

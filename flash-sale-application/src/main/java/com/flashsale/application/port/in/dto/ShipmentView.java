@@ -4,13 +4,7 @@ import com.flashsale.domain.fulfillment.Shipment;
 
 import java.time.Instant;
 
-/**
- * 出貨單的對外表述。
- *
- * <p>{@code trackingUrl} 由承運商列舉算出而非存在資料庫——
- * 查詢網址是承運商的屬性，不是這張出貨單的屬性。
- * 存下來的話，物流商改網址時所有歷史出貨單都會連到一個 404。
- */
+/** 出貨單的對外表述。 */
 public record ShipmentView(
         String shipmentNo,
         String orderNo,

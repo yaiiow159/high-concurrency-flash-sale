@@ -4,15 +4,7 @@ import { useAdmin } from '~/composables/useAdmin'
 import type { ApiResponse, CategoryView, ProductImageView, ProductView } from '~/types/api'
 
 /**
- * 商品管理。
- *
- * **後台看得到草稿與已下架的商品**，前台看不到。看不到草稿的話，
- * 剛建好的商品就找不到入口去上架它——而那正是「建立與上架分開」
- * 這個設計最容易被做壞的地方。
- *
- * 上架會把商品寫進搜尋索引、下架會移除它。這兩個動作在畫面上要看得出
- * 「會不會影響顧客看得到的東西」，因此下架用 secondary 而非 danger：
- * 它不刪資料，歷史訂單仍然查得到。
+ * 商品管理。 **後台看得到草稿與已下架的商品**，前台看不到。看不到草稿的話， 剛建好的商品就找不到入口去上架它——而那正是「建立與上架分開」 這個設計最容易被做壞的地方。 上架會把商品寫進搜尋索引、下架會移除它。這兩個動作在畫面上要看得出 「會不會影響顧客看得到的東西」，因此下架用 secondary 而非 danger： 它不刪資料，歷史訂單仍然查得到。
  */
 definePageMeta({ layout: 'admin', middleware: 'admin', ssr: false })
 
@@ -42,13 +34,7 @@ const categoryOptions = computed(() =>
   ]))
 
 /**
- * 分頁。
- *
- * **後台用頁碼，商店用游標**——這不是重要性的差異，是存取方式的差異：
- * 維運要能直接跳到第 N 頁核對，而 keyset 做不到跳頁（ADR-0021 決策 4）。
- *
- * 沒有總筆數可以顯示「共 N 頁」——那需要一次 COUNT(*)，
- * 在 5 萬列上比查詢本身還貴。改用「這一頁滿了就可能還有下一頁」判斷。
+ * 分頁。 **後台用頁碼，商店用游標**——這不是重要性的差異，是存取方式的差異： 維運要能直接跳到第 N 頁核對，而 keyset 做不到跳頁（ADR-0021 決策 4）。 沒有總筆數可以顯示「共 N 頁」——那需要一次 COUNT(*)， 在 5 萬列上比查詢本身還貴。改用「這一頁滿了就可能還有下一頁」判斷。
  */
 const PAGE_SIZE = 20
 const page = ref(0)
@@ -71,11 +57,7 @@ async function load() {
   }
 }
 
-/**
- * 圖片上傳（ADR-0027）。
- *
- * 位元組直傳物件儲存，不經過應用伺服器——那條請求執行緒是秒殺熱路徑要用的。
- */
+/** 圖片上傳（ADR-0027）。 位元組直傳物件儲存，不經過應用伺服器——那條請求執行緒是秒殺熱路徑要用的。 */
 const { upload, remove, listImages } = useProductMedia()
 const images = ref<Record<number, ProductImageView[]>>({})
 const uploading = ref<number | null>(null)

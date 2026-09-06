@@ -1,12 +1,7 @@
 <script setup lang="ts">
 import type { AddressPayload, AddressView } from '~/types/api'
 
-/**
- * 地址表單，新增與編輯共用。
- *
- * 欄位保持結構化（縣市／區／街道分開）而不是一個大文字框——
- * 物流 API 要的是分開的欄位，事後從一整串地址切回來是猜測，不是解析。
- */
+/** 地址表單，新增與編輯共用。 欄位保持結構化（縣市／區／街道分開）而不是一個大文字框—— 物流 API 要的是分開的欄位，事後從一整串地址切回來是猜測，不是解析。 */
 const props = defineProps<{ initial?: AddressView | null; submitting?: boolean }>()
 const emit = defineEmits<{ submit: [AddressPayload]; cancel: [] }>()
 

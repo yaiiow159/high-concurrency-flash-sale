@@ -75,13 +75,7 @@ public final class OrderMapper {
                 ShippingMethod.valueOf(entity.getShippingMethod()));
     }
 
-    /**
-     * 秒殺訂單與 V8 之前建立的訂單都沒有收貨資訊。
-     *
-     * <p>以收件人是否存在判斷，而不是逐欄位檢查——
-     * {@link ShippingInfo} 的建構子已經保證「有值就六個欄位都齊全」，
-     * 這裡再做一次逐欄位檢查只會多一份會與那邊漂移的規則。
-     */
+    /** 秒殺訂單與 V8 之前建立的訂單都沒有收貨資訊。 */
     private static ShippingInfo toShippingInfo(OrderEntity entity) {
         if (entity.getShipRecipient() == null) {
             return null;

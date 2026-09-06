@@ -9,13 +9,7 @@ import type {
 } from '~/types/api'
 
 /**
- * 會員中心。
- *
- * 三個區塊，順序就是使用者關心的順序：
- * **我是什麼等級 → 我能換什麼 → 我的點是怎麼來的**。
- *
- * 把流水放最後而不是最前，是因為它只在「我的點怎麼少了」時才會被看——
- * 而那是少數情況。多數時候使用者來這裡是想知道能換什麼。
+ * 會員中心。 三個區塊，順序就是使用者關心的順序： **我是什麼等級 → 我能換什麼 → 我的點是怎麼來的**。 把流水放最後而不是最前，是因為它只在「我的點怎麼少了」時才會被看—— 而那是少數情況。多數時候使用者來這裡是想知道能換什麼。
  */
 const auth = useAuthStore()
 const { profile, points, exchangeable, exchange } = useMembership()
@@ -28,11 +22,7 @@ const exchanging = ref<number | null>(null)
 const error = ref<string | null>(null)
 const success = ref<string | null>(null)
 
-/**
- * 三個查詢並行。它們互不相依，串起來只是把延遲加成三倍。
- *
- * 各自 catch：兌換清單掛掉不該讓等級卡也看不到。
- */
+/** 三個查詢並行。它們互不相依，串起來只是把延遲加成三倍。 各自 catch：兌換清單掛掉不該讓等級卡也看不到。 */
 async function load() {
   loading.value = true
   const [me, tx, exchangeables] = await Promise.all([

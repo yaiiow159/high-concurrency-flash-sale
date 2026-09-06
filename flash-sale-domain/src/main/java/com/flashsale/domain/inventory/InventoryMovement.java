@@ -6,32 +6,7 @@ import com.flashsale.domain.shared.ErrorCode;
 import java.time.Instant;
 import java.util.Objects;
 
-/**
- * 庫存異動流水。
- *
- * <p><b>這不是加分項，是必要的。</b>{@code available} 這個數字本身說明不了任何事：
- * 庫存出問題時，只有流水能回答「這 37 件是怎麼消失的」。
- *
- * <p>與秒殺 Redis 的扣減憑證（{@code orderNo|userId|quantity}）解決的是同一個問題，
- * 只是換到關聯式資料庫的表述。
- *
- * <h2>為什麼記兩個增減量而不是一個數量</h2>
- *
- * <p>庫存有兩個欄位（可售、已劃撥），而異動對兩者的影響<b>不是同一個數字</b>：
- *
- * <pre>
- *   ALLOCATE 30 件  →  available −30, allocated +30
- *   RELEASE（劃撥 30，剩 12）→  available +12, allocated −30
- * </pre>
- *
- * <p>釋放時「回到可售池的量」與「從劃撥中扣掉的量」根本是兩個值，
- * 兩者之差就是實際銷量。若流水只記一個 quantity，
- * 對帳就無法從流水重建出現在的庫存——而那正是流水存在的唯一理由。
- * 一份重建不出結果的流水，只是一堆看起來很像稽核紀錄的字串。
- *
- * <p>因此增減量帶正負號。這裡的正負沒有歧義：每個欄位的意義是固定的，
- * 「{@code availableDelta = −30}」只能解讀成可售量少了 30。
- */
+/** 庫存異動流水。 */
 public record InventoryMovement(
         Long skuId,
         InventoryMovementType type,
@@ -67,15 +42,7 @@ public record InventoryMovement(
                 requirePositive(quantity), 0, RefType.ORDER, orderNo, at);
     }
 
-    /**
-     * 退貨驗收後退回可售量（ADR-0011）。
-     *
-     * <p><b>來源記退貨單號而非訂單號</b>，這是正確性問題不只是分類問題：
-     * 流水的唯一鍵是 {@code (ref_type, ref_no, type, sku_id)}，
-     * 而一張訂單可以有多張退貨單。若都記訂單號，第二張退貨單的回補
-     * 會被判定為重複而<b>安靜地略過</b>——貨收了但庫存永遠回不來，
-     * 而對帳只會看到一筆說不出原因的短少。
-     */
+    /** 退貨驗收後退回可售量（ADR-0011）。 */
     public static InventoryMovement restoreFromReturn(Long skuId, int quantity,
                                                       String returnNo, Instant at) {
         return new InventoryMovement(skuId, InventoryMovementType.RESTORE,
@@ -94,8 +61,8 @@ public record InventoryMovement(
      *
      * @param allocatedQuantity 當初劃撥的量，會從 {@code allocated} 扣掉
      * @param unsoldQuantity    未售出的量，回到可售池。<b>允許為 0</b>——
-     *                          全部賣光是正常結果，而這筆流水仍必須記，
-     *                          否則 {@code allocated} 的減少就沒有任何憑據
+     * 全部賣光是正常結果，而這筆流水仍必須記，
+     * 否則 {@code allocated} 的減少就沒有任何憑據
      */
     public static InventoryMovement release(Long skuId, int allocatedQuantity,
                                             int unsoldQuantity, Long activityId, Instant at) {

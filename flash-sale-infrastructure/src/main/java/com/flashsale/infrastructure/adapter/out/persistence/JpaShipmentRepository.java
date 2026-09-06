@@ -29,13 +29,7 @@ public class JpaShipmentRepository implements ShipmentRepository {
         this.jpaRepository = jpaRepository;
     }
 
-    /**
-     * 建立出貨單，已存在則不重複建立。
-     *
-     * <p>先查後寫，再用唯一索引兜底。這是三層冪等的同一個手法：
-     * 查詢處理常見情況，唯一索引處理「兩個節點同時通過查詢」的競態——
-     * 那是唯一不受競態影響的裁決者。
-     */
+    /** 建立出貨單，已存在則不重複建立。 */
     @Override
     @Transactional
     public Optional<Shipment> saveIfAbsent(Shipment shipment) {

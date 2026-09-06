@@ -4,16 +4,7 @@ import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.stereotype.Component;
 
-/**
- * 付款流程的業務指標。
- *
- * <p><b>最重要的一個是 {@code result="refund-required"}</b>：
- * 它代表有一筆錢收了卻沒有訂單對應，正卡在系統裡。
- * 這個數字不該是 0 就好——它應該<b>永遠</b>是 0；一旦出現就要有人處理。
- *
- * <p>{@code result="invalid-signature"} 同樣值得盯：正常情況下不該有，
- * 持續出現代表有人在探測回調端點。
- */
+/** 付款流程的業務指標。 */
 @Component
 public class PaymentMetrics {
 

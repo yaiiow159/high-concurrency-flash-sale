@@ -5,33 +5,7 @@ import com.flashsale.domain.shared.ErrorCode;
 
 import java.util.Objects;
 
-/**
- * SKU 庫存聚合根。
- *
- * <p>持有兩個數字，而不是一個：
- *
- * <pre>
- *   available   可自由販售的量
- *   allocated   已劃撥給秒殺活動、由 Redis 代管的量
- * </pre>
- *
- * <p><b>為什麼要分開：</b>秒殺與一般銷售用的是兩套完全不同的扣減機制
- * （Redis Lua 與 MySQL 樂觀鎖，見 ADR-0008）。若兩者對著同一個數字扣，
- * 就有兩個真實來源，而兩個真實來源必然導致超賣。
- *
- * <p>劃撥把庫存「切出去」：秒殺開賣期間 {@code allocated} 那部分完全由 Redis 管，
- * MySQL 這邊不再碰它；一般銷售只動 {@code available}。兩邊各自有唯一的真實來源。
- *
- * <p><b>守恆恆等式</b>（對帳依據）：
- *
- * <pre>
- *   available + allocated + 已售出 = 期初總量
- * </pre>
- *
- * <p>劃撥 N 件：{@code available -= N}、{@code allocated += N}，總量不變。
- * 活動結束時 Redis 剩 R 件：{@code allocated -= N}、{@code available += R}，
- * 總量減少 {@code N − R}，正好等於秒殺實際賣出的數量。
- */
+/** SKU 庫存聚合根。 */
 public final class Inventory {
 
     private final Long skuId;
@@ -55,12 +29,7 @@ public final class Inventory {
         return new Inventory(skuId, available, allocated, version);
     }
 
-    /**
-     * 一般銷售扣減。
-     *
-     * <p>只扣 {@code available}——劃撥出去的量不屬於這條通道，
-     * 動了它就等於把秒殺的貨賣掉兩次。
-     */
+    /** 一般銷售扣減。 */
     public void deduct(int quantity) {
         requirePositive(quantity);
         if (available < quantity) {
@@ -76,14 +45,7 @@ public final class Inventory {
         available += quantity;
     }
 
-    /**
-     * 劃撥給秒殺活動。
-     *
-     * <p>條件是 {@code available >= quantity}。這個檢查<b>不是</b>靠外層的分散式鎖
-     * 保證的——鎖只降低衝突頻率，正確性由這裡與資料庫的
-     * {@code UPDATE ... WHERE available >= ?} 共同守住。
-     * 鎖從來不該是唯一的正確性依據（ADR-0003）。
-     */
+    /** 劃撥給秒殺活動。 */
     public void allocate(int quantity) {
         requirePositive(quantity);
         if (available < quantity) {

@@ -12,31 +12,13 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 
-/**
- * 劃撥與釋放的交易單元。
- *
- * <p><b>刻意獨立成一個 Bean。</b>Spring 的交易是動態代理，
- * 同一個 Bean 內部呼叫 {@code this.method()} 不會經過代理，
- * {@code @Transactional} 會安靜失效且沒有任何錯誤訊息。
- * {@link StockAllocationService} 需要在交易外做 Redis 操作、在交易內改資料庫，
- * 兩者若放在同一個類別，交易邊界就會消失。
- * （同樣的拆分見 {@code OutboxRelayScheduler} 與 {@code OutboxRelayer}。）
- *
- * <p>庫存數字的變更與流水必須在同一個交易裡：
- * 流水寫成功但庫存沒改，會讓後續對帳把一筆不存在的異動當成真的。
- */
+/** 劃撥與釋放的交易單元。 */
 @Service
 public class InventoryAllocator {
 
     private static final Logger log = LoggerFactory.getLogger(InventoryAllocator.class);
 
-    /**
-     * 樂觀鎖重試次數。
-     *
-     * <p>劃撥是低頻操作且外層有分散式鎖，真的撞版本的機率極低。
-     * 給 3 次是為了容忍「後台正好在調整同一個 SKU」這種偶發交錯，
-     * 而不是把重試當成併發控制手段——那是高頻扣減才需要煩惱的事。
-     */
+    /** 樂觀鎖重試次數。 */
     private static final int MAX_RETRIES = 3;
 
     private final InventoryRepository inventoryRepository;
@@ -93,13 +75,7 @@ public class InventoryAllocator {
         return true;
     }
 
-    /**
-     * 讀出、套用變更、以樂觀鎖寫回；版本衝突時重讀重試。
-     *
-     * <p>領域物件的不變式（可售量不足不得劃撥）在 {@code change} 裡被檢查，
-     * 每次重試都會用<b>最新的</b>數字重新檢查一遍——
-     * 這正是不能把檢查結果快取起來的理由。
-     */
+    /** 讀出、套用變更、以樂觀鎖寫回；版本衝突時重讀重試。 */
     private void mutate(Long skuId, java.util.function.Consumer<Inventory> change) {
         for (int attempt = 1; attempt <= MAX_RETRIES; attempt++) {
             Inventory inventory = inventoryRepository.findBySkuId(skuId)

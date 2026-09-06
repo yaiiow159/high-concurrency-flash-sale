@@ -1,12 +1,7 @@
 import { errorMessage, useApi } from '~/composables/useApi'
 import type { AddressPayload, AddressView } from '~/types/api'
 
-/**
- * 收貨地址簿。
- *
- * 這裡的資料<b>永遠不做 SSR</b>：地址是個資，一旦進了被 ISR 快取的 HTML，
- * 就等於發給下一個訪客。所有讀取都在客戶端掛載後才發生。
- */
+/** 收貨地址簿。 這裡的資料<b>永遠不做 SSR</b>：地址是個資，一旦進了被 ISR 快取的 HTML， 就等於發給下一個訪客。所有讀取都在客戶端掛載後才發生。 */
 export function useAddresses() {
   const { request } = useApi()
 
@@ -33,11 +28,7 @@ export function useAddresses() {
   }
 
   /**
-   * 每個寫入操作後都重新載入整份清單。
-   *
-   * 看似浪費，但「設為預設」會同時改動其他筆的旗標——
-   * 在前端自行推算哪幾筆該翻轉，等於把後端的不變式複製一份到這裡，
-   * 而那份副本遲早會與後端漂移。地址簿最多 20 筆，重讀的成本可以忽略。
+   * 每個寫入操作後都重新載入整份清單。 看似浪費，但「設為預設」會同時改動其他筆的旗標—— 在前端自行推算哪幾筆該翻轉，等於把後端的不變式複製一份到這裡， 而那份副本遲早會與後端漂移。地址簿最多 20 筆，重讀的成本可以忽略。
    */
   async function add(payload: AddressPayload): Promise<void> {
     await request<AddressView>('/api/v1/addresses', {

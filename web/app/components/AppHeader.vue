@@ -4,27 +4,12 @@ import { useCartStore } from '~/stores/cart'
 import { useNotifications } from '~/composables/useNotifications'
 
 /**
- * 全站頁首。
- *
- * 先前每一頁自己在標題旁邊放幾個連結，於是「購物車」在商品頁有、
- * 在訂單頁沒有，使用者得先按上一頁才找得到。導覽是全站的事，
- * 不該由每一頁各自決定。
- *
- * 購物車數字未登入時取自 localStorage、登入後取自伺服器——
- * 兩者都由 store 統一計算，這裡只負責顯示。
+ * 全站頁首。 先前每一頁自己在標題旁邊放幾個連結，於是「購物車」在商品頁有、 在訂單頁沒有，使用者得先按上一頁才找得到。導覽是全站的事， 不該由每一頁各自決定。 購物車數字未登入時取自 localStorage、登入後取自伺服器—— 兩者都由 store 統一計算，這裡只負責顯示。
  */
 const auth = useAuthStore()
 const cart = useCartStore()
 
-/**
- * 未讀數。
- *
- * <p>只在<b>登入狀態變成 true</b> 時取一次，不做輪詢。
- * 通知不是即時通訊——為了讓紅點早幾秒出現而每 10 秒打一次，
- * 是拿伺服器成本換一個沒有人在等的更新。
- *
- * <p>使用者實際開啟通知頁時那一頁自己會重取，紅點也會跟著更新。
- */
+/** 未讀數。 */
 const { unreadCount, refreshUnreadCount } = useNotifications()
 
 onMounted(() => {

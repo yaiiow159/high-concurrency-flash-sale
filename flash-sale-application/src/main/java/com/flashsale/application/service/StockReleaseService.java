@@ -19,21 +19,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
-/**
- * 活動結束後的庫存釋放。
- *
- * <p>把秒殺沒賣完的量歸還可售池，讓那些貨可以繼續正常銷售。
- * 少了這一步，每辦一場活動就有一批庫存永遠卡在 {@code allocated} 上——
- * 帳面看得到、實際賣不掉。
- *
- * <p><b>釋放時機必須晚於 {@code stockKeyTtlBuffer}。</b>
- * 活動剛結束時，可能還有補償訊息在佇列裡排隊要退庫；
- * 此時就把 Redis 的剩餘量結算掉，那些稍後才退回的量會被算漏——
- * 對系統而言就是憑空少了一批貨。
- *
- * <p>這也是為什麼緩衝期在預熱時就寫進了 Redis 鍵的 TTL：
- * 兩邊用的是同一個設定值，不會各自漂移。
- */
+/** 活動結束後的庫存釋放。 */
 @Service
 public class StockReleaseService implements StockReleaseUseCase {
 
@@ -97,18 +83,7 @@ public class StockReleaseService implements StockReleaseUseCase {
                 () -> doRelease(activityId));
     }
 
-    /**
-     * 確認活動已結束且過了緩衝期。
-     *
-     * <p><b>排程會過濾，但手動觸發不會——所以檢查必須放在這裡。</b>
-     * 對一場還在進行的活動執行釋放有兩個後果：
-     * Redis 鍵被丟棄，正在搶購的人全部拿到「尚未預熱」；
-     * 而那一刻的剩餘量會被當成最終未售量結算，
-     * 之後才被消費的補償訊息退回的量就再也沒有地方可去。
-     *
-     * <p>要提早結束一場活動，正確做法是先把活動下架並讓它的結束時間過去，
-     * 而不是繞過緩衝期直接結算。
-     */
+    /** 確認活動已結束且過了緩衝期。 */
     private void requireCooledDown(SeckillActivity activity) {
         Instant cooledDownAt = activity.period().endAt().plus(policy.stockKeyTtlBuffer());
         if (clock.instant().isBefore(cooledDownAt)) {
@@ -117,13 +92,7 @@ public class StockReleaseService implements StockReleaseUseCase {
         }
     }
 
-    /**
-     * 讀 Redis 剩餘量 → 更新 MySQL → 丟棄 Redis 鍵。
-     *
-     * <p>順序與劃撥相反，理由一樣是「往少賣的方向倒」：
-     * 若在丟棄 Redis 鍵之後才更新 MySQL 而中途失敗，那批未售量兩邊都不存在，
-     * 就真的消失了。先落 MySQL，最壞情況只是 Redis 鍵多留到 TTL 到期。
-     */
+    /** 讀 Redis 剩餘量 → 更新 MySQL → 丟棄 Redis 鍵。 */
     private boolean doRelease(Long activityId) {
         Optional<SeckillActivity> found = activityRepository.findById(activityId);
         if (found.isEmpty()) {

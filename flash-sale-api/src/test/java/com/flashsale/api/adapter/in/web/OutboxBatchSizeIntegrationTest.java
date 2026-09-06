@@ -21,23 +21,7 @@ import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * Outbox 的批次上限。
- *
- * <h2>為什麼值得一支整合測試</h2>
- *
- * <p>{@code findPending(Limit)} 靠 Spring Data 解析 {@link Limit} 參數來加上
- * {@code LIMIT} 子句。那是框架行為，<b>用 mock 永遠測不到</b>——
- * mock 的 repository 回傳什麼就是什麼，limit 有沒有生效根本看不出來。
- *
- * <p>而它一旦失效是安靜的：查詢照樣成功，只是回傳整張表。
- * 實測時 1500 筆待投遞事件在單一輪次內全部被搬走，
- * 也就是 {@code batch-size: 200} 這個設定當時完全沒有作用。
- *
- * <p>後果不是資料錯誤而是<b>記憶體與交易時間</b>：積壓一百萬筆時，
- * 中繼器會把它們全部載進一個交易，而那個交易一直開著佔住連線。
- * 批次上限存在的理由就是擋這件事。
- */
+/** Outbox 的批次上限。 */
 @SpringBootTest
 @Testcontainers
 @DisplayName("Outbox 批次上限")

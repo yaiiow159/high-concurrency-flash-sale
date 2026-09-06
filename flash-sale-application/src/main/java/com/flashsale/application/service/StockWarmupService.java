@@ -23,12 +23,8 @@ import java.util.List;
 /**
  * 庫存預熱服務。
  *
- * <p><b>這裡是分散式鎖真正該出現的地方</b>：多台機器同時啟動、或營運同時點兩次預熱按鈕，
- * 若無互斥就可能把庫存重複寫入。與扣減不同，預熱是低頻操作，用鎖串行化的代價可以忽略。
- *
- * <p>{@code force=false} 時只在鍵不存在才寫入（Redis SET NX），這是第二道保險：
- * 即使鎖因為節點時鐘漂移而失效，也不會把已售出的量重新加回去。
- * 分散式鎖從來不該是唯一的正確性依據。
+ * <p>寫進 Redis 的是<b>總庫存 − 已售出</b>，不是總庫存。直接寫總量的話，
+ * Redis 一重啟就把賣掉的量抹掉，同一批貨再賣一次。{@code force=true} 也走同一條路。
  */
 @Service
 public class StockWarmupService implements StockWarmupUseCase {
@@ -94,22 +90,7 @@ public class StockWarmupService implements StockWarmupUseCase {
         return warmed;
     }
 
-    /**
-     * 劃撥 + 預熱。
-     *
-     * <p><b>順序不可對調：先動 MySQL，再寫 Redis。</b>
-     * 兩者無法原子化（ADR-0008 已接受這個代價），因此順序決定了失敗時往哪邊倒：
-     *
-     * <ul>
-     *   <li>MySQL 成功、Redis 失敗 → 可售量已扣但 Redis 沒有額度，
-     *       表現為<b>少賣</b>，由對帳發現（{@code allocated > 0} 卻無對應鍵）</li>
-     *   <li>反過來先寫 Redis → Redis 有額度但可售量沒扣，
-     *       同一批貨被兩條通道各賣一次，就是<b>超賣</b></li>
-     * </ul>
-     *
-     * <p>少賣可以事後補救，超賣不能。這與整個系統對 Redis 故障採 fail-closed
-     * 是同一條原則：選擇代價較小的失敗方向。
-     */
+    /** 劃撥 + 預熱。 */
     private long doWarmUp(SeckillActivity activity, boolean force) {
         requireNotAlreadyReleased(activity);
 
@@ -125,25 +106,7 @@ public class StockWarmupService implements StockWarmupUseCase {
         return available;
     }
 
-    /**
-     * 依訂單重建應有的餘量，而不是直接寫入總庫存。
-     *
-     * <p><b>這一步是「Redis 可以掉」這個前提能成立的唯一理由。</b>
-     * docker-compose 刻意關掉 Redis 持久化，理由是「庫存可重建，DB 才是真實來源」——
-     * 但那句話只有在重建能算出<b>正確</b>的餘量時才是真的。
-     *
-     * <p>直接寫 {@code totalStock} 的話，Redis 一重啟，所有已售出的量都會被抹掉：
-     * 賣了 4 件的活動會回到滿的 1000 件，然後把那 4 件再賣一次。
-     * 實測踩到過——Docker 重建容器後對帳報出 {@code OVERSELL_RISK drift +4}，
-     * 那 4 件正是重啟前賣掉的。
-     *
-     * <p>{@code force=true} 也走同一條路：維運覆寫的意思是
-     * 「把 Redis 拉回與資料庫一致」，而不是「把庫存重設成滿的」。
-     *
-     * <p><b>不夾住負數以外的偏差</b>：若已售出量大於總庫存，
-     * 那本身就是需要人看的異常（對帳會報 {@code OVERSELL_RISK}），
-     * 這裡只保證不寫入負數，不試圖掩蓋它。
-     */
+    /** 依訂單重建應有的餘量，而不是直接寫入總庫存。 */
     private int remainingStockOf(SeckillActivity activity) {
         long sold = orderRepository.sumActiveQuantity(activity.id());
         long remaining = activity.totalStock() - sold;
@@ -159,17 +122,7 @@ public class StockWarmupService implements StockWarmupUseCase {
         return (int) remaining;
     }
 
-    /**
-     * 擋住「釋放後又重新預熱」。
-     *
-     * <p>這是雙模型最隱蔽的一種超賣：劃撥流水的唯一索引會讓重新劃撥被安靜略過
-     * （視為冪等），但 {@code stockRepository.initialize} 不受那道索引管，
-     * 它會照樣把庫存寫回 Redis。結果是 Redis 有一批可賣的量，
-     * 而 MySQL 的 {@code available} 從沒為它付過帳——同一批貨賣了兩次。
-     *
-     * <p>要重新開賣同一批商品，正確做法是建立新活動，
-     * 讓它走完整的劃撥流程；而不是把一場已結算的活動叫醒。
-     */
+    /** 擋住「釋放後又重新預熱」。 */
     private void requireNotAlreadyReleased(SeckillActivity activity) {
         if (inventoryRepository.isReleased(activity.id(), activity.skuId())) {
             throw new BusinessException(ErrorCode.ACTIVITY_STOCK_ALREADY_RELEASED,
@@ -177,12 +130,7 @@ public class StockWarmupService implements StockWarmupUseCase {
         }
     }
 
-    /**
-     * TTL = 距離活動結束的時間 + 緩衝。
-     *
-     * <p>緩衝是為了讓活動結束後仍在跑的補償流程有鍵可退——
-     * 若鍵在活動結束當下就消失，補償退回的庫存會寫進一個沒人看的新鍵。
-     */
+    /** TTL = 距離活動結束的時間 + 緩衝。 */
     private Duration calculateTtl(SeckillActivity activity, Instant now) {
         Duration untilEnd = Duration.between(now, activity.period().endAt());
         Duration effective = untilEnd.isNegative() ? Duration.ZERO : untilEnd;

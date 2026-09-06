@@ -14,13 +14,7 @@ public interface RefreshTokenJpaRepository extends JpaRepository<RefreshTokenEnt
 
     Optional<RefreshTokenEntity> findByTokenHash(String tokenHash);
 
-    /**
-     * 撤銷整條輪替鏈。
-     *
-     * <p>用單一 UPDATE 而非逐筆處理：這是<b>安全事件的即時反應</b>，
-     * 要盡快讓所有相關令牌失效，中間多一毫秒都是攻擊者可用的時間。
-     * 這裡不需要經過聚合根的狀態機——撤銷是無條件的。
-     */
+    /** 撤銷整條輪替鏈。 */
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""
             update RefreshTokenEntity t set t.revokedAt = :revokedAt
@@ -36,12 +30,7 @@ public interface RefreshTokenJpaRepository extends JpaRepository<RefreshTokenEnt
             """)
     int revokeAllForUser(@Param("userId") Long userId, @Param("revokedAt") Instant revokedAt);
 
-    /**
-     * 清除已過期的紀錄。
-     *
-     * <p>寫入量等同「登入次數 × refresh 頻率」，不清理會持續成長，
-     * 且 {@code token_hash} 的唯一索引會越來越大，拖慢每一次續期。
-     */
+    /** 清除已過期的紀錄。 */
     @Modifying
     @Query("delete from RefreshTokenEntity t where t.expiresAt < :threshold")
     int deleteExpiredBefore(@Param("threshold") Instant threshold);

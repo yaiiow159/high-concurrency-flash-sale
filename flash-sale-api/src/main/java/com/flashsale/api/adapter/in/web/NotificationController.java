@@ -16,14 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 import java.util.Map;
 
-/**
- * 站內信 API。
- *
- * <p><b>沒有管理端點。</b>通知一律由領域事件產生，不開「手動發送」的介面——
- * 那條路徑會繞過冪等鍵（{@code sourceEventId} 沒有對應的事件可用），
- * 而一個能繞過冪等的入口遲早會被用來重複發送。
- * 需要補發時應該重投事件，而不是另開一條路。
- */
+/** 站內信 API。 */
 @RestController
 @RequestMapping("/api/v1/notifications")
 @Tag(name = "通知", description = "站內信查詢與已讀標記")
@@ -44,12 +37,7 @@ public class NotificationController {
         return ApiResponse.ok(notificationUseCase.listForUser(userId, page, size));
     }
 
-    /**
-     * 未讀數。
-     *
-     * <p>與列表分開的端點：導覽列的紅點每頁都需要它，
-     * 而那些頁面不會順便載入整份通知列表。
-     */
+    /** 未讀數。 */
     @GetMapping("/unread-count")
     @Operation(summary = "未讀數量", description = "供導覽列的紅點使用")
     public ApiResponse<Map<String, Long>> unreadCount(@CurrentUser Long userId) {

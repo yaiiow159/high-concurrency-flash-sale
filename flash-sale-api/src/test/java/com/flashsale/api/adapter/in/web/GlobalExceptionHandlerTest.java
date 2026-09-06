@@ -13,12 +13,7 @@ import org.springframework.transaction.CannotCreateTransactionException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * 例外對應到 HTTP 語意。
- *
- * <p>這裡守的是<b>呼叫端能不能做出正確的決定</b>：
- * 該重試的要看得出可以重試，不該重試的不要讓它一直打。
- */
+/** 例外對應到 HTTP 語意。 */
 @DisplayName("全域例外處理")
 class GlobalExceptionHandlerTest {
 

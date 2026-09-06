@@ -2,15 +2,7 @@ package com.flashsale.application.port.in.dto;
 
 import java.util.List;
 
-/**
- * 這張訂單現在能評什麼。
- *
- * <p>由後端算而不是讓前端比對訂單行與既有評價——前端再實作一次的話，
- * 症狀會是「畫面說可以評，送出卻被拒絕」。
- * 與可退數量交給後端算（{@code ReturnableView}）是同一個理由。
- *
- * @param reason 不能評價時的原因，直接顯示給使用者；可評價時為 {@code null}
- */
+/** 這張訂單現在能評什麼。 */
 public record ReviewableView(
         String orderNo,
         boolean reviewable,

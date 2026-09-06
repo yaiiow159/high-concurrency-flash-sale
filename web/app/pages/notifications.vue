@@ -4,16 +4,7 @@ import { useNotifications } from '~/composables/useNotifications'
 import { useAuthStore } from '~/stores/auth'
 import type { NotificationView } from '~/types/api'
 
-/**
- * 通知中心。
- *
- * <p><b>不做 SSR、不做 ISR</b>——通知是每個人專屬的資料，
- * 進了被快取的 HTML 就等於發給下一個訪客。
- *
- * <p>文字完全來自後端的快照，這一頁只負責排版。在前端組裝訊息文字
- * 等於讓「我們對使用者說過什麼」有第二個版本，
- * 而客訴時只有後端那份算數。
- */
+/** 通知中心。 */
 type ReadonlyNotification = DeepReadonly<NotificationView>
 
 const auth = useAuthStore()
@@ -22,12 +13,7 @@ const { notifications, unreadCount, loading, error, load, refreshUnreadCount, ma
 
 const working = ref(false)
 
-/**
- * 點通知就標記已讀並跳到關聯的單據。
- *
- * 已讀與導頁一起做，而不是要求使用者另外按一個「標為已讀」——
- * 多一個按鈕只會讓紅點永遠清不掉。
- */
+/** 點通知就標記已讀並跳到關聯的單據。 已讀與導頁一起做，而不是要求使用者另外按一個「標為已讀」—— 多一個按鈕只會讓紅點永遠清不掉。 */
 async function open(notification: ReadonlyNotification) {
   if (notification.unread) {
     await markRead(notification.notificationId).catch(() => undefined)
@@ -38,12 +24,7 @@ async function open(notification: ReadonlyNotification) {
   }
 }
 
-/**
- * 通知該連去哪裡。
- *
- * 由類型決定而不是把網址存進通知內容：網址在不同環境不一樣，
- * 寫進快照的話正式環境會出現指向 localhost 的連結。
- */
+/** 通知該連去哪裡。 由類型決定而不是把網址存進通知內容：網址在不同環境不一樣， 寫進快照的話正式環境會出現指向 localhost 的連結。 */
 function destinationOf(notification: ReadonlyNotification): string | null {
   if (!notification.referenceNo) {
     return null

@@ -10,17 +10,7 @@ import java.math.BigDecimal;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/**
- * 有折扣的訂單，退款要按「當初收了多少」退。
- *
- * <h2>這裡釘住的是一個會安靜流出錢的缺陷</h2>
- *
- * <p>整單折扣折在<b>訂單</b>上，退貨卻是退<b>一行</b>。
- * 用 {@code unitPrice × quantity} 算退款，退的是使用者沒付過的錢。
- *
- * <p>而且付款金額的上限攔不住它：全額退貨會超過已付金額而被擋下，
- * 但<b>部分退貨不會</b>——那筆多退的錢仍在上限之內，靜靜地流出去。
- */
+/** 有折扣的訂單，退款要按「當初收了多少」退。 */
 @DisplayName("退款分攤")
 class OrderLineRefundAllocationTest {
 

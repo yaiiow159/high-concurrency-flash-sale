@@ -48,13 +48,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * 付款流程的單元測試。
- *
- * <p>重點是「錢收了但訂單入不了帳」這個競態。它在功能測試中永遠不會出現——
- * 要重現它必須刻意安排「回調抵達時訂單已被關閉」這個時序，
- * 而那正是這裡用 mock 能精準做到的事。
- */
+/** 付款流程的單元測試。 */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 @DisplayName("付款")
@@ -230,12 +224,7 @@ class PaymentApplicationServiceTest {
     @DisplayName("競態：錢收了但訂單入不了帳")
     class PaymentAfterOrderClosed {
 
-        /**
-         * 這是本類別存在的理由。
-         *
-         * <p>時序：使用者跳轉金流頁面 → 逾時關單排程取消訂單並退回庫存 →
-         * 使用者完成付款 → 回調抵達。此時錢已經收了，訂單卻已是終態。
-         */
+        /** 這是本類別存在的理由。 */
         @Test
         @DisplayName("訂單已取消：付款仍記為成功，並轉為待退款")
         void recordsSuccessThenMarksRefundRequired() {
@@ -264,13 +253,7 @@ class PaymentApplicationServiceTest {
             verify(orderRepository, never()).update(any());
         }
 
-        /**
-         * 兩個事件都要發，順序也有意義。
-         *
-         * <p>只發退款事件會讓帳本上的退款看起來憑空發生——
-         * 下游的財務系統會看到一筆沒有對應收入的支出。
-         * 錢確實進來過，就必須如實記錄，再記錄它出去。
-         */
+        /** 兩個事件都要發，順序也有意義。 */
         @Test
         @DisplayName("同時發出收款成功與退款事件——帳本必須記錄錢進來也記錄錢出去")
         void emitsBothSucceededAndRefundRequired() {

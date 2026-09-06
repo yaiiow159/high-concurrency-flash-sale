@@ -31,14 +31,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * 庫存扣減的整合測試——對著<b>真實的 Redis</b> 驗證。
- *
- * <p><b>為什麼一定要用真的 Redis 而不是 mock？</b>
- * 這裡要驗證的正是「Lua 腳本在 Redis 單執行緒模型下的原子性」。
- * mock 掉 Redis 就等於 mock 掉了唯一要驗證的東西，測試會全綠但超賣照樣發生。
- * 只有真的併發打上去，才能證明防超賣是成立的。
- */
+/** 庫存扣減的整合測試——對著<b>真實的 Redis</b> 驗證。 */
 @Testcontainers
 @DisplayName("Redis 庫存扣減")
 class RedisStockRepositoryTest {

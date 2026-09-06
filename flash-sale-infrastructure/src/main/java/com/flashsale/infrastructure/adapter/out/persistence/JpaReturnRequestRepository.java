@@ -19,13 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-/**
- * 退貨單持久化轉接器。
- *
- * <p>領域物件與 Entity 分離的成本在這裡最明顯——多一層轉換。
- * 換來的是領域層完全不認得 JPA，因此
- * {@code ReturnRequest} 的狀態機可以用純單元測試驗證，不需要資料庫。
- */
+/** 退貨單持久化轉接器。 */
 @Repository
 public class JpaReturnRequestRepository implements ReturnRequestRepository {
 

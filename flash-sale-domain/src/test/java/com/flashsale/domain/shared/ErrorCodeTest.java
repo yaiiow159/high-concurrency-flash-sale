@@ -10,19 +10,7 @@ import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * 錯誤碼本身的約束。
- *
- * <h2>為什麼需要測試一個列舉</h2>
- *
- * <p>錯誤碼是<b>對外契約</b>：前端靠它決定顯示什麼、要不要重試、要不要導去登入。
- * 兩個不同的錯誤共用一個碼，等於讓呼叫端在錯的分支上做對的事。
- *
- * <p>而這件事一定會再發生——新增錯誤碼時人是往清單底下加的，
- * 沒有人會回頭掃一遍前面用過哪些數字。實際上就發生過一次：
- * {@code ILLEGAL_ACTIVITY_STATE_TRANSITION} 與 {@code NOTIFICATION_NOT_FOUND}
- * 都拿了 B0038，而兩者在不同的模組裡，review 時看不到彼此。
- */
+/** 錯誤碼本身的約束。 */
 @DisplayName("錯誤碼")
 class ErrorCodeTest {
 

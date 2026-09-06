@@ -162,12 +162,7 @@ class AddressTest {
                 "臺北市", "信義區", "市府路 1 號", false, NOW);
     }
 
-    /**
-     * 模擬應用層的轉換。
-     *
-     * <p>刻意寫在測試裡而不是 {@code Address} 上：讓 Identity 認得 Ordering 的型別
-     * 會把兩個脈絡黏在一起。正式的轉換在 {@code OrderPlacementService}。
-     */
+    /** 模擬應用層的轉換。 */
     private static ShippingInfo snapshotOf(Address address) {
         return new ShippingInfo(address.recipientName(), address.phone(), address.postalCode(),
                 address.region(), address.district(), address.streetAddress());

@@ -5,17 +5,7 @@ import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.stereotype.Component;
 
-/**
- * 一般庫存的業務指標。
- *
- * <p><b>標籤基數是這裡最需要小心的事。</b>SKU 會成長到數萬個，
- * 若像秒殺那樣把 ID 當標籤，Prometheus 的時間序列數會直接爆掉——
- * 秒殺活動同時只有幾場，SKU 不是。
- *
- * <p>因此這裡只記「有幾個 SKU 不平」與偏差方向，<b>不記是哪一個</b>。
- * 要知道是哪一個，看日誌或呼叫對帳端點——那是排查時才需要的資訊，
- * 不該讓每個 SKU 在監控系統裡常駐一條時間序列。
- */
+/** 一般庫存的業務指標。 */
 @Component
 public class InventoryMetrics {
 

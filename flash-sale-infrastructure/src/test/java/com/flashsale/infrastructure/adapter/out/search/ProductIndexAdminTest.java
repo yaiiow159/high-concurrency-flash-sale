@@ -9,19 +9,7 @@ import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * 舊索引的清理。
- *
- * <h2>這裡只有一條規則不能錯</h2>
- *
- * <p><b>絕不刪掉 alias 正在指的那一個索引。</b>
- * 錯了的結果不是「多佔一點磁碟」，是線上搜尋整個消失——
- * 而且要等到有人搜尋才會發現。這種程式碼不該只靠讀過一遍來保證。
- *
- * <p>清理本身存在的理由：{@code switchAliasTo} 保留舊索引供回退，
- * 但先前<b>沒有任何東西會刪掉它們</b>。每重建一次就留下一份完整副本，
- * 而重建是維運按得到的按鈕。磁碟滿了的症狀是整個 Elasticsearch 進入唯讀。
- */
+/** 舊索引的清理。 */
 @DisplayName("搜尋索引清理")
 class ProductIndexAdminTest {
 

@@ -15,11 +15,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * 縮圖產生（ADR-0027 決策 4）。
- *
- * <p>不需要 Docker：進去是位元組、出來是位元組，中間全在記憶體裡。
- */
+/** 縮圖產生（ADR-0027 決策 4）。 */
 @DisplayName("縮圖產生")
 class ImageIoVariantGeneratorTest {
 

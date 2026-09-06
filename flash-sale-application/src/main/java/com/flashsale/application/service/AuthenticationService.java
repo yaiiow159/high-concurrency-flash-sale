@@ -23,18 +23,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.Optional;
 
-/**
- * 認證服務：登入、續期、登出。
- *
- * <p>三個貫穿全域的安全考量，每一個都以具體手段落實：
- *
- * <ol>
- *   <li><b>不洩漏帳號是否存在</b>——登入失敗一律同一個錯誤碼，
- *       且信箱不存在時仍執行一次假雜湊比對，讓兩條路徑的耗時接近</li>
- *   <li><b>refresh token 輪替</b>——每次續期都換新的，舊的標記為已輪替</li>
- *   <li><b>重用偵測</b>——已輪替的 token 再度出現代表外洩，整條鏈一併撤銷</li>
- * </ol>
- */
+/** 認證服務：登入、續期、登出。 */
 @Service
 public class AuthenticationService implements AuthenticationUseCase {
 
@@ -78,13 +67,7 @@ public class AuthenticationService implements AuthenticationUseCase {
         return issueSession(user, tokenGenerator.generateFamilyId());
     }
 
-    /**
-     * 驗證帳密。
-     *
-     * <p>信箱不存在時仍呼叫 {@code wasteTime()}——若直接回傳，
-     * 「信箱不存在」的回應會明顯快於「密碼錯誤」，
-     * 攻擊者能用回應時間掃出哪些信箱已註冊。
-     */
+    /** 驗證帳密。 */
     private User authenticate(LoginCommand command) {
         Optional<User> found = userRepository.findByEmail(Email.of(command.email()));
         if (found.isEmpty()) {
@@ -123,12 +106,7 @@ public class AuthenticationService implements AuthenticationUseCase {
         return tokens;
     }
 
-    /**
-     * 重用偵測：撤銷整條輪替鏈並拒絕本次請求。
-     *
-     * <p>此時無法分辨是竊取者還是原用戶端在用舊 token，因此讓雙方都重新登入。
-     * 誤傷合法用戶端的代價是重登一次；放過的代價是攻擊者能無限期維持存取權。
-     */
+    /** 重用偵測：撤銷整條輪替鏈並拒絕本次請求。 */
     private void handleTokenReuse(RefreshToken stored, Instant now) {
         // 必須走獨立交易：本方法結尾會拋例外，若撤銷跟著外層交易一起回滾，
         // 就會變成「偵測到外洩卻什麼都沒撤銷」——攻擊者的令牌照樣有效。

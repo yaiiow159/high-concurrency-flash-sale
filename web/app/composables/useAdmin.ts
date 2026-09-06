@@ -7,10 +7,7 @@ import type {
 } from '~/types/api'
 
 /**
- * 搜尋索引對帳結果。
- *
- * 欄位對齊後端的 `SearchIndexReconciliation`——**手寫兩份型別對一個契約，
- * 遲早會有一份忘了跟著改**，而症狀是畫面上一片 undefined 而不是型別錯誤。
+ * 搜尋索引對帳結果。 欄位對齊後端的 `SearchIndexReconciliation`——**手寫兩份型別對一個契約， 遲早會有一份忘了跟著改**，而症狀是畫面上一片 undefined 而不是型別錯誤。
  *
  * @property missing 在資料庫是上架、但索引裡沒有的商品（搜不到）
  * @property orphaned 索引裡有、但資料庫已非上架的商品（搜得到卻買不到）
@@ -25,14 +22,7 @@ export interface SearchReconciliationView {
 }
 
 /**
- * 後台的 API。
- *
- * 集中在一處而不是各頁自己拼網址：後台的每一支都在 `/api/v1/admin` 底下
- * 且都要帶令牌，散開來寫遲早會有一頁忘了 `authenticated: true`，
- * 而那個症狀是 401 而不是任何看得懂的錯誤。
- *
- * **這裡沒有任何權限判斷。** 授權全部在後端；前端能做的只有
- * 「打了會不會成功」，而那件事後端已經回答了（ADR-0015 決策 2）。
+ * 後台的 API。 集中在一處而不是各頁自己拼網址：後台的每一支都在 `/api/v1/admin` 底下 且都要帶令牌，散開來寫遲早會有一頁忘了 `authenticated: true`， 而那個症狀是 401 而不是任何看得懂的錯誤。 **這裡沒有任何權限判斷。** 授權全部在後端；前端能做的只有 「打了會不會成功」，而那件事後端已經回答了（ADR-0015 決策 2）。
  */
 export function useAdmin() {
   const { request } = useApi()

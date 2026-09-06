@@ -30,17 +30,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * 商品搜尋服務。
- *
- * <h2>要守的是「索引與資料庫不要分岔」</h2>
- *
- * <p>索引是一份會落後的副本，而它與資料庫分岔時<b>沒有任何東西會報錯</b>——
- * 搜尋照樣回結果，只是結果是錯的。使用者搜到一個已下架的商品、點進去發現
- * 買不到，那是最難追的一種問題，因為系統從頭到尾都沒有異常。
- *
- * <p>因此這裡逐一釘住「什麼狀態的商品該在索引裡、什麼不該」。
- */
+/** 商品搜尋服務。 */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 @DisplayName("商品搜尋服務")

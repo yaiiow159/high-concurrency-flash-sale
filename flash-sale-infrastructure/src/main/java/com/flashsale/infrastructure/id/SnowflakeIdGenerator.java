@@ -9,28 +9,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.Optional;
 
-/**
- * Snowflake 識別碼產生器。
- *
- * <p><b>為什麼不用資料庫自增或 UUID？</b>
- * <ul>
- *   <li>資料庫自增需要一次遠端往返，在秒殺熱路徑上不可接受</li>
- *   <li>UUID 完全隨機，作為 InnoDB 主鍵會造成大量頁分裂，寫入效能隨資料量惡化</li>
- * </ul>
- * Snowflake 本地產生、單調遞增、天然帶時間資訊，是這個場景的正解。
- *
- * <p>位元配置：{@code 41 位毫秒時間戳 | 10 位節點 | 12 位序號}，
- * 單節點每毫秒可產生 4096 個 ID，支援 1024 個節點，可用至 2090 年。
- *
- * <p><b>時鐘回撥</b>是 Snowflake 唯一的死穴——NTP 校時或虛擬機遷移都可能讓時間倒退，
- * 進而產生重複 ID。這裡採「短回撥等待、長回撥拒絕」：小幅回撥（&lt;5ms）自旋等待，
- * 大幅回撥直接拋錯讓節點失敗。<b>寧可讓這個節點不可用，也不能發出重複的識別碼</b>——
- * 重複會在資料庫唯一索引上引爆，而且是在最不該出事的尖峰時刻。
- *
- * <p>訂單與付款單各自透過薄薄的配接器使用<b>同一個</b>產生器實例。
- * 兩者若各自持有實例，序號會從相同的起點開始，同一毫秒內可能產生相同的數值——
- * 雖然因為前綴不同而不會真的衝突，但那是靠命名空間僥倖，不是靠設計。
- */
+/** Snowflake 識別碼產生器。 */
 @Component
 public class SnowflakeIdGenerator {
 
@@ -66,13 +45,7 @@ public class SnowflakeIdGenerator {
         log.info("Snowflake 識別碼產生器啟動，節點編號={}", nodeId);
     }
 
-    /**
-     * 產生下一個識別碼。
-     *
-     * <p>{@code synchronized} 在這裡是可接受的：臨界區只有幾條算術指令，
-     * 且單節點每毫秒能發 4096 個號，遠超過單機能承受的請求量。
-     * 用 CAS 改寫只會讓程式更難讀，換不到實質的吞吐提升。
-     */
+    /** 產生下一個識別碼。 */
     public synchronized long nextId() {
         long timestamp = awaitNextValidTimestamp();
 
@@ -92,13 +65,7 @@ public class SnowflakeIdGenerator {
                 | sequence;
     }
 
-    /**
-     * 解出識別碼內嵌的產生時間。
-     *
-     * <p>這是選 Snowflake 而非 UUID 的附帶好處：ID 自帶時間資訊，
-     * 對帳時不必為了知道「這筆多久以前產生的」而去查資料庫——
-     * 而查資料庫正是孤兒扣減這個場景做不到的事（訂單根本不存在）。
-     */
+    /** 解出識別碼內嵌的產生時間。 */
     public Optional<Instant> timestampOf(String rawId) {
         try {
             long id = Long.parseLong(rawId);

@@ -10,13 +10,7 @@ import jakarta.persistence.Version;
 
 import java.time.Instant;
 
-/**
- * 通知。
- *
- * <p>{@code title}、{@code body} 與 {@code sourceEventId} 都是
- * {@code updatable = false}。前兩者是寄送內容的快照——可改就等於
- * 「我們對使用者說過什麼」可以被事後改寫；後者是冪等鍵，改了就失去作用。
- */
+/** 通知。 */
 @Entity
 @Table(name = "notification")
 public class NotificationEntity {

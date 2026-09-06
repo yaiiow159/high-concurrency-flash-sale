@@ -1,11 +1,6 @@
 import { REFRESH_COOKIE, backendUrl, clearRefreshCookie } from '../../utils/backend'
 
-/**
- * 登出 BFF。
- *
- * <p>無論後端撤銷成功與否都清掉 cookie——使用者按了登出就該登出，
- * 不能因為後端暫時不可用就把人留在登入狀態。
- */
+/** 登出 BFF。 */
 export default defineEventHandler(async (event) => {
   const refreshToken = getCookie(event, REFRESH_COOKIE)
   clearRefreshCookie(event)

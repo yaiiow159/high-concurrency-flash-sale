@@ -15,12 +15,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * 商品（SPU）的持久化模型。
- *
- * <p>SKU 是本聚合的一部分，因此 {@code CascadeType.ALL}：
- * 它們的生命週期完全跟隨商品，也沒有獨立於商品之外的一致性需求。
- */
+/** 商品（SPU）的持久化模型。 */
 @Entity
 @Table(name = "product", indexes = {
         // 列表查詢：WHERE status = 'ON_SHELF' AND category_id = ?
@@ -104,12 +99,7 @@ public class ProductEntity {
         return status;
     }
 
-    /**
-     * 變更上架狀態。
-     *
-     * <p>只開放這一個欄位可寫：名稱、描述、SKU 一旦有人下過單就不該再動，
-     * 那會讓訂單裡的商品快照與商品本身對不上——而快照才是財務憑據。
-     */
+    /** 變更上架狀態。 */
     public void applyStatus(String status) {
         this.status = status;
     }

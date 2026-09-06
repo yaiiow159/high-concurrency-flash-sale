@@ -14,31 +14,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
-/**
- * 搜尋索引對帳（ADR-0012）。
- *
- * <h2>這裡的自動修復可以被證明安全，庫存那邊不行</h2>
- *
- * <p>專案的既有規則是「對帳的自動修復預設關閉」（CLAUDE.md 第 8 條），
- * 而這裡刻意反過來。理由不是「搜尋比較不重要」，是<b>修復動作的性質不同</b>：
- *
- * <ul>
- *   <li>庫存對帳看到偏差時，「退庫」是一個<b>新的決定</b>——
- *       它可能與正在佇列裡排隊的請求衝突，把少賣變成超賣。
- *       有 bug 的自動修復，破壞力大於它要修的問題</li>
- *   <li>索引對帳的修復動作，與<b>那個還沒被消費的事件會做的事一模一樣</b>：
- *       讀當下的商品狀態，上架就寫進索引、否則移除。
- *       提早做一次不會產生任何新的狀態——事件晚點到達時寫的是同一份內容</li>
- * </ul>
- *
- * <p>換句話說：這裡的「修復」不是猜測，是把一件遲早要發生的事提前做完。
- * 也因此不需要庫存那種寬限期——沒有「還在飛的請求」會被誤判。
- *
- * <h2>不碰資金、不碰庫存</h2>
- *
- * <p>索引寫入是冪等覆寫，寫錯了下一次對帳會再修正回來。
- * 這是它與所有其他對帳最大的差別，也是自動修復能成立的前提。
- */
+/** 搜尋索引對帳（ADR-0012）。 */
 @Service
 public class SearchIndexReconciliationService implements SearchIndexReconciliationUseCase {
 
@@ -77,15 +53,7 @@ public class SearchIndexReconciliationService implements SearchIndexReconciliati
                 missing, orphaned, repaired);
     }
 
-    /**
-     * 修復差異。
-     *
-     * <p>每一筆都重讀當下的商品狀態再決定寫或刪——不直接用對帳當時的集合。
-     * 對帳到修復之間可能又有變更，用舊集合會把剛下架的商品又寫回索引。
-     *
-     * <p>單筆失敗不中斷整批：一筆修不掉不該讓其他人的商品也繼續搜不到。
-     * 沒修掉的那些下一輪還會被抓到。
-     */
+    /** 修復差異。 */
     private long repair(List<Long> missing, List<Long> orphaned) {
         List<Long> all = new ArrayList<>(missing);
         all.addAll(orphaned);

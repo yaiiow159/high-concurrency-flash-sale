@@ -6,12 +6,7 @@ import type {
   PointTransactionView,
 } from '~/types/api'
 
-/**
- * 會員中心的 API。
- *
- * 每一支都不帶 userId——身分來自令牌。積分是資產，
- * 讓呼叫端指定要看誰的餘額等於讓它看別人的錢包。
- */
+/** 會員中心的 API。 每一支都不帶 userId——身分來自令牌。積分是資產， 讓呼叫端指定要看誰的餘額等於讓它看別人的錢包。 */
 export function useMembership() {
   const { request } = useApi()
   const auth = { authenticated: true } as const

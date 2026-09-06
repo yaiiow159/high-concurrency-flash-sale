@@ -9,11 +9,8 @@ import java.time.Duration;
 /**
  * Outbox 中繼排程的觸發器。
  *
- * <p>只負責兩件事：定時觸發、跨節點互斥。實際邏輯在 {@link OutboxRelayer}
- * （分開的原因見該類別的說明）。
- *
- * <p><b>多節點互斥</b>採 {@code tryLock} 而非阻塞等待：取不到鎖代表別的節點正在搬，
- * 這一輪跳過即可，下一輪還會再來。阻塞等待只會讓排程執行緒堆積。
+ * <p><b>與 {@link OutboxRelayer} 刻意拆成兩個 Bean</b>：Spring 的交易是動態代理，
+ * 同一個 Bean 內部呼叫不會經過代理，{@code @Transactional} 會安靜失效。
  */
 @Component
 public class OutboxRelayScheduler {
@@ -32,9 +29,8 @@ public class OutboxRelayScheduler {
     }
 
     /**
-     * {@code fixedDelay} 而非 {@code fixedRate}：前者從「上次結束」起算，後者從「上次開始」起算。
-     * 用 fixedRate 時，一旦某輪執行超過間隔，排程會開始堆疊，
-     * 並在下游恢復的瞬間同時湧出——這是把小故障放大成大故障的經典模式。
+     * {@code fixedDelay} 而非 {@code fixedRate}：後者在某輪超時後會堆疊，
+     * 並在下游恢復的瞬間同時湧出。
      */
     @Scheduled(fixedDelayString = "${flash-sale.outbox.relay-interval-ms:1000}")
     public void relay() {

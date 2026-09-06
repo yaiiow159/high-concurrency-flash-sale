@@ -11,20 +11,7 @@ import jakarta.persistence.UniqueConstraint;
 
 import java.time.Instant;
 
-/**
- * 購物車品項的持久化模型。
- *
- * <p><b>沒有購物車表頭。</b>購物車就是某個使用者名下的品項集合，
- * 多一張只有 id 與 user_id 的表，只會多出「使用者存在但購物車列不存在」
- * 這種要處理的中間態。
- *
- * <p><b>不存價格也不存商品名。</b>那些每次顯示時從 Catalog 取——
- * 購物車回答的是「現在買要多少錢」，存快照會在商家調價後變成謊言。
- * 這與訂單行刻意存快照剛好相反，兩者不可互換。
- *
- * <p>{@code (user_id, sku_id)} 唯一：同一個 SKU 在購物車裡只會有一行，
- * 重複加入是累加數量而非新增一行。
- */
+/** 購物車品項的持久化模型。 */
 @Entity
 @Table(name = "cart_item",
         uniqueConstraints = @UniqueConstraint(

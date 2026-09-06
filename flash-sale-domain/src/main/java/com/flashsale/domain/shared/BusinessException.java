@@ -1,10 +1,6 @@
 package com.flashsale.domain.shared;
 
-/**
- * 業務規則違反時拋出的例外。
- *
- * <p>刻意不繼承任何框架例外，維持領域層純淨；由 API 層的 GlobalExceptionHandler 轉為 HTTP 回應。
- */
+/** 業務規則違反時拋出的例外。 */
 public class BusinessException extends RuntimeException {
 
     private final ErrorCode errorCode;

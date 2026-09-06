@@ -30,12 +30,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * 地址簿。
- *
- * <p>兩件事必須守住：<b>擁有者檢查</b>（少了它任何人都能讀改別人的住家地址），
- * 以及<b>每人最多一筆預設地址</b>（資料庫表達不了，只能靠這一層）。
- */
+/** 地址簿。 */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 @DisplayName("收貨地址簿")

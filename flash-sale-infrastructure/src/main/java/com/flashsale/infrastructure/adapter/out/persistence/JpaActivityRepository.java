@@ -15,13 +15,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
-/**
- * 活動查詢埠的資料庫實作——多級快取的最終回源目標。
- *
- * <p>Bean 名稱刻意固定為 {@code jpaActivityRepository}，讓
- * {@code MultiLevelActivityRepository} 能以 {@code @Qualifier} 精準注入它作為 delegate，
- * 而不會不小心注入到自己造成無限遞迴。
- */
+/** 活動查詢埠的資料庫實作——多級快取的最終回源目標。 */
 @Repository("jpaActivityRepository")
 public class JpaActivityRepository implements ActivityRepository {
 

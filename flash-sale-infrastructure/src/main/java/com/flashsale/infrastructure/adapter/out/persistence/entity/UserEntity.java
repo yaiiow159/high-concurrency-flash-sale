@@ -11,12 +11,7 @@ import jakarta.persistence.Version;
 
 import java.time.Instant;
 
-/**
- * 使用者的持久化模型。
- *
- * <p>表名用 {@code app_user} 而非 {@code user}：後者在 MySQL 與 PostgreSQL
- * 都是保留字，得靠引號才能查詢，維運時每一句 SQL 都要記得加引號。
- */
+/** 使用者的持久化模型。 */
 @Entity
 @Table(name = "app_user",
         uniqueConstraints = @UniqueConstraint(name = "uk_user_email", columnNames = "email"))

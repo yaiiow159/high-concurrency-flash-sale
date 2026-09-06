@@ -4,13 +4,7 @@ import { useReturns } from '~/composables/useReturns'
 import { useReviews } from '~/composables/useReviews'
 import type { OrderView, PaymentIntentView, ShipmentView } from '~/types/api'
 
-/**
- * 訂單詳情與付款。
- *
- * 這一頁**不做 ISR**：訂單是每個使用者專屬的資料，
- * 被 CDN 快取等於把別人的訂單發給下一個訪客。
- * 只有匿名且對所有人相同的內容才適合快取。
- */
+/** 訂單詳情與付款。 這一頁**不做 ISR**：訂單是每個使用者專屬的資料， 被 CDN 快取等於把別人的訂單發給下一個訪客。 只有匿名且對所有人相同的內容才適合快取。 */
 const route = useRoute()
 const orderNo = route.params.orderNo as string
 const { request } = useApi()
@@ -20,34 +14,17 @@ const { reviewable } = useReviews()
 const order = ref<OrderView | null>(null)
 /** 出貨進度另外取：訂單尚未付款時還沒有出貨單，查不到是正常的 */
 const shipment = ref<ShipmentView | null>(null)
-/**
- * 這張訂單現在還能不能退。
- *
- * 只憑訂單狀態判斷會誤導：品項全部申請過退貨之後，訂單仍然是 COMPLETED，
- * 但已經沒有東西可退了。那時還顯示「申請退貨」，
- * 按下去只會得到一個空表單。
- */
+/** 這張訂單現在還能不能退。 只憑訂單狀態判斷會誤導：品項全部申請過退貨之後，訂單仍然是 COMPLETED， 但已經沒有東西可退了。那時還顯示「申請退貨」， 按下去只會得到一個空表單。 */
 const canReturn = ref(false)
 /**
- * 這張訂單還有沒有東西可以評價。
- *
- * 與 canReturn 同一個道理：只看訂單是不是 COMPLETED 會誤導——
- * 品項全部評價過之後訂單仍然是 COMPLETED，那時還顯示「撰寫評價」，
- * 按下去只會得到一個空清單。
+ * 這張訂單還有沒有東西可以評價。 與 canReturn 同一個道理：只看訂單是不是 COMPLETED 會誤導—— 品項全部評價過之後訂單仍然是 COMPLETED，那時還顯示「撰寫評價」， 按下去只會得到一個空清單。
  */
 const canReview = ref(false)
 const loadError = ref<string | null>(null)
 const paying = ref(false)
 
 /**
- * 四個請求<b>並行發出</b>。
- *
- * 它們都只需要網址上的 orderNo，彼此不相依——先前是三個接連的 await，
- * 在 200ms 延遲的行動網路上就是 600ms 才看得到畫面，而其中 400ms
- * 純粹是排隊等前一個回來。
- *
- * 出貨單、退貨資格與評價資格各自 catch：訂單還沒付款時本來就沒有出貨單，
- * 而任一個附屬查詢失敗都不該讓整張訂單看不到。
+ * 四個請求<b>並行發出</b>。 它們都只需要網址上的 orderNo，彼此不相依——先前是三個接連的 await， 在 200ms 延遲的行動網路上就是 600ms 才看得到畫面，而其中 400ms 純粹是排隊等前一個回來。 出貨單、退貨資格與評價資格各自 catch：訂單還沒付款時本來就沒有出貨單， 而任一個附屬查詢失敗都不該讓整張訂單看不到。
  */
 async function load() {
   const [orderResult, shipmentResult, returnable, reviewableNow] = await Promise.all([

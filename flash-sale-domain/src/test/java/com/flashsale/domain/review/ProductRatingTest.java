@@ -8,15 +8,7 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/**
- * 評分聚合。
- *
- * <p>這裡釘住的是「存總和與筆數，不存平均值」這個決定所帶來的性質：
- * 平均可以由兩者算出來，而反過來不行。
- *
- * <p>另外釘住空狀態——沒有評價的商品是<b>絕大多數</b>商品的常態，
- * 而那條路徑最容易在除以零、null 星等上炸掉。
- */
+/** 評分聚合。 */
 @DisplayName("評分聚合")
 class ProductRatingTest {
 

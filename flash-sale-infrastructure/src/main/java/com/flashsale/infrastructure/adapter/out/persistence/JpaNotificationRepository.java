@@ -24,14 +24,7 @@ public class JpaNotificationRepository implements NotificationRepository {
         this.jpaRepository = jpaRepository;
     }
 
-    /**
-     * {@inheritDoc}
-     *
-     * <p>用資料庫的 upsert 而不是「先查、再寫、接住衝突」——
-     * 後者在加入外層交易時，唯一索引衝突會把整個交易標記成 rollback-only，
-     * 而站內信與 Email 是同一個迴圈裡的兩次寫入：Email 撞衝突會連
-     * 站內信那筆一起回滾。詳見 {@code NotificationJpaRepository.insertIfAbsent}。
-     */
+    /** {@inheritDoc} */
     @Override
     @Transactional
     public Optional<Notification> saveIfAbsent(Notification notification) {

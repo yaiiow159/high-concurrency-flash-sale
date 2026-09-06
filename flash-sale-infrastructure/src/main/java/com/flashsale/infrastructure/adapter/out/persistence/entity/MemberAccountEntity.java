@@ -7,14 +7,7 @@ import jakarta.persistence.Table;
 
 import java.math.BigDecimal;
 
-/**
- * 會員帳戶。
- *
- * <p><b>沒有任何 setter，也沒有業務方法。</b> 這個實體只用於「讀出來」
- * 與「INSERT 一列空的」；所有變動都走條件式增量 UPDATE。
- * 開一個 setter 出來，就會有人寫「讀出來、加、存回去」——
- * 而那在兩個並行的入帳下會吃掉其中一筆。與 {@code ProductRatingEntity} 同一個判斷。
- */
+/** 會員帳戶。 */
 @Entity
 @Table(name = "member_account")
 public class MemberAccountEntity {

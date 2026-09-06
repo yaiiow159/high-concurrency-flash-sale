@@ -6,19 +6,7 @@ import com.flashsale.domain.shared.ErrorCode;
 import java.math.BigDecimal;
 import java.util.Objects;
 
-/**
- * 退貨行——訂單行的一部分。
- *
- * <p><b>{@code unitPrice} 是從訂單行複製過來的快照，不是重新查來的價格。</b>
- * 訂單行本身就已經是下單當時的快照（見 {@code OrderLine}），
- * 這裡再複製一次是為了讓退款金額在退貨單上自我完備：
- * 稽核一張退貨單時不必回頭拼訂單，就能驗證退了多少錢、憑什麼。
- *
- * @param restockable 驗收結果：{@code null} 表示還沒驗收。
- *                    {@code false} 代表收到的貨不可再售，庫存不回補——
- *                    此時<b>不補任何庫存流水</b>，因為原本的 DEDUCT
- *                    已經記過那批貨離開，報廢只是它真的沒回來
- */
+/** 退貨行——訂單行的一部分。 */
 public record ReturnLine(
         Long skuId,
         String skuSnapshot,
@@ -55,16 +43,7 @@ public record ReturnLine(
                 unitPrice.multiply(BigDecimal.valueOf(quantity)));
     }
 
-    /**
-     * 指定退款金額的退貨行。
-     *
-     * <p><b>退款金額不再由單價推導</b>——整單折扣是折在訂單上、退貨卻是退一行，
-     * 「單價 × 數量」退的是使用者<b>沒有付過</b>的錢。
-     * 金額由 {@code OrderLine.refundFor} 依當時的分攤算出後傳入。
-     *
-     * <p>單價仍然保留：它回答「這件商品的定價是多少」，
-     * 而退款金額回答「這一次退了多少」。少了前者，退貨單上就看不出折了多少。
-     */
+    /** 指定退款金額的退貨行。 */
     public static ReturnLine of(Long skuId, String skuSnapshot, BigDecimal unitPrice,
                                 int quantity, BigDecimal refundAmount) {
         return new ReturnLine(skuId, skuSnapshot, unitPrice, quantity, null, refundAmount);

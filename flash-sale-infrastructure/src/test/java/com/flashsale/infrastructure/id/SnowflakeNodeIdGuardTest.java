@@ -18,13 +18,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/**
- * 節點編號互斥——對著<b>真實的 Redis</b> 驗證。
- *
- * <p>這條防線要擋的是「多開一個副本卻忘記改 {@code snowflake.node-id}」，
- * 而它的症狀是尖峰時訂單唯一索引開始爆。
- * mock 掉 Redis 就等於 mock 掉宣告本身，測試會全綠而防線根本不存在。
- */
+/** 節點編號互斥——對著<b>真實的 Redis</b> 驗證。 */
 @Testcontainers
 @DisplayName("Snowflake 節點編號互斥")
 class SnowflakeNodeIdGuardTest {

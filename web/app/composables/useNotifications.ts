@@ -1,13 +1,7 @@
 import { errorMessage, useApi } from '~/composables/useApi'
 import type { NotificationView } from '~/types/api'
 
-/**
- * 站內信。
- *
- * <b>未讀數與列表分開取</b>：導覽列的紅點在每一頁都需要它，
- * 而那些頁面不會順便載入整份通知列表。把兩者綁在一起，
- * 等於每次要更新紅點就得抓 20 筆通知回來。
- */
+/** 站內信。 <b>未讀數與列表分開取</b>：導覽列的紅點在每一頁都需要它， 而那些頁面不會順便載入整份通知列表。把兩者綁在一起， 等於每次要更新紅點就得抓 20 筆通知回來。 */
 export function useNotifications() {
   const { request } = useApi()
 
@@ -30,12 +24,7 @@ export function useNotifications() {
     }
   }
 
-  /**
-   * 只取未讀數。
-   *
-   * 失敗時<b>安靜地維持原值</b>而不是清成 0——導覽列上的紅點消失，
-   * 使用者會以為通知都讀完了，而那是我們自己請求失敗造成的錯覺。
-   */
+  /** 只取未讀數。 失敗時<b>安靜地維持原值</b>而不是清成 0——導覽列上的紅點消失， 使用者會以為通知都讀完了，而那是我們自己請求失敗造成的錯覺。 */
   async function refreshUnreadCount(): Promise<void> {
     try {
       const result = await request<{ count: number }>('/api/v1/notifications/unread-count', {

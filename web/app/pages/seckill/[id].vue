@@ -4,12 +4,7 @@ import { useApi } from '~/composables/useApi'
 import type { ActivityView, PaymentIntentView } from '~/types/api'
 
 /**
- * 秒殺頁 —— 削峰漏斗的第 0 層。
- *
- * 頁面的靜態部分（商品資訊、活動時間）由 ISR + CDN 承接，
- * 100 萬次瀏覽不該有一次打到 origin。
- * 庫存數字則走獨立的客戶端請求：它變動極快，
- * 快取它只會讓使用者看到過期數字。
+ * 秒殺頁 —— 削峰漏斗的第 0 層。 頁面的靜態部分（商品資訊、活動時間）由 ISR + CDN 承接， 100 萬次瀏覽不該有一次打到 origin。 庫存數字則走獨立的客戶端請求：它變動極快， 快取它只會讓使用者看到過期數字。
  */
 const route = useRoute()
 const activityId = Number(route.params.id)
@@ -17,12 +12,7 @@ const activityId = Number(route.params.id)
 const auth = useAuthStore()
 const { request } = useApi()
 
-/**
- * SSR 時取一次活動作為首屏內容。
- *
- * 這一份會被 ISR 快取，因此**不能依賴它的庫存數字**——
- * 快取的 HTML 可能是五分鐘前產生的。庫存由客戶端掛載後自行刷新。
- */
+/** SSR 時取一次活動作為首屏內容。 這一份會被 ISR 快取，因此**不能依賴它的庫存數字**—— 快取的 HTML 可能是五分鐘前產生的。庫存由客戶端掛載後自行刷新。 */
 const { data: initialActivity } = await useFetch<{ data: ActivityView }>(
   `/api/v1/activities/${activityId}`,
 )
@@ -73,12 +63,7 @@ async function payNow(orderNo: string): Promise<void> {
   }
 }
 
-/**
- * 排隊提示。
- *
- * 等待秒數為 -1 代表**算不出來**（速率還沒量到），此時只說「排隊中」——
- * 顯示「約 0 秒」然後讓人等四十分鐘，比誠實承認不知道更糟。
- */
+/** 排隊提示。 等待秒數為 -1 代表**算不出來**（速率還沒量到），此時只說「排隊中」—— 顯示「約 0 秒」然後讓人等四十分鐘，比誠實承認不知道更糟。 */
 const queueHint = computed(() => {
   if (outcome.value.kind !== 'processing') {
     return null

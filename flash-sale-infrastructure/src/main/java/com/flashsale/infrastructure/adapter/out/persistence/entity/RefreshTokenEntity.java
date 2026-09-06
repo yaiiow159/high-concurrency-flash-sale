@@ -11,11 +11,7 @@ import jakarta.persistence.UniqueConstraint;
 
 import java.time.Instant;
 
-/**
- * Refresh token 的持久化模型。
- *
- * <p>只存雜湊，不存原值——資料庫外洩時攻擊者拿到雜湊也換不到新令牌。
- */
+/** Refresh token 的持久化模型。 */
 @Entity
 @Table(name = "refresh_token",
         uniqueConstraints = @UniqueConstraint(name = "uk_token_hash", columnNames = "token_hash"),

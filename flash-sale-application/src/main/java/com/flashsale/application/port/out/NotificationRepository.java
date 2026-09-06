@@ -9,15 +9,7 @@ import java.util.Optional;
 /** 通知持久化埠（出站）。 */
 public interface NotificationRepository {
 
-    /**
-     * 建立通知；同一個來源事件在同一個管道已有紀錄時不重複建立。
-     *
-     * <p><b>回傳 Optional 而非拋例外</b>：呼叫端是 MQ 消費端，
-     * 而 Outbox 是至少一次語意——重複投遞是常態不是異常。
-     * 與 {@code OrderRepository.saveIfAbsent} 同一個手法。
-     *
-     * @return 本次真的建立時回傳通知；已存在則回傳 {@code Optional.empty()}
-     */
+    /** 建立通知；同一個來源事件在同一個管道已有紀錄時不重複建立。 */
     Optional<Notification> saveIfAbsent(Notification notification);
 
     Notification update(Notification notification);
@@ -29,21 +21,9 @@ public interface NotificationRepository {
 
     long countUnread(Long userId);
 
-    /**
-     * 某使用者<b>未讀</b>的站內信。
-     *
-     * <p>與 {@link #findInAppByUserId} 分開是必要的，不是重複：
-     * 後者回傳的是最新的一頁，而未讀的那些可能全都比那一頁更舊。
-     * 用它來實作「全部標為已讀」會標不到任何一筆——
-     * 而症狀是使用者按了沒反應、紅點永遠清不掉。
-     */
+    /** 某使用者<b>未讀</b>的站內信。 */
     List<Notification> findUnreadInApp(Long userId, int limit);
 
-    /**
-     * 待寄送的通知，供排程撈取。
-     *
-     * <p>含 {@code FAILED}——寄信失敗最常見的成因是 SMTP 暫時故障，
-     * 重試就會成功。只撈 {@code PENDING} 等於讓一次網路抖動永久吞掉一封通知。
-     */
+    /** 待寄送的通知，供排程撈取。 */
     List<Notification> findAwaitingDelivery(NotificationChannel channel, int maxAttempts, int limit);
 }

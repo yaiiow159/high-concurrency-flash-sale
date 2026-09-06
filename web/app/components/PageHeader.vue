@@ -1,10 +1,5 @@
 <script setup lang="ts">
-/**
- * 頁面標題區。
- *
- * 標題、說明、右側動作的相對位置全站一致——
- * 那是讓不同頁面「看起來像同一個產品」最省力的一件事。
- */
+/** 頁面標題區。 標題、說明、右側動作的相對位置全站一致—— 那是讓不同頁面「看起來像同一個產品」最省力的一件事。 */
 defineProps<{ title: string; description?: string; eyebrow?: string }>()
 </script>
 

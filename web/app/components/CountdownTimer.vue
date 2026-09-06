@@ -1,10 +1,6 @@
 <script setup lang="ts">
 /**
- * 開賣倒數。
- *
- * **時間一律來自 `serverNow`，絕不用 `Date.now()`。**
- * 客戶端時鐘可能偏差數分鐘：時鐘快的使用者會提早狂打 API，
- * 慢的則錯過開賣。校正邏輯見 `useServerTime`。
+ * 開賣倒數。 **時間一律來自 `serverNow`，絕不用 `Date.now()`。** 客戶端時鐘可能偏差數分鐘：時鐘快的使用者會提早狂打 API， 慢的則錯過開賣。校正邏輯見 `useServerTime`。
  */
 const props = defineProps<{
   startAt: string
@@ -47,12 +43,7 @@ function refresh(): void {
   }
 }
 
-/**
- * 每 250ms 更新一次而非每秒。
- *
- * 若剛好每秒更新，倒數會在跨秒時看起來卡頓或跳號；
- * 用更短的間隔取樣，顯示的秒數才會準時翻動。
- */
+/** 每 250ms 更新一次而非每秒。 若剛好每秒更新，倒數會在跨秒時看起來卡頓或跳號； 用更短的間隔取樣，顯示的秒數才會準時翻動。 */
 onMounted(() => {
   refresh()
   timer = setInterval(refresh, 250)

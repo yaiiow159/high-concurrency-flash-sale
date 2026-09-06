@@ -12,15 +12,7 @@ import jakarta.persistence.UniqueConstraint;
 
 import java.time.Instant;
 
-/**
- * 發件匣（Outbox）紀錄。
- *
- * <p>這張表讓「業務狀態變更」與「事件投遞」變成同一次 commit 的兩張表，
- * 因而天然原子——這正是本專案不需要 Seata 等分散式交易框架的原因（見 ADR-0004）。
- *
- * <p>投遞狀態機：{@code PENDING → PUBLISHED}，失敗則累加 {@code retry_count}，
- * 超過上限轉 {@code DEAD} 等待人工處理。
- */
+/** 發件匣（Outbox）紀錄。 */
 @Entity
 @Table(
         name = "outbox_event",
@@ -44,13 +36,7 @@ public class OutboxEventEntity {
     private String eventType;
 
     /** 聚合根 id，投遞時作為 MQ 分區鍵，保證同一訂單的事件不會亂序。 */
-    /**
-     * 聚合識別，同時是 MQ 的分區鍵。
-     *
-     * <p>寬度對齊 {@code product_image.object_key}（V23）：訂單事件放訂單號，
-     * 圖片事件放物件鍵，而後者是 68 個字元。
-     * 這裡與 DDL 不一致的話 Hibernate 不會抱怨，只會在 insert 時被資料庫截斷。
-     */
+    /** 聚合識別，同時是 MQ 的分區鍵。 */
     @Column(name = "aggregate_id", nullable = false, length = 128, updatable = false)
     private String aggregateId;
 

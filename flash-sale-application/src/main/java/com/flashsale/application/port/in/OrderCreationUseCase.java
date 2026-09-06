@@ -2,11 +2,7 @@ package com.flashsale.application.port.in;
 
 import com.flashsale.application.port.out.message.SeckillOrderMessage;
 
-/**
- * 建單入站埠——由 MQ 消費端驅動，是削峰後的「慢車道」。
- *
- * <p>實作必須<b>冪等</b>：MQ 是至少一次語意，同一則訊息重複投遞是常態而非異常。
- */
+/** 建單入站埠——由 MQ 消費端驅動，是削峰後的「慢車道」。 */
 public interface OrderCreationUseCase {
 
     /**

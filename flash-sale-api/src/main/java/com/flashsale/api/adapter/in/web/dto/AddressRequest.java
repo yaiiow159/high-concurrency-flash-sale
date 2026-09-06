@@ -5,12 +5,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
-/**
- * 收貨地址請求體。
- *
- * <p>沒有 {@code userId}——身分來自令牌，不來自請求內容。
- * 讓呼叫端自己填，等於任何人都能往別人的地址簿裡塞資料。
- */
+/** 收貨地址請求體。 */
 public record AddressRequest(
 
         @NotBlank(message = "收件人不可為空")

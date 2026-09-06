@@ -31,23 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-/**
- * 商品評價。
- *
- * <h2>可信度是這個功能的全部價值</h2>
- *
- * <p>評價一旦可以任意張貼，它就一文不值——而那不是慢慢發生的，
- * 是從第一則刷出來的評價開始的。因此三道條件缺一不可（ADR-0014 決策 1）：
- *
- * <ol>
- *   <li>訂單屬於這個使用者</li>
- *   <li>訂單已 {@code COMPLETED}——付了錢但還沒收到貨的人，對商品還沒有意見</li>
- *   <li>這筆訂單行還沒被評價過</li>
- * </ol>
- *
- * <p><b>第三道的最後防線是資料庫的唯一索引，不是這裡的查詢。</b>
- * 兩個並行請求會同時通過任何 Java 端的檢查。
- */
+/** 商品評價。 */
 @Service
 public class ReviewService implements ReviewUseCase {
 
@@ -107,12 +91,7 @@ public class ReviewService implements ReviewUseCase {
         return ReviewView.from(saved, now);
     }
 
-    /**
-     * {@inheritDoc}
-     *
-     * <p>舊評分從<b>資料庫當場讀出來的那一則</b>取，不是從請求帶進來——
-     * 呼叫端若能宣告舊評分是多少，它就能把商品的平均分改成任何值。
-     */
+    /** {@inheritDoc} */
     @Override
     @Transactional
     public ReviewView edit(EditReviewCommand command) {
@@ -173,13 +152,7 @@ public class ReviewService implements ReviewUseCase {
                         found.getOrDefault(productId, ProductRating.empty(productId)))));
     }
 
-    /**
-     * {@inheritDoc}
-     *
-     * <p>把「哪些項目還能評」算好給前端，而不是讓前端自己比對。
-     * 前端再實作一次的話，症狀會是「畫面說可以評，送出卻被拒絕」——
-     * 與可退數量交給後端算是同一個理由。
-     */
+    /** {@inheritDoc} */
     @Override
     @Transactional(readOnly = true)
     public ReviewableView reviewable(String orderNo, Long userId) {

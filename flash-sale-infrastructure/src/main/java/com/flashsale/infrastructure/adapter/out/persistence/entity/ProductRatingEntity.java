@@ -5,15 +5,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
-/**
- * 評分聚合。
- *
- * <p><b>沒有任何 setter，也沒有業務方法。</b>
- * 這個實體只用於「讀出來」與「INSERT 一列空的」；
- * 所有變動都走 {@code ProductRatingJpaRepository} 的增量 UPDATE。
- * 開一個 setter 出來，就會有人寫「讀出來、加、存回去」，
- * 而那在兩個人同時評價時會吃掉一則。
- */
+/** 評分聚合。 */
 @Entity
 @Table(name = "product_rating")
 public class ProductRatingEntity {

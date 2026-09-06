@@ -10,16 +10,7 @@ import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.stereotype.Component;
 
-/**
- * 把商品變動同步到搜尋索引（ADR-0012）。
- *
- * <p><b>冪等是必答題</b>，而這裡天然成立：文件 ID 就是商品 ID，
- * 寫入是覆寫而非新增，重複投遞只是再寫一次同樣的內容。
- *
- * <p>併發設 1。同一個商品的事件靠 partition key（商品 ID）已經有序，
- * 但商品變更是一天幾十次的低頻操作，多開執行緒只是多佔連線——
- * 而連線是這個系統目前比較稀缺的東西。
- */
+/** 把商品變動同步到搜尋索引（ADR-0012）。 */
 @Component
 public class ProductIndexConsumer {
 

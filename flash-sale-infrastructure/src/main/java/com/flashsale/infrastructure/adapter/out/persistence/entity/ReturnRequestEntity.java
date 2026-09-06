@@ -17,13 +17,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-/**
- * 退貨單。
- *
- * <p>{@code @OrderBy("skuId")} 讓退貨行的順序穩定。不用 {@code @OrderColumn} 是因為
- * 退貨行沒有「使用者排的順序」這種語意——它只需要每次查詢排列相同，
- * 而多一個序號欄位就多一個要維護的東西。
- */
+/** 退貨單。 */
 @Entity
 @Table(name = "return_request")
 public class ReturnRequestEntity {
@@ -105,13 +99,7 @@ public class ReturnRequestEntity {
         line.attachTo(this);
     }
 
-    /**
-     * 套用狀態變更。
-     *
-     * <p>驗收結果（{@code restockable}）也在這裡一併寫入——
-     * 它與 {@code RECEIVED} 是同一個動作的兩個面向，分開寫會出現
-     * 「已驗收但沒有驗收結果」的中間狀態。
-     */
+    /** 套用狀態變更。 */
     public void applyStateChange(String status, String reviewNote, Instant reviewedAt,
                                  Instant receivedAt, Instant refundedAt,
                                  Map<Long, Boolean> restockableBySku) {

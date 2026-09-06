@@ -1,11 +1,6 @@
 package com.flashsale.application.port.in;
 
-/**
- * 逾期訂單關單入站埠，由排程驅動。
- *
- * <p>秒殺的預扣庫存不能無限期佔著——搶到不付款的使用者若不關單退庫，
- * 商品就會「賣不掉又下不了架」。
- */
+/** 逾期訂單關單入站埠，由排程驅動。 */
 public interface ExpiredOrderCloseUseCase {
 
     /**

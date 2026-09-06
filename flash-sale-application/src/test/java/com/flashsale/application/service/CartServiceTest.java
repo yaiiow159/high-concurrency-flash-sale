@@ -38,13 +38,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * 購物車服務。
- *
- * <p>兩條規則必須守住：<b>價格永遠是即時的</b>（存快照會讓使用者
- * 看到舊價格卻被收新價格），以及<b>購物車完全不碰庫存</b>
- * （否則任何人都能靠塞滿購物車凍結全站庫存）。
- */
+/** 購物車服務。 */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 @DisplayName("購物車服務")

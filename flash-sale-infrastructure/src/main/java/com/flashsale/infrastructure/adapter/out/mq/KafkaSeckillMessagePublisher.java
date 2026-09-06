@@ -14,16 +14,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-/**
- * 建單訊息投遞埠的 Kafka 實作。
- *
- * <p><b>刻意同步等待 broker ack</b>。非同步投遞吞吐更高，但「已受理」這句話一旦回給使用者，
- * 就必須是真的——若訊息其實沒送到，庫存扣了、訂單卻永遠不會出現，
- * 使用者會看著一個永遠停在處理中的訂單。
- *
- * <p>逾時上限刻意設得很短（預設 500ms）：秒殺場景下，一個等 3 秒才失敗的請求
- * 會佔住 Tomcat 執行緒，比直接失敗更容易拖垮整個服務。快速失敗，讓使用者重試。
- */
+/** 建單訊息投遞埠的 Kafka 實作。 */
 @Component
 public class KafkaSeckillMessagePublisher implements SeckillMessagePublisher {
 

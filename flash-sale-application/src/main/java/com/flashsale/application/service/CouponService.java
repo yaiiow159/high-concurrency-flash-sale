@@ -17,16 +17,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-/**
- * 優惠券的查詢與領取。
- *
- * <h2>為什麼從 OrderPlacementService 搬出來</h2>
- *
- * <p>「我有哪些券」先前掛在下單服務上，而它與下單沒有任何關係——
- * 那個方法只用到 {@code promotionRepository} 與 {@code clock}。
- * 領券中心需要一個放它的地方，而把領券也塞進下單服務
- * 只會讓那個類別更難說清楚它到底負責什麼。
- */
+/** 優惠券的查詢與領取。 */
 @Service
 public class CouponService implements CouponQueryUseCase {
 

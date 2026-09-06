@@ -12,16 +12,7 @@ import java.time.Instant;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/**
- * 累計退款的上限——防重複退款的第三層（ADR-0011 決策 6、7）。
- *
- * <p><b>這一層是唯一兩條退款路徑都會經過的地方。</b>
- * 前兩層（退貨單狀態機、訂單行累計數量）都在退貨的脈絡裡，
- * 而 {@code PaymentRefundScheduler} 的競態補償看不到退貨單。
- *
- * <p>重複退款與重複扣款的代價不對稱：扣兩次會被客訴，
- * 退兩次是直接虧損，沒有任何事後對帳能補救。
- */
+/** 累計退款的上限——防重複退款的第三層（ADR-0011 決策 6、7）。 */
 @DisplayName("付款：累計退款上限")
 class PaymentRefundTest {
 

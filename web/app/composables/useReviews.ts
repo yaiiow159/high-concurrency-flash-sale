@@ -7,11 +7,7 @@ import type {
 } from '~/types/api'
 
 /**
- * 評價的讀寫。
- *
- * 讀取那兩支是**公開**的（`authenticated: false`），這不只是設定：
- * 評價存在的意義就是幫「還沒買、也還沒登入」的人做決定。
- * 帶上 Authorization 反而會讓這些回應無法被共用快取。
+ * 評價的讀寫。 讀取那兩支是**公開**的（`authenticated: false`），這不只是設定： 評價存在的意義就是幫「還沒買、也還沒登入」的人做決定。 帶上 Authorization 反而會讓這些回應無法被共用快取。
  */
 export function useReviews() {
   const { request } = useApi()
@@ -26,13 +22,7 @@ export function useReviews() {
   let page = 0
 
   /**
-   * 載入評分摘要與第一頁評價。
-   *
-   * 兩支併發送出而不是接力：它們互不依賴，串起來只是把延遲加倍。
-   *
-   * **失敗時不擋住商品頁。** 評價掛掉時使用者仍然應該買得到東西——
-   * 這是 fail-open，因為這道防線失守的代價只是「少看到評價」。
-   * 與庫存的 fail-closed 剛好相反，判準是「失守會付出什麼代價」。
+   * 載入評分摘要與第一頁評價。 兩支併發送出而不是接力：它們互不依賴，串起來只是把延遲加倍。 **失敗時不擋住商品頁。** 評價掛掉時使用者仍然應該買得到東西—— 這是 fail-open，因為這道防線失守的代價只是「少看到評價」。 與庫存的 fail-closed 剛好相反，判準是「失守會付出什麼代價」。
    */
   async function load(productId: number | string) {
     loading.value = true

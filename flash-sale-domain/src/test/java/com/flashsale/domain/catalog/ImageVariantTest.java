@@ -6,12 +6,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * 圖片變體（ADR-0027 決策 4）。
- *
- * <p>變體鍵算錯的症狀是<b>全站破圖</b>，而它不會拋任何例外——
- * 只會有一堆 404。
- */
+/** 圖片變體（ADR-0027 決策 4）。 */
 @DisplayName("圖片變體")
 class ImageVariantTest {
 

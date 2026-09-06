@@ -17,13 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
 
-/**
- * 訂單查詢服務。
- *
- * <p>核心職責是消弭非同步下單的「時間差空窗」：訂單號已回給前端、庫存也扣了，
- * 但消費端還沒落庫。此時查 DB 會撲空，若直接回 404，使用者會誤以為沒搶到。
- * 這裡改為查詢受理紀錄，回覆 {@code PROCESSING} 讓前端繼續輪詢。
- */
+/** 訂單查詢服務。 */
 @Service
 public class OrderQueryService implements OrderQueryUseCase {
 
@@ -66,23 +60,14 @@ public class OrderQueryService implements OrderQueryUseCase {
                 new OrderView.Queue(queueDepth.backlog(), queueDepth.estimatedWaitSeconds()));
     }
 
-    /**
-     * 越權查詢一律回「訂單不存在」而非「無權限」。
-     *
-     * <p>回傳「無權限」等於告訴攻擊者這個訂單號真的存在，可被用來枚舉訂單量。
-     */
+    /** 越權查詢一律回「訂單不存在」而非「無權限」。 */
     private void ensureOwnedBy(Long ownerId, Long requesterId, String orderNo) {
         if (ownerId != null && !ownerId.equals(requesterId)) {
             throw new BusinessException(ErrorCode.ORDER_NOT_FOUND);
         }
     }
 
-    /**
-     * 訂單列表。
-     *
-     * <p>頁大小夾在 50：這是登入後就能無限次呼叫的端點，
-     * 沒有上限的話任何人都能用 {@code size=1000000} 讓資料庫掃全表。
-     */
+    /** 訂單列表。 */
     @Override
     @Transactional(readOnly = true)
     public List<OrderView> listForUser(Long userId, String status, int page, int size) {

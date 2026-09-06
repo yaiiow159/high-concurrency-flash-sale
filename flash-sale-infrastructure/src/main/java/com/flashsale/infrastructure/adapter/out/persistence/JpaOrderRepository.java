@@ -34,14 +34,7 @@ public class JpaOrderRepository implements OrderRepository {
         this.jpaRepository = jpaRepository;
     }
 
-    /**
-     * {@inheritDoc}
-     *
-     * <p><b>先查再寫，然後仍然接住唯一鍵衝突</b>——這不是多餘。
-     * 「先查再寫」在並發下本來就有競態窗口，只能減少衝突發生的頻率，不能消除它。
-     * 真正保證正確的是資料庫的唯一索引；這裡把它的例外翻譯成正常的業務結果，
-     * 讓應用層不必認得 Spring 的 {@code DataIntegrityViolationException}。
-     */
+    /** {@inheritDoc} */
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
     public Optional<Order> saveIfAbsent(Order order) {
@@ -57,12 +50,7 @@ public class JpaOrderRepository implements OrderRepository {
         }
     }
 
-    /**
-     * {@inheritDoc}
-     *
-     * <p>只更新狀態相關欄位。訂單行與金額在建立後不可變——
-     * 那是金額能安全反正規化的前提（見 ADR-0007）。
-     */
+    /** {@inheritDoc} */
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
     public Order update(Order order) {

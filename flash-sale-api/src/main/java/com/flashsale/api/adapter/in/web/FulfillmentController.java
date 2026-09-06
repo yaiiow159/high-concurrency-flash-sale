@@ -21,21 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
-/**
- * 履約 API。
- *
- * <p><b>刻意拆成兩段路徑</b>，因為它們的讀者完全不同：
- *
- * <ul>
- *   <li>{@code /api/v1/orders/{orderNo}/shipment} —— 買家查自己的出貨進度，
- *       以令牌的身分為界</li>
- *   <li>{@code /api/v1/admin/shipments/**} —— 營運端揀貨、出貨、更新配送狀態，
- *       需要 {@code seckill:admin} scope</li>
- * </ul>
- *
- * <p>把兩者放在同一個路徑下、靠參數區分權限，是最容易寫出漏洞的做法——
- * 少一個判斷，買家就能替自己的訂單標記「已送達」。
- */
+/** 履約 API。 */
 @RestController
 @Tag(name = "履約", description = "出貨、物流狀態與送達")
 public class FulfillmentController {
@@ -76,12 +62,7 @@ public class FulfillmentController {
         return ApiResponse.ok(fulfillmentUseCase.markDelivered(orderNo));
     }
 
-    /**
-     * 標記配送失敗。
-     *
-     * <p><b>不會改變訂單狀態</b>——失敗後幾乎都是重新派送，
-     * 讓訂單狀態跟著來回跳動只會讓買家困惑，而他能做的事從頭到尾沒變。
-     */
+    /** 標記配送失敗。 */
     @PostMapping("/api/v1/admin/shipments/{orderNo}/failed")
     @Operation(summary = "標記配送失敗", description = "不是終態；可再次呼叫 dispatch 重新派送")
     public ApiResponse<ShipmentView> markFailed(

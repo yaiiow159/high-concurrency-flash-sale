@@ -8,13 +8,7 @@ import io.swagger.v3.oas.models.security.SecurityScheme;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-/**
- * OpenAPI 文件設定。
- *
- * <p>宣告 bearer 認證方案後，Swagger UI 會出現 Authorize 按鈕，
- * 貼上令牌即可直接試打受保護的端點——少了這一步，文件頁上所有寫入操作都只會回 401，
- * 讀文件的人會以為 API 壞了。
- */
+/** OpenAPI 文件設定。 */
 @Configuration
 public class OpenApiConfig {
 

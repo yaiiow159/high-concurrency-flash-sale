@@ -14,12 +14,7 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/**
- * 多品項訂單的行為測試。
- *
- * <p>{@code OrderTest} 從單品項時代遷移而來、斷言未改，驗證的是<b>等價性</b>；
- * 這裡驗證的是重構<b>新帶來</b>的能力——那些在單品項模型下根本無法表達的情境。
- */
+/** 多品項訂單的行為測試。 */
 @DisplayName("多品項訂單")
 class MultiLineOrderTest {
 
@@ -84,13 +79,7 @@ class MultiLineOrderTest {
             assertThat(order.quantityFromActivity(9999L)).isZero();
         }
 
-        /**
-         * 這條是重構的核心價值。
-         *
-         * <p>單品項時代的取消事件只帶一個 {@code activityId + quantity}，
-         * 多品項下會漏退其餘活動的庫存——而漏退不會有任何錯誤訊息，
-         * 那些庫存只會靜靜地消失。
-         */
+        /** 這條是重構的核心價值。 */
         @Test
         @DisplayName("取消事件為每個活動各產生一筆退庫，不會漏退")
         void cancelEmitsRestorationPerActivity() {

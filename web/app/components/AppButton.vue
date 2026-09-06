@@ -1,14 +1,5 @@
 <script setup lang="ts">
-/**
- * 按鈕。
- *
- * <p><b>高度固定，不是靠 padding 湊出來的。</b>
- * 先前只給 padding，於是有圖示的按鈕比純文字的高，
- * 並排時對不齊；手機上也常常小於 44px 的觸控目標下限。
- *
- * <p>主要按鈕用 `--cta` 而不是 `--accent`：連結需要的是可讀，
- * 按鈕需要的是行動感，兩者的最佳亮度本來就不同。
- */
+/** 按鈕。 */
 withDefaults(defineProps<{
   variant?: 'primary' | 'secondary' | 'ghost' | 'danger'
   size?: 'sm' | 'md' | 'lg'

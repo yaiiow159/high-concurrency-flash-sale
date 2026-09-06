@@ -14,16 +14,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
-/**
- * 秒殺鏈路的業務指標。
- *
- * <p>把 Micrometer 的呼叫集中在這裡，Use Case 內就不會散落 {@code registry.counter(...)}
- * 這類與業務無關的雜訊。指標名稱與標籤只在此處定義一次，Grafana 面板不會因為
- * 有人手滑打錯標籤而破圖。
- *
- * <p><b>標籤基數控制</b>：只用 {@code activityId} 與錯誤碼當標籤，
- * 絕不放 {@code userId}——那會讓 Prometheus 的時間序列數量爆炸。
- */
+/** 秒殺鏈路的業務指標。 */
 @Component
 public class SeckillMetrics {
 
@@ -37,12 +28,7 @@ public class SeckillMetrics {
 
     private final MeterRegistry registry;
 
-    /**
-     * 各活動的庫存偏差值。
-     *
-     * <p>Micrometer 的 Gauge 只持有弱參考，若不自己保存這些 {@link AtomicLong}，
-     * 它們會被 GC 回收，面板上的指標就會靜默消失——這是 Gauge 最常見的踩雷點。
-     */
+    /** 各活動的庫存偏差值。 */
     private final Map<Long, AtomicLong> driftGauges = new ConcurrentHashMap<>();
 
     public SeckillMetrics(MeterRegistry registry) {
@@ -83,12 +69,7 @@ public class SeckillMetrics {
                 .increment();
     }
 
-    /**
-     * 記錄一次對帳結果。
-     *
-     * <p>偏差以 Gauge 呈現而非 Counter：它是一個「當下的狀態」而非累計事件，
-     * 且需要能回到 0（修復後）。用 Counter 會讓修復後的面板仍停在歷史高點。
-     */
+    /** 記錄一次對帳結果。 */
     public void recordReconciliation(ActivityReconciliation result) {
         Counter.builder(RECONCILIATION_COUNTER)
                 .tag("activity", String.valueOf(result.activityId()))

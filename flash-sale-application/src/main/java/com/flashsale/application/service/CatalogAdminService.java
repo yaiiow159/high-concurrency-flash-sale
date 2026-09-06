@@ -18,13 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.util.List;
 
-/**
- * 商品上下架。
- *
- * <p>狀態變更與索引事件在<b>同一個交易</b>裡落庫（Outbox，ADR-0004）。
- * 直接呼叫 Elasticsearch 是最直覺也最錯的做法：兩個資源無法原子提交，
- * ES 那一半失敗時資料庫已經 commit，兩邊從此分岔且沒有任何東西會發現。
- */
+/** 商品上下架。 */
 @Service
 public class CatalogAdminService implements CatalogAdminUseCase {
 
@@ -42,16 +36,7 @@ public class CatalogAdminService implements CatalogAdminUseCase {
         this.clock = clock;
     }
 
-    /**
-     * {@inheritDoc}
-     *
-     * <p>建立<b>不發索引事件</b>：新商品是 {@code DRAFT}，
-     * 而搜尋索引裡只該有上架的東西。事件在 {@link #putOnShelf} 才發。
-     *
-     * <p>SKU 的完整性由聚合根保證（至少一個、價格為正），
-     * 這裡不重複驗證——重複的驗證會在兩邊逐漸分歧，
-     * 而分歧之後沒有人知道哪一邊才是真的。
-     */
+    /** {@inheritDoc} */
     @Override
     @Transactional
     public ProductView create(CreateProductCommand command) {

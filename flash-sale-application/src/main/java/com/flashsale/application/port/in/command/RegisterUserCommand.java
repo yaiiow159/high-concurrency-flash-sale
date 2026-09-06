@@ -3,13 +3,7 @@ package com.flashsale.application.port.in.command;
 import com.flashsale.domain.shared.BusinessException;
 import com.flashsale.domain.shared.ErrorCode;
 
-/**
- * 註冊命令。
- *
- * <p>密碼以明文形式短暫存在於此，是不可避免的——雜湊必須在伺服器端做。
- * 前端先雜湊再送並不會提升安全性：那只是讓「前端雜湊值」變成新的密碼，
- * 而傳輸安全本來就該由 TLS 負責。
- */
+/** 註冊命令。 */
 public record RegisterUserCommand(String email, String rawPassword, String displayName) {
 
     /** 下限取 8 碼。長度是密碼強度最有效的單一因素，遠勝於強制混用特殊符號。 */

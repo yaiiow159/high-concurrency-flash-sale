@@ -1,26 +1,6 @@
 <script setup lang="ts">
 /**
- * 星等。同時是「顯示」與「輸入」兩種用途。
- *
- * **平均分要能顯示半顆星。** 4.3 分畫成 4 顆或 5 顆都是在說謊，
- * 而電商的評分摘要正是靠那個小數點取信於人。做法是疊兩層星星，
- * 上層用 `width` 裁切——比用「半星圖示」通吃任意比例，
- * 也不必為 4.3 與 4.7 準備兩種圖。
- *
- * **輸入模式是原生 radio。** 用 div + click 做出來的星等在鍵盤與
- * 螢幕閱讀器上完全不存在，而評價表單是少數使用者真的會用鍵盤填的表單
- * （打完長文字後習慣用 Tab 移動）。radio 讓方向鍵、Tab、
- * 以及「五選一」的語意全部免費得到。
- *
- * **模板必須是單一根節點，連根層的註解都不能有。**
- * 先前是 `<fieldset v-if>` 與 `<div v-else>` 兩個並列的根，
- * 那讓 Vue 把這個元件當成 fragment，而 fragment 拿不到父層傳進來的 class：
- * 伺服器渲染出 `class="relative inline-flex"`、客戶端卻是
- * `class="relative inline-flex justify-center opacity-40"`，於是 hydration mismatch。
- *
- * 修好之後又踩了一次同一個坑——根節點上方留了一段 HTML 註解，
- * 而註解在開發模式下是真實的節點，元件因此又變回 fragment。
- * 說明文字要寫在這裡，不是寫在 `<template>` 的根層。
+ * 星等。同時是「顯示」與「輸入」兩種用途。 **平均分要能顯示半顆星。** 4.3 分畫成 4 顆或 5 顆都是在說謊， 而電商的評分摘要正是靠那個小數點取信於人。做法是疊兩層星星， 上層用 `width` 裁切——比用「半星圖示」通吃任意比例， 也不必為 4.3 與 4.7 準備兩種圖。 **輸入模式是原生 radio。** 用 div + click 做出來的星等在鍵盤與 螢幕閱讀器上完全不存在，而評價表單是少數使用者真的會用鍵盤填的表單 （打完長文字後習慣用 Tab 移動）。radio 讓方向鍵、Tab、 以及「五選一」的語意全部免費得到。 **模板必須是單一根節點，連根層的註解都不能有。** 先前是 `<fieldset v-if>` 與 `<div v-else>` 兩個並列的根， 那讓 Vue 把這個元件當成 fragment，而 fragment 拿不到父層傳進來的 class： 伺服器渲染出 `class="relative inline-flex"`、客戶端卻是 `class="relative inline-flex justify-center opacity-40"`，於是 hydration mismatch。 修好之後又踩了一次同一個坑——根節點上方留了一段 HTML 註解， 而註解在開發模式下是真實的節點，元件因此又變回 fragment。 說明文字要寫在這裡，不是寫在 `<template>` 的根層。
  */
 const props = withDefaults(defineProps<{
   /** 顯示模式的分數，可含小數 */

@@ -1,12 +1,6 @@
 package com.flashsale.domain.membership;
 
-/**
- * 積分異動的原因。
- *
- * <p>它同時是<b>冪等鍵的一部分</b>：`(user_id, reason, ref_no)` 唯一。
- * 因此同一張訂單可以有「完成入帳」與「退款扣回」兩筆而不衝突，
- * 但同一個原因對同一個單號只會有一筆——重放不會變成兩次入帳。
- */
+/** 積分異動的原因。 */
 public enum PointReason {
 
     /** 訂單送達入帳。ref_no 是訂單編號。 */

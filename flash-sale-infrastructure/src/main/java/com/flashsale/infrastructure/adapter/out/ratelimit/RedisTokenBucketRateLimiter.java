@@ -11,17 +11,7 @@ import org.springframework.stereotype.Component;
 import java.time.Clock;
 import java.util.List;
 
-/**
- * 令牌桶限流的 Redis 實作。
- *
- * <p><b>故障時放行（fail-open）</b>：Redis 不可用時直接放行，而非拒絕所有請求。
- * 這與庫存扣減的 fail-closed 策略相反，兩者的取捨依據是「失效的後果」：
- * <ul>
- *   <li>限流失效 → 少擋了一些刷單流量，後面還有庫存扣減這道真正的關卡</li>
- *   <li>庫存失效 → 直接超賣，是不可逆的業務損失</li>
- * </ul>
- * 降級策略不該一刀切，要看這道防線失守會付出什麼代價。
- */
+/** 令牌桶限流的 Redis 實作。 */
 @Component
 public class RedisTokenBucketRateLimiter implements UserRateLimiter {
 

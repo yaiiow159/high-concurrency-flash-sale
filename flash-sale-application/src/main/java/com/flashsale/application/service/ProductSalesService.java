@@ -20,12 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-/**
- * 銷量的計入與扣回。
- *
- * <p>訂單行記的是 SKU，而銷量聚合是<b>以商品為單位</b>——
- * 同一件商品的不同規格要合併計算，否則「暢銷商品」會被規格拆散。
- */
+/** 銷量的計入與扣回。 */
 @Service
 public class ProductSalesService implements ProductSalesUseCase {
 
@@ -61,13 +56,7 @@ public class ProductSalesService implements ProductSalesUseCase {
         return !byProduct.isEmpty() && salesRepository.applyReturn(returnNo, byProduct);
     }
 
-    /**
-     * 把訂單行的 SKU 換算成「商品 → 件數」。
-     *
-     * <p>訂單查不到時回 empty 而不是拋錯：往外丟會讓事件一直重試，
-     * 而重試永遠不會成功。銷量是顯示用的衍生資料，
-     * 漏記一筆的代價遠低於卡住整個分區——這是 fail-open。
-     */
+    /** 把訂單行的 SKU 換算成「商品 → 件數」。 */
     /** SKU → 件數，換算成商品 → 件數。同一件商品的不同規格要合併。 */
     private Map<Long, Integer> toProductQuantities(Map<Long, Integer> quantityBySku) {
         Map<Long, Product> productBySku = Product.bySkuId(productRepository

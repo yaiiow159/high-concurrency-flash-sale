@@ -7,21 +7,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-/**
- * Redisson 客戶端配置。
- *
- * <p><b>為什麼手動建立而不用 {@code redisson-spring-boot-starter}？</b>
- * 該 starter 會連帶引入 {@code redisson-spring-data-3x}，並試圖接管
- * {@code RedisConnectionFactory}。這會造成兩個問題：
- * <ol>
- *   <li>Redisson 與 Spring Boot 的版本必須嚴格對應，升級 Boot 時常被卡住</li>
- *   <li>整個 Redis 存取層被換成 Redisson 實作，而我們的熱路徑是為 Lettuce 調校的</li>
- * </ol>
- *
- * <p>本專案只需要 Redisson 的<b>分散式鎖</b>這一項能力，
- * 因此讓它以獨立客戶端存在，一般讀寫仍走 Lettuce。
- * 職責單一，升級時互不牽連。
- */
+/** Redisson 客戶端配置。 */
 @Configuration
 public class RedissonConfig {
 

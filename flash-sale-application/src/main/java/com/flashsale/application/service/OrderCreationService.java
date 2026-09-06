@@ -18,21 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.util.Optional;
 
-/**
- * 建單服務——削峰後的慢車道，由 MQ 消費端驅動。
- *
- * <p>與 {@link SeckillApplicationService} 的關鍵差異：這裡<b>有</b>資料庫交易，
- * 因為訂單落庫與 Outbox 事件必須原子一致（見 ADR-0004）。
- * 消費端的併發度受控（由分區數決定），DB 壓力因此可預測，
- * 不會像同步下單那樣被前端流量直接沖垮。
- *
- * <p><b>三層冪等</b>：
- * <ol>
- *   <li>Redis Lua 的 requestId 判重（擋掉使用者連點）</li>
- *   <li>此處的 {@code saveIfAbsent}（擋掉 MQ 重複投遞）</li>
- *   <li>資料庫 {@code request_id} 唯一索引（前兩層都失效時的最終防線）</li>
- * </ol>
- */
+/** 建單服務——削峰後的慢車道，由 MQ 消費端驅動。 */
 @Service
 public class OrderCreationService implements OrderCreationUseCase {
 

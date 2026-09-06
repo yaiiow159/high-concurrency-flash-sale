@@ -7,34 +7,21 @@ import java.time.Duration;
 import java.util.List;
 import java.util.function.Consumer;
 
-/**
- * 庫存埠（出站）。
- *
- * <p>實作必須保證 {@link #deduct} 的<b>原子性</b>：判重、檢查餘量、檢查限購、扣減、
- * 記錄請求五個動作必須在同一個不可中斷的單元內完成。Redis 實作以 Lua 腳本達成；
- * 任何「先 GET 再 DECR」的實作都會超賣，{@code NoOversellConcurrencyTest} 會抓出來。
- */
+/** 庫存埠（出站）。 */
 public interface StockRepository {
 
     /**
      * 原子扣減庫存並將本次扣減綁定到指定訂單號。
      *
      * @param requestId 端到端冪等鍵；重送相同 requestId 不會二次扣減，
-     *                  且會回傳首次扣減時綁定的訂單號
+     * 且會回傳首次扣減時綁定的訂單號
      * @param orderNo   本次請求預先產生的訂單號
      * @return 扣減結果。不拋例外——由呼叫端決定如何映射為業務語意
      */
     StockDeductionResult deduct(Long activityId, Long userId, int quantity,
                                int perUserLimit, String requestId, String orderNo);
 
-    /**
-     * 補償：把先前扣減的庫存退回（Saga 補償動作）。
-     *
-     * <p>必須冪等——以 {@code requestId} 判斷是否真的扣過，重複呼叫只會退一次。
-     * 補償排程與 DLQ 消費端都可能對同一筆訂單發起補償，這裡的冪等是最後保險。
-     *
-     * @return {@code true} 表示本次確實退回了庫存；{@code false} 表示先前未扣減或已退過
-     */
+    /** 補償：把先前扣減的庫存退回（Saga 補償動作）。 */
     boolean restore(Long activityId, Long userId, int quantity, String requestId);
 
     /**
@@ -47,30 +34,9 @@ public interface StockRepository {
     /** 目前可用餘量；活動未預熱時回傳 {@code -1}（與「餘量為 0」明確區分）。 */
     long availableStock(Long activityId);
 
-    /**
-     * 丟棄此活動的所有庫存鍵（餘量、限購計數、扣減憑證）。
-     *
-     * <p>活動結束並把未售出的量釋放回 MySQL 之後才可呼叫——
-     * 提早丟棄會讓尚未跑完的補償退到一個沒人看的新鍵，那筆庫存就真的消失了。
-     * 呼叫時機由 {@code stockKeyTtlBuffer} 界定。
-     *
-     * <p>不呼叫也不會壞事（鍵本來就有 TTL），這個方法只是讓 Redis 早點回收記憶體。
-     */
+    /** 丟棄此活動的所有庫存鍵（餘量、限購計數、扣減憑證）。 */
     void discard(Long activityId);
 
-    /**
-     * 分批掃描此活動所有「已扣減庫存」的請求綁定，供對帳找出孤兒扣減。
-     *
-     * <p><b>設計成回呼而非回傳整份清單</b>：一場大促的綁定數量等同訂單數，
-     * 可能有數十萬筆。一次全撈進記憶體，對帳排程自己就會變成故障源。
-     * 回呼讓記憶體用量固定在單批大小，與活動規模無關。
-     *
-     * <p>實作必須使用漸進式掃描（Redis 的 {@code HSCAN}），
-     * <b>不可用 {@code HGETALL}</b>——後者會阻塞 Redis 單執行緒直到整個 hash 讀完，
-     * 在秒殺進行中執行等同一次自我攻擊。
-     *
-     * @param batchSize     單批筆數
-     * @param batchConsumer 每批的處理邏輯
-     */
+    /** 分批掃描此活動所有「已扣減庫存」的請求綁定，供對帳找出孤兒扣減。 */
     void scanBindings(Long activityId, int batchSize, Consumer<List<StockBinding>> batchConsumer);
 }

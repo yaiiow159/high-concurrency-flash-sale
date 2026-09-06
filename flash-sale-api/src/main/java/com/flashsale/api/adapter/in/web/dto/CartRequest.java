@@ -4,11 +4,7 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 
-/**
- * 加入購物車 / 調整數量的請求體。
- *
- * <p>沒有價格欄位——價格由目錄決定。也沒有 userId——身分來自令牌。
- */
+/** 加入購物車 / 調整數量的請求體。 */
 public record CartRequest(
 
         @NotNull(message = "skuId 不可為空")

@@ -7,33 +7,13 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.Objects;
 
-/**
- * 秒殺活動聚合根。
- *
- * <p><b>職責邊界</b>：本聚合只負責「這筆請求在業務規則上允不允許」，
- * <b>不</b>持有即時庫存餘量。餘量是高頻變動的熱點資料，由 Redis 承擔
- * （見 {@code StockRepository}）；聚合內的 {@code totalStock} 僅為活動配置的初始總量，
- * 用於初始化與對帳，不參與扣減判斷。
- *
- * <p>此設計刻意偏離「聚合內強一致」的教科書式建議：秒殺場景下把庫存放進聚合，
- * 等同把每次扣減變成一次資料庫悲觀鎖，吞吐會塌陷。詳見 ADR-0002。
- */
+/** 秒殺活動聚合根。 */
 public final class SeckillActivity {
 
     private final Long id;
-    /**
-     * 此活動販售的 SKU。
-     *
-     * <p>指向 SKU 而非 SPU：庫存與價格都掛在 SKU 上（見 Catalog 脈絡），
-     * 指向 SPU 的話「賣的是 256G 還是 512G」就無從確定。
-     */
+    /** 此活動販售的 SKU。 */
     private final Long skuId;
-    /**
-     * 商品名稱快照。
-     *
-     * <p>刻意冗餘：熱路徑不能為了顯示商品名去 join Catalog，
-     * 而活動一旦開賣，商品改名也不該影響進行中的活動。
-     */
+    /** 商品名稱快照。 */
     private final String productName;
     private final BigDecimal seckillPrice;
     private final int totalStock;
@@ -58,14 +38,7 @@ public final class SeckillActivity {
         return new Builder();
     }
 
-    /**
-     * 檢查此活動當下是否可被搶購，不可搶購時直接拋出帶有精確錯誤碼的業務例外。
-     *
-     * <p>採「拋例外」而非回傳布林，是為了讓呼叫端無法忽略失敗原因——
-     * 前端需要區分「尚未開始」與「已結束」以顯示不同文案。
-     *
-     * @param now 由呼叫端注入的時間，讓此方法保持可測試（不直接讀系統時鐘）
-     */
+    /** 檢查此活動當下是否可被搶購，不可搶購時直接拋出帶有精確錯誤碼的業務例外。 */
     public void ensurePurchasableAt(Instant now) {
         if (status != ActivityStatus.ONLINE) {
             throw new BusinessException(ErrorCode.ACTIVITY_OFFLINE);
@@ -89,24 +62,12 @@ public final class SeckillActivity {
         }
     }
 
-    /**
-     * 上架。
-     *
-     * <p>回傳新實例而不是就地改狀態——這個聚合根刻意全欄位 final。
-     * 熱路徑上每個請求都會讀到它（多級快取裡也放著同一個物件），
-     * 可變的話就得為每一次讀取擔心可見性。
-     */
+    /** 上架。 */
     public SeckillActivity publish() {
         return withStatus(ActivityStatus.ONLINE);
     }
 
-    /**
-     * 下架。
-     *
-     * <p><b>下架只擋住新的搶購，不會動已經扣掉的庫存。</b>
-     * 已成立的訂單照常付款出貨；要收回庫存是另一件事（活動結束後的釋放）。
-     * 把兩者綁在一起，緊急下架就會變成一個沒有人敢按的按鈕。
-     */
+    /** 下架。 */
     public SeckillActivity takeOffline() {
         return withStatus(ActivityStatus.OFFLINE);
     }

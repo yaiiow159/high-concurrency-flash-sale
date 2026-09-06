@@ -21,19 +21,9 @@ import java.util.Objects;
 /**
  * 訂單聚合根。
  *
- * <p>取代先前的單品項 {@code SeckillOrder}。秒殺訂單現在是
- * <b>「只有一條 line 的 Order」</b>——特例，不是另一種型別。
- * 沒有子類別、沒有多型：付款、履約、退款、對帳這些下游只認得一種訂單，
- * 才不會每新增一個下游就多一處分支（見 ADR-0007）。
- *
- * <p><b>金額反正規化存下來，而非每次由 lines 計算。</b>
- * 這樣做的前提是「訂單建立後金額不可變」——lines 不會增減、單價不會變，
- * 部分退款產生獨立的退款紀錄而非修改原訂單。
- * 因此「儲存值與計算值不一致」的風險為零。
- * <b>這條規則必須守住</b>，否則反正規化就從最佳化變成資料完整性風險。
- *
- * <p>所有狀態變更都必須經由行為方法，狀態欄位不對外開放 setter；
- * 非法轉移在聚合內就被擋下，不依賴呼叫端自律。
+ * <p><b>建立後金額與訂單行不可變</b>——{@code totalAmount} 是反正規化的加總，
+ * 這個前提被打破它就從最佳化變成資料完整性風險。運費不進 {@code totalAmount}，
+ * 付款金額用 {@link #payableAmount()}。
  */
 public final class Order {
 
@@ -45,29 +35,11 @@ public final class Order {
     private final List<OrderLine> lines;
     private final BigDecimal totalAmount;
 
-    /**
-     * 運費。<b>不計入 {@link #totalAmount}</b>（ADR-0019 決策 1）。
-     *
-     * <p>那條恆等式（{@code totalAmount == Σ allocatedAmount}）是退款按行退的基礎，
-     * 而運費不分攤到行——三件商品一起寄，退掉其中一件，
-     * 配送已經發生了，沒有「三分之一趟」這種東西。
-     *
-     * <p>已經扣掉免運折抵，是<b>實際要收的</b>那個數字。
-     */
+    /** 運費。<b>不計入 {@link #totalAmount}</b>（ADR-0019 決策 1）。 */
     private final BigDecimal shippingFee;
 
     private final ShippingMethod shippingMethod;
-    /**
-     * 收貨資訊快照，可能為 null。
-     *
-     * <p>秒殺訂單在建立當下沒有地址——搶購請求只帶活動與數量，
-     * 中間沒有讓使用者選地址的環節。那不是遺漏，是那條通道的形狀：
-     * 削峰的前提就是把非必要的步驟移出下單當下。
-     * 秒殺訂單的收貨資訊要在付款前補齊，屬於結帳流程的範圍。
-     *
-     * <p><b>一旦有值就不可再變</b>（{@code OrderEntity} 以
-     * {@code updatable = false} 鎖住），理由見 {@link ShippingInfo}。
-     */
+    /** 收貨資訊快照，可能為 null。 */
     private final ShippingInfo shippingInfo;
     private final Instant createdAt;
 
@@ -76,13 +48,7 @@ public final class Order {
     private String closeReason;
     private final long version;
 
-    /**
-     * 已套用的折扣<b>明細</b>，不是總額。
-     *
-     * <p>存明細是因為客服要回答的是「為什麼折了 320」而不是「折了多少」。
-     * 而優惠會下架、券會過期、規則會改——這份清單是快照，
-     * 與 {@code OrderLine} 的商品名稱與單價同一個道理。
-     */
+    /** 已套用的折扣<b>明細</b>，不是總額。 */
     private final List<OrderDiscount> discounts;
 
     private final List<DomainEvent> domainEvents = new ArrayList<>();
@@ -115,25 +81,14 @@ public final class Order {
      *
      * @param requestId    冪等鍵，由呼叫端產生，用於擋重複提交
      * @param shippingInfo 收貨資訊<b>快照</b>，不可為 null——寄不出去的訂單不該被建立。
-     *                     傳入的必須是快照而非地址簿的引用，理由見 {@link ShippingInfo}
+     * 傳入的必須是快照而非地址簿的引用，理由見 {@link ShippingInfo}
      */
     public static Order place(OrderNo orderNo, Long userId, String requestId,
                               List<OrderLine> lines, ShippingInfo shippingInfo, Instant now) {
         return place(orderNo, userId, requestId, lines, shippingInfo, List.of(), sumOf(lines), now);
     }
 
-    /**
-     * 建立帶優惠的訂單。
-     *
-     * <p><b>折扣存的是明細不是總額</b>（ADR-0013 決策 3）。
-     * 客服要回答的是「為什麼折了 320」，那需要知道是哪幾個優惠、各折多少。
-     * 而優惠會下架、券會過期、規則會改——存 {@code promotionId} 讓畫面自己去查，
-     * 就是 {@code OrderLine} 的快照已經解決過的同一個問題。
-     *
-     * @param payable 折後應付。由 {@code PricingEngine} 算出後傳入，
-     *                聚合根不自己算——計算引擎是純函式，把它塞進聚合根
-     *                會讓「建立訂單」這件事跟著優惠規則一起變複雜
-     */
+    /** 建立帶優惠的訂單。 */
     public static Order place(OrderNo orderNo, Long userId, String requestId,
                               List<OrderLine> lines, ShippingInfo shippingInfo,
                               List<OrderDiscount> discounts, BigDecimal payable, Instant now) {
@@ -145,9 +100,9 @@ public final class Order {
      * 建立帶運費的訂單。
      *
      * @param shippingFee 已扣掉免運折抵的<b>實收</b>運費。
-     *                    它<b>不進</b> {@code payable}——那條恆等式
-     *                    （各行實付加總 == 折後應付）是退款按行退的基礎，
-     *                    而運費不分攤到行（ADR-0019 決策 1）
+     * 它<b>不進</b> {@code payable}——那條恆等式
+     * （各行實付加總 == 折後應付）是退款按行退的基礎，
+     * 而運費不分攤到行（ADR-0019 決策 1）
      */
     public static Order place(OrderNo orderNo, Long userId, String requestId,
                               List<OrderLine> lines, ShippingInfo shippingInfo,
@@ -185,12 +140,7 @@ public final class Order {
         return order;
     }
 
-    /**
-     * 建立秒殺訂單——只有一條 line 的 {@link Order}。
-     *
-     * <p>金額與商品快照都由活動聚合提供，不接受呼叫端傳入：
-     * 前端若能決定價格，那就不叫價格了。
-     */
+    /** 建立秒殺訂單——只有一條 line 的 {@link Order}。 */
     public static Order forSeckill(OrderNo orderNo, SeckillActivity activity, Long userId,
                                    String requestId, int quantity, Instant now) {
         activity.ensureQuantityWithinLimit(quantity);
@@ -211,11 +161,7 @@ public final class Order {
         return order;
     }
 
-    /**
-     * 從持久化狀態重建，<b>不</b>產生領域事件。
-     *
-     * <p>與建立方法明確分離，避免 repository 載入既有訂單時誤觸發事件。
-     */
+    /** 從持久化狀態重建，<b>不</b>產生領域事件。 */
     public static Order restore(OrderNo orderNo, Long userId, OrderChannel channel, String requestId,
                                 List<OrderLine> lines, BigDecimal totalAmount,
                                 ShippingInfo shippingInfo, OrderStatus status,
@@ -252,13 +198,7 @@ public final class Order {
         registerEvent(OrderPaidEvent.of(this, paidAt));
     }
 
-    /**
-     * 出貨。
-     *
-     * <p>這是<b>不可逆的分水嶺</b>：出貨前買家可自由取消（退錢退庫存都來得及），
-     * 出貨後必須走退貨流程——貨在路上，庫存不能直接退回可售池。
-     * 狀態機用 {@code SHIPPED} 不允許轉回 {@code CANCELLED} 把這件事釘死。
-     */
+    /** 出貨。 */
     public void ship(Instant shippedAt) {
         transitionTo(OrderStatus.SHIPPED);
         registerEvent(OrderShippedEvent.of(this, shippedAt));
@@ -270,17 +210,7 @@ public final class Order {
         registerEvent(OrderCompletedEvent.of(this, completedAt));
     }
 
-    /**
-     * 標記為全額退款完成。
-     *
-     * <p><b>刻意不發出任何事件。</b>庫存回補與退款都已經由退貨流程處理過了
-     * （ADR-0011），這裡只是把訂單的狀態校正到與事實一致。
-     * 若發出 {@code OrderCancelledEvent}，補償服務會再退一次庫存——
-     * 那是超賣。
-     *
-     * <p>由應用層在確認「所有訂單行都退完」之後呼叫。
-     * 訂單自己不知道有幾張退貨單，也不該知道。
-     */
+    /** 標記為全額退款完成。 */
     public void markFullyRefunded(String reason, Instant now) {
         transitionTo(OrderStatus.REFUNDED);
         this.closeReason = reason;
@@ -309,11 +239,7 @@ public final class Order {
         return userId.equals(candidateUserId);
     }
 
-    /**
-     * 此訂單佔用了某活動多少數量。
-     *
-     * <p>對帳用。走 lines 而非單一欄位，因為一張訂單理論上可含多條同活動的行。
-     */
+    /** 此訂單佔用了某活動多少數量。 */
     public int quantityFromActivity(Long activityId) {
         return lines.stream()
                 .filter(line -> line.isFromActivity(activityId))
@@ -405,14 +331,7 @@ public final class Order {
         return shippingMethod;
     }
 
-    /**
-     * 這張訂單總共要付多少：商品折後 + 運費。
-     *
-     * <p><b>付款與退款上限用這個，不是 {@link #totalAmount}。</b>
-     * 用 totalAmount 的話運費就收不到，而且<b>沒有任何東西會發現</b>——
-     * 付款成功、訂單完成、貨也寄了，只有月底對帳時發現每一單都少收幾十元
-     * （ADR-0019 決策 2）。
-     */
+    /** 這張訂單總共要付多少：商品折後 + 運費。 */
     public BigDecimal payableAmount() {
         return totalAmount.add(shippingFee);
     }

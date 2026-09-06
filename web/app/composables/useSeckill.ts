@@ -2,14 +2,7 @@ import { useApi, ApiError } from '~/composables/useApi'
 import type { ActivityView, OrderView, SeckillOutcome, SeckillTicket } from '~/types/api'
 
 /**
- * 訂單輪詢的分層節奏。
- *
- * 剛送出時消費端多半在數百毫秒內就落庫，因此前段密集；
- * 之後拉長間隔避免對後端造成不必要的壓力。
- *
- * **必須有上限。** 無限輪詢在尖峰時會變成第二波流量——
- * 而且是打在系統已經很吃力的時候。超過上限就請使用者去訂單頁看，
- * 那是一次由使用者主導、分散在時間軸上的查詢。
+ * 訂單輪詢的分層節奏。 剛送出時消費端多半在數百毫秒內就落庫，因此前段密集； 之後拉長間隔避免對後端造成不必要的壓力。 **必須有上限。** 無限輪詢在尖峰時會變成第二波流量—— 而且是打在系統已經很吃力的時候。超過上限就請使用者去訂單頁看， 那是一次由使用者主導、分散在時間軸上的查詢。
  */
 const ORDER_POLL_SCHEDULE = [
   { untilMillis: 10_000, intervalMillis: 1_000 },
@@ -32,14 +25,7 @@ export function useSeckill(activityId: number) {
   let stockTimer: ReturnType<typeof setTimeout> | null = null
 
   /**
-   * 以 SSR 取得的活動作為初始畫面，避免首屏空白。
-   *
-   * 存在的理由是 `activity` 對外是 readonly——只有這個 composable
-   * 能改它的狀態。頁面若能直接賦值，庫存輪詢與使用者操作就多了一個
-   * 不受控的寫入點，而那正是「畫面數字和實際庫存對不上」的來源。
-   *
-   * <b>不覆寫已載入的資料</b>：SSR 那份可能來自 ISR 快取，
-   * 有可能比客戶端剛抓到的還舊。
+   * 以 SSR 取得的活動作為初始畫面，避免首屏空白。 存在的理由是 `activity` 對外是 readonly——只有這個 composable 能改它的狀態。頁面若能直接賦值，庫存輪詢與使用者操作就多了一個 不受控的寫入點，而那正是「畫面數字和實際庫存對不上」的來源。 <b>不覆寫已載入的資料</b>：SSR 那份可能來自 ISR 快取， 有可能比客戶端剛抓到的還舊。
    */
   function seedFromServerRender(view: ActivityView): void {
     if (activity.value === null) {
@@ -55,12 +41,7 @@ export function useSeckill(activityId: number) {
     activity.value = view
   }
 
-  /**
-   * 庫存輪詢。
-   *
-   * 售罄後停止：再問也不會變，而售罄正是流量最大的時刻——
-   * 此時每個瀏覽器都在輪詢，等於對自己發動一次攻擊。
-   */
+  /** 庫存輪詢。 售罄後停止：再問也不會變，而售罄正是流量最大的時刻—— 此時每個瀏覽器都在輪詢，等於對自己發動一次攻擊。 */
   function startStockPolling(): void {
     stopStockPolling()
     const tick = async () => {
@@ -83,12 +64,7 @@ export function useSeckill(activityId: number) {
     }
   }
 
-  /**
-   * 發起搶購。
-   *
-   * `requestId` 由前端產生，是整條鏈路的冪等鍵——
-   * 網路逾時後重送相同的值，後端只會扣一次庫存並回傳同一張訂單。
-   */
+  /** 發起搶購。 `requestId` 由前端產生，是整條鏈路的冪等鍵—— 網路逾時後重送相同的值，後端只會扣一次庫存並回傳同一張訂單。 */
   async function attempt(quantity = 1): Promise<void> {
     if (submitting.value) {
       return
@@ -117,13 +93,7 @@ export function useSeckill(activityId: number) {
     }
   }
 
-  /**
-   * 輪詢訂單直到落庫或逾時。
-   *
-   * 後端在訂單尚未落庫時回 `processing: true` 而非 404——
-   * 這個區別很重要：404 會讓使用者以為沒搶到，
-   * 但庫存其實已經是他的了。
-   */
+  /** 輪詢訂單直到落庫或逾時。 後端在訂單尚未落庫時回 `processing: true` 而非 404—— 這個區別很重要：404 會讓使用者以為沒搶到， 但庫存其實已經是他的了。 */
   async function pollOrder(orderNo: string): Promise<void> {
     const startedAt = Date.now()
 
