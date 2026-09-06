@@ -11,13 +11,35 @@ final class ProductListingQuery {
     private ProductListingQuery() {
     }
 
+    /** 依排行排序時的驅動表；其餘為 null，代表由 product 驅動。 */
+    private static String rankingTable(ProductSort sort) {
+        return switch (sort) {
+            case BEST_SELLING -> "product_sales ps";
+            case RATING -> "product_rating pr";
+            case NEWEST, PRICE_ASC, PRICE_DESC -> null;
+        };
+    }
+
+    private static String rankingAlias(ProductSort sort) {
+        return sort == ProductSort.BEST_SELLING ? "ps" : "pr";
+    }
+
+    /**
+     * 決勝鍵要用驅動表自己的那一欄：{@code p.id} 與 {@code ps.product_id} 值相同，
+     * 但 MySQL 不知道，寫成前者排序就落不到排行索引上。
+     */
+    private static String tieBreaker(ProductSort sort) {
+        String ranking = rankingTable(sort);
+        return ranking == null ? "p.id" : rankingAlias(sort) + ".product_id";
+    }
+
     /** 排序值的 SQL 運算式；依 id 排序時為 {@code null}。 */
     static String sortExpression(ProductSort sort) {
         return switch (sort) {
             case NEWEST -> null;
             case PRICE_ASC, PRICE_DESC -> "p.lowest_price";
-            case BEST_SELLING -> "coalesce(ps.sold_quantity, 0)";
-            case RATING -> "coalesce(pr.rating_sum / nullif(pr.rating_count, 0), 0)";
+            case BEST_SELLING -> "ps.sold_quantity";
+            case RATING -> "pr.average_rating";
         };
     }
 
@@ -26,17 +48,24 @@ final class ProductListingQuery {
         String sortValue = sortExpression(sort);
         // 排序值要跟著回來——下一頁的游標需要它。
         // 少了這一欄，非唯一排序鍵的游標就組不出來，而那要翻到第二頁才會發現
-        StringBuilder sql = new StringBuilder("select p.id, p.category_id, p.name, p.brand, ")
+        String ranking = rankingTable(sort);
+        StringBuilder sql = new StringBuilder("select ")
+                .append(ranking == null ? "" : "straight_join ")
+                .append("p.id, p.category_id, p.name, p.brand, ")
                 .append(sortValue == null ? "null" : sortValue)
-                .append(" as sort_value from product p ");
+                .append(" as sort_value from ");
 
-        // 只在需要的時候 join。銷量與評分各是一張表，
-        // 依 id 排序時把它們拉進來只是白付一次 join
-        if (sort == ProductSort.BEST_SELLING) {
-            sql.append("left join product_sales ps on ps.product_id = p.id\n");
-        }
-        if (sort == ProductSort.RATING) {
-            sql.append("left join product_rating pr on pr.product_id = p.id\n");
+        // 依排行排序時由排行表驅動：反過來的話排序鍵在 join 進來的表上，
+        // MySQL 只能掃完全部商品再 filesort。straight_join 是必要的——
+        // optimizer 會因為 status 的選擇度堅持先掃 product，那讓排行索引完全用不到。
+        //
+        // 依賴「每個商品都有一列排行」這條不變量（V31 建立、
+        // JpaProductRepository.save 維持）。
+        if (ranking == null) {
+            sql.append("product p ");
+        } else {
+            sql.append(ranking).append(" join product p on p.id = ")
+                    .append(rankingAlias(sort)).append(".product_id").append('\n');
         }
 
         sql.append("where p.status = 'ON_SHELF'\n");
@@ -73,8 +102,8 @@ final class ProductListingQuery {
         String comparison = ascending(sort) ? ">" : "<";
         // 展開成兩段而不是 row constructor：價格升冪時 id 仍然降冪，
         // 而 (a, b) > (?, ?) 沒辦法讓兩欄各走各的方向
-        return "(%s %s :cursorSort or (%s = :cursorSort and p.id < :cursorId))"
-                .formatted(expression, comparison, expression);
+        return "(%s %s :cursorSort or (%s = :cursorSort and %s < :cursorId))"
+                .formatted(expression, comparison, expression, tieBreaker(sort));
     }
 
     private static String orderBy(ProductSort sort) {
@@ -82,9 +111,10 @@ final class ProductListingQuery {
         if (expression == null) {
             return "p.id desc";
         }
-        // id 永遠降冪當決勝鍵，與 keyset 判斷式裡的 `p.id < :cursorId` 一致。
+        // id 永遠降冪當決勝鍵，與 keyset 判斷式用同一欄。
         // 兩邊不一致的話分頁會跳號，而那要翻到第幾頁才看得出來
-        return "%s %s, p.id desc".formatted(expression, ascending(sort) ? "asc" : "desc");
+        return "%s %s, %s desc"
+                .formatted(expression, ascending(sort) ? "asc" : "desc", tieBreaker(sort));
     }
 
     private static boolean ascending(ProductSort sort) {
