@@ -85,7 +85,9 @@ watch(() => auth.isAuthenticated, (authenticated) => {
   }
 })
 
-useHead({ title: '會員中心' })
+const { seo } = useSeo()
+// 個人化頁面：被搜尋引擎收錄等於把這種路徑公開在搜尋結果上
+seo({ title: '會員中心', noindex: true })
 </script>
 
 <template>

@@ -17,6 +17,11 @@ export default defineNuxtConfig({
   runtimeConfig: {
     // 僅伺服器端可見：BFF 用它呼叫後端，瀏覽器永遠拿不到
     apiBase: process.env.NUXT_API_BASE || 'http://localhost:8080',
+    public: {
+      // 對外網址。沒設就從請求標頭推——寫死的話同一份產物部署到
+      // 測試環境會產生指向正式站的 sitemap 與 canonical
+      siteUrl: process.env.NUXT_PUBLIC_SITE_URL || '',
+    },
   },
 
   /**
@@ -26,6 +31,10 @@ export default defineNuxtConfig({
     // `isr` 與 `cache` 兩個都要給：`isr` 是平台層指示（Vercel/Netlify 才讀），
     // 自架的 node-server 只認 `cache`。只寫 isr 的話實測完全沒有快取。
     '/': { isr: 60, cache: { maxAge: 60 } },
+    // sitemap 每次都要查資料庫，而爬蟲會反覆打。一小時的快取足夠新鮮
+    '/sitemap.xml': { cache: { maxAge: 3600 } },
+    '/sitemap/**': { cache: { maxAge: 3600 } },
+    '/robots.txt': { cache: { maxAge: 86400 } },
     '/seckill/**': { isr: 300, cache: { maxAge: 300 } },
 
     // 商品頁同樣可快取：回應不含庫存也不含身分（庫存另外請求）。

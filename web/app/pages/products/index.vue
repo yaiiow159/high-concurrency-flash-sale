@@ -219,7 +219,12 @@ onMounted(loadRatings)
 // 切換類目時商品換了一批，星等要跟著重取
 watch(products, () => { void loadRatings() })
 
-useHead({ title: '全部商品' })
+const { seo } = useSeo()
+seo({
+  title: '全部商品',
+  description: '依類目、價格與評分瀏覽全站商品。',
+  path: '/products',
+})
 </script>
 
 <template>

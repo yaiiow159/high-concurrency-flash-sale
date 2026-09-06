@@ -68,7 +68,9 @@ function describe(coupon: ClaimableCouponView): string {
   return `${threshold}折 ${coupon.value.toLocaleString()} 元`
 }
 
-useHead({ title: '領券中心' })
+const { seo } = useSeo()
+// 個人化頁面：被搜尋引擎收錄等於把這種路徑公開在搜尋結果上
+seo({ title: '領券中心', noindex: true })
 </script>
 
 <template>

@@ -34,6 +34,12 @@ public interface CatalogQueryUseCase {
                              BigDecimal minPrice, BigDecimal maxPrice, int size);
 
     /** 批次查庫存。 */
+    /** sitemap 用：上架商品的 id 與總數。 */
+    SitemapPage sitemapProductIds(int page, int size);
+
+    record SitemapPage(List<Long> productIds, long total) {
+    }
+
     /** 依 id 批次取上架商品，順序不保證，呼叫端自己排。 */
     List<ProductView> findProductsByIds(List<Long> productIds);
 
