@@ -55,6 +55,32 @@ public class JpaProductQuestionRepository implements ProductQuestionRepository {
     }
 
     @Override
+    @Transactional
+    public int answerIfUnanswered(Long questionId, String answer, Long answeredBy,
+                                  Instant answeredAt) {
+        return entityManager.createNativeQuery("""
+                        update product_question set answer = :answer, answered_by = :answeredBy,
+                            answered_at = :answeredAt, published = 1
+                        where id = :id and answered_at is null
+                        """)
+                .setParameter("id", questionId)
+                .setParameter("answer", answer)
+                .setParameter("answeredBy", answeredBy)
+                .setParameter("answeredAt", Timestamp.from(answeredAt))
+                .executeUpdate();
+    }
+
+    @Override
+    @Transactional
+    public void setPublished(Long questionId, boolean published) {
+        entityManager.createNativeQuery(
+                        "update product_question set published = :published where id = :id")
+                .setParameter("id", questionId)
+                .setParameter("published", published ? 1 : 0)
+                .executeUpdate();
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public Optional<ProductQuestion> findById(Long questionId) {
         @SuppressWarnings("unchecked")

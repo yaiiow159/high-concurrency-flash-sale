@@ -10,6 +10,7 @@ import type {
  * 首頁。版位順序、標題與內容全部由後台設定決定（`/api/v1/home`），
  * 這一頁只負責把每種版位畫出來。
  */
+const { loadStatus } = useWishlist()
 const { data: layoutData } = await useFetch<ApiResponse<HomeLayoutView>>('/api/v1/home')
 const { data: activityData } = await useFetch<ApiResponse<ActivityView[]>>('/api/v1/activities')
 const { data: categoryData } = await useFetch<ApiResponse<CategoryView[]>>(
@@ -50,6 +51,9 @@ async function loadDecorations() {
     ])
     ratings.value = rating
     images.value = image
+    // 收藏狀態一次問完。少了這一步，列表上的愛心永遠是空心的，
+    // 而且因為狀態恆為「未收藏」，從列表也取消不了收藏
+    await loadStatus([...new Set(ids)])
   } catch (cause) {
     // fail-open：評分或圖片掛掉不該讓人連首頁都看不到
     ratings.value = {}

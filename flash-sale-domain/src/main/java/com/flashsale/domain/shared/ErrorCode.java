@@ -37,6 +37,7 @@ public enum ErrorCode {
     INSUFFICIENT_POINTS("B0049", "積分不足"),
     SHIPPING_RATE_NOT_FOUND("B0050", "找不到適用的運費級距"),
     QUESTION_NOT_FOUND("B0052", "問題不存在"),
+    QUESTION_ALREADY_ANSWERED("B0053", "這題剛剛已經被其他人回答了"),
     SOLD_OUT("B0005", "商品已售罄"),
     USER_PURCHASE_LIMIT_EXCEEDED("B0006", "已達個人限購數量"),
     ORDER_NOT_FOUND("B0007", "訂單不存在"),

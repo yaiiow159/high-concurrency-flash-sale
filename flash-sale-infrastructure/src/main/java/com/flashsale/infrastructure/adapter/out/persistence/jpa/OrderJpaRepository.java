@@ -68,4 +68,18 @@ public interface OrderJpaRepository extends JpaRepository<OrderEntity, Long> {
     /** 批次查詢存在的訂單號，供對帳比對孤兒扣減。 */
     @Query("select o.orderNo from OrderEntity o where o.orderNo in :orderNos")
     List<String> findExistingOrderNos(@Param("orderNos") Collection<String> orderNos);
+
+    /**
+     * 只更新內部註記，不載入實體。
+     *
+     * <p>走 managed entity 的話 dirty check 會連 {@code @Version} 一起推進，
+     * 於是客服寫註記時可能被同時發生的付款回呼撞成樂觀鎖衝突——
+     * 而內部註記本來就不該跟訂單狀態機共用一把鎖。
+     */
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.data.jpa.repository.Query(
+            "update OrderEntity o set o.staffNote = :note where o.orderNo = :orderNo")
+    int updateStaffNote(
+            @org.springframework.data.repository.query.Param("orderNo") String orderNo,
+            @org.springframework.data.repository.query.Param("note") String note);
 }

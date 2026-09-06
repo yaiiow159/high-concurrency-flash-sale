@@ -87,9 +87,13 @@ public class EngagementService implements EngagementUseCase {
      * 記一次瀏覽。
      *
      * <p>失敗不往外拋：瀏覽紀錄是附加價值，寫不進去不該讓商品頁打不開。
+     *
+     * <p><b>這裡刻意沒有 {@code @Transactional}。</b> 有的話這個 catch 是假的——
+     * 例外會讓外層交易被標成 rollback-only，吞掉之後仍然在提交時炸成
+     * {@code UnexpectedRollbackException}，使用者一樣拿到 500。
+     * 交易邊界在倉庫那一層，例外傳到這裡時已經回滾完畢，catch 才真的有效。
      */
     @Override
-    @Transactional
     public void recordView(Long userId, Long productId) {
         if (userId == null) {
             return;

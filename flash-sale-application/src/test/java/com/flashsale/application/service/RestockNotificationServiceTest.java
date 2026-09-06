@@ -33,12 +33,16 @@ import static org.mockito.Mockito.when;
 @DisplayName("到貨通知")
 class RestockNotificationServiceTest {
 
+    /** 與 RestockNotificationService.MAX_NOTIFY_PER_RESTOCK 一致。 */
+    private static final int MAX_NOTIFY = 500;
+
     private static final Clock CLOCK =
             Clock.fixed(Instant.parse("2026-09-06T00:00:00Z"), ZoneOffset.UTC);
 
     private RestockSubscriptionRepository subscriptions;
     private NotificationRepository notifications;
     private CatalogQueryUseCase catalog;
+    private RestockNotificationService.Notifier notifier;
     private RestockNotificationService service;
 
     @BeforeEach
@@ -46,7 +50,11 @@ class RestockNotificationServiceTest {
         subscriptions = mock(RestockSubscriptionRepository.class);
         notifications = mock(NotificationRepository.class);
         catalog = mock(CatalogQueryUseCase.class);
-        service = new RestockNotificationService(subscriptions, notifications, catalog, CLOCK);
+        // 交易邊界在 Notifier 上（拆成獨立 Bean 才會經過代理，鐵則 6），
+        // 所以測試也要照真實的組裝方式接起來
+        notifier = new RestockNotificationService.Notifier(
+                subscriptions, notifications, catalog, CLOCK);
+        service = new RestockNotificationService(subscriptions, catalog, notifier, CLOCK);
         when(catalog.findSkus(any())).thenReturn(List.of(new CatalogQueryUseCase.SkuLookup(
                 7L, 1L, "測試商品", "規格", BigDecimal.TEN, true)));
     }
@@ -142,6 +150,21 @@ class RestockNotificationServiceTest {
             // 消費端的 saveIfAbsent 靠它擋重複
             assertThat(saved.getValue().sourceEventId()).isEqualTo("restock-11");
             assertThat(saved.getValue().body()).contains("測試商品");
+        }
+
+        @Test
+        @DisplayName("一個 SKU 失敗不會拖垮整輪掃描")
+        void oneFailingSkuDoesNotStopTheScan() {
+            // 先前整輪包在一個交易裡，一筆爆掉就全部回滾——
+            // 而毒藥列會讓每一輪都在同一個地方失敗，到貨通知等於永久停擺
+            when(subscriptions.findRestockedSkuIds(anyInt())).thenReturn(List.of(7L, 8L));
+            when(subscriptions.findWaitersFor(7L, MAX_NOTIFY))
+                    .thenThrow(new RuntimeException("boom"));
+            when(subscriptions.findWaitersFor(8L, MAX_NOTIFY))
+                    .thenReturn(List.of(new Pending(11L, 1L)));
+            when(subscriptions.markNotified(any(), any())).thenReturn(1);
+
+            assertThat(service.notifyAllRestocked()).isEqualTo(1);
         }
 
         @Test

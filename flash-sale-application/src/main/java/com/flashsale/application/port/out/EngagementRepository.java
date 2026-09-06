@@ -31,4 +31,13 @@ public interface EngagementRepository {
      * <p>依同時看過兩件商品的人數排序，排除商品自己。
      */
     List<Long> findAlsoViewed(Long productId, int limit);
+
+    /**
+     * 刪掉過舊的瀏覽紀錄。
+     *
+     * <p>這張表只增不減的話會變成「看了又看」那個自連接的乘數。
+     *
+     * @return 刪除的列數
+     */
+    int purgeOldViews();
 }
