@@ -54,10 +54,28 @@ public class KafkaConsumerConfig {
     /** 不重試：第一次失敗就交給死信處理。 */
     private static final FixedBackOff NO_RETRY = new FixedBackOff(0L, 0L);
 
+    /**
+     * 建單主題。
+     *
+     * <p>分區數決定消費端的最大並行度。12 能被 1/2/3/4/6 整除，
+     * 讓消費者副本數在擴縮容時都能均勻分配分區。
+     *
+     * <h2>分區數同時是水平擴展的天花板</h2>
+     *
+     * <p>這是一個很容易漏掉的乘法：{@code SeckillOrderConsumer} 的
+     * {@code order-create-concurrency} 預設 6，代表<b>每個節點</b>開 6 條消費執行緒。
+     * 12 ÷ 6 = <b>2 個節點就用滿全部分區</b>；第 3 個節點加進來，
+     * 多出來的 6 條執行緒完全分不到分區，只是閒著。
+     *
+     * <p>也就是說「加機器就能加建單吞吐」這句話只在前兩台成立。
+     * 要再往上，得<b>先</b>把分區數調高——而 Kafka 的分區<b>只能增不能減</b>，
+     * 且增加分區會改變既有鍵的分區歸屬，順序保證在那個瞬間斷開一次。
+     * 因此這個數字是要規劃的，不是要調的。
+     *
+     * <p>單節點時這個限制看不出來：6 條執行緒各拿 2 個分區，一切正常。
+     */
     @Bean
     public NewTopic orderCreateTopic() {
-        // 分區數決定消費端的最大並行度。12 是一個能被 1/2/3/4/6 整除的數字，
-        // 讓消費者副本數在擴縮容時都能均勻分配分區。
         return TopicBuilder.name(KafkaTopics.ORDER_CREATE).partitions(12).replicas(1).build();
     }
 

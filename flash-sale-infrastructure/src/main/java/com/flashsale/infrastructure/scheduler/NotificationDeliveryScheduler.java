@@ -1,5 +1,6 @@
 package com.flashsale.infrastructure.scheduler;
 
+import com.flashsale.application.port.out.DistributedLock;
 import com.flashsale.application.port.out.MailSender;
 import com.flashsale.application.port.out.NotificationRepository;
 import com.flashsale.application.port.out.UserRepository;
@@ -14,6 +15,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 
@@ -25,6 +27,25 @@ import java.util.Optional;
  * 信箱掛掉而拖住整個分區。
  *
  * <p><b>單筆失敗不中斷整批。</b>一個信箱寄不出去，不該讓其他人的通知也卡著。
+ *
+ * <h2>跨節點互斥不是可選的</h2>
+ *
+ * <p>撈取與標記已寄之間隔著一次<b>真正的遠端呼叫</b>，中間沒有任何搶佔或租約。
+ * 兩個節點同時跑這個排程就會撈到同一批 {@code PENDING}，
+ * 各自寄一次——<b>使用者收到兩封一模一樣的信</b>，而系統這邊完全看不出異常：
+ * 兩邊都會把它標記成已寄，紀錄上只有一筆。
+ *
+ * <p>這是 CLAUDE.md 鐵則 4 點名的那一類動作：寄信、扣款、呼叫外部 API，
+ * 「重跑一次會怎樣」的答案不是「沒事」。冪等做不到的時候，就得靠互斥。
+ *
+ * <p><b>鎖要持有到整批寄完才釋放</b>，不是只包住撈取那一下。
+ * 提前釋放的話，另一個節點會接手撈到同一批還沒標記完成的通知，
+ * 於是又寄一次——那正是這把鎖要防的事。
+ * 因此 {@code tryExecuteWithLock} 包的是整個迴圈，不是 {@code findAwaitingDelivery}。
+ *
+ * <p>互斥的是<b>同時執行</b>，不是「每輪只有一個節點跑」。
+ * 節點 A 跑完釋放後節點 B 才開始，此時該寄的都已標記完成，B 會撈到空的——
+ * 對這個場景來說這樣就夠了。
  */
 @Component
 public class NotificationDeliveryScheduler {
@@ -45,20 +66,49 @@ public class NotificationDeliveryScheduler {
 
     private static final int BATCH_SIZE = 50;
 
+    private static final String LOCK_KEY = "seckill:lock:notification-delivery";
+
+    /**
+     * 租期上限。
+     *
+     * <p><b>目前的 Redisson 實作其實不看這個值</b>——它用看門狗自動續期到動作結束。
+     * 仍然照埠的簽章傳一個合理的值，與其他排程一致。
+     */
+    private static final Duration LOCK_LEASE = Duration.ofMinutes(5);
+
     private final NotificationRepository notificationRepository;
     private final MailSender mailSender;
     private final Deliverer deliverer;
+    private final DistributedLock distributedLock;
 
     public NotificationDeliveryScheduler(NotificationRepository notificationRepository,
                                          MailSender mailSender,
-                                         Deliverer deliverer) {
+                                         Deliverer deliverer,
+                                         DistributedLock distributedLock) {
         this.notificationRepository = notificationRepository;
         this.mailSender = mailSender;
         this.deliverer = deliverer;
+        this.distributedLock = distributedLock;
     }
 
     @Scheduled(fixedDelayString = "${flash-sale.notification.delivery-interval-ms:30000}")
     public void deliverPending() {
+        distributedLock.tryExecuteWithLock(LOCK_KEY, LOCK_LEASE, this::runSafely);
+    }
+
+    /**
+     * 吞掉例外：排程拋出未捕捉例外會被 Spring 取消後續排程，
+     * 而通知靜默停擺不會有任何告警。與其他排程一致。
+     */
+    private void runSafely() {
+        try {
+            deliverBatch();
+        } catch (RuntimeException e) {
+            log.error("通知寄送排程執行失敗，本輪略過", e);
+        }
+    }
+
+    private void deliverBatch() {
         List<Notification> pending = notificationRepository.findAwaitingDelivery(
                 NotificationChannel.EMAIL, MAX_ATTEMPTS, BATCH_SIZE);
         if (pending.isEmpty()) {
