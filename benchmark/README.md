@@ -37,11 +37,28 @@ curl -X POST localhost:8080/api/v1/admin/search/reindex -H "Authorization: Beare
 ## 跑
 
 ```bash
-node read-bench.mjs                  # 讀路徑七個情境
-node users.mjs                       # 建立 60 個壓測帳號並取 token
-node seckill-bench.mjs <活動ID> 200 12   # 熱路徑：活動、併發、秒數
+node read-bench.mjs                  # 讀路徑八個情境
+node users.mjs                       # 建立 60 個壓測帳號
+node seckill-bench.mjs <活動ID> 200 12   # 秒殺熱路徑：活動、併發、秒數
+node order-bench.mjs                 # 一般下單：分散 vs 集中，各四個併發
+node order-bench.mjs 集中             # 只跑其中一種
 node web-bench.mjs                   # 前端 SSR（需先 npm run build 並啟動 :3100）
 ```
+
+`order-bench.mjs` 每次跑都<b>自己重新登入</b>，不吃 `tokens.json`——
+access token 只有 15 分鐘，而重跑壓測常常隔了幾小時。
+讀舊檔的症狀是「0 個帳號備妥地址」，看起來像帳號沒建好，其實只是令牌過期。
+
+### 一般下單要準備兩件事
+
+集中情境用的 `HOT_SKU`（預設 2003）**庫存要夠大**——賣完之後量到的是
+「拒絕」的成本而不是「扣減」的成本，那是兩件事：
+
+```bash
+docker compose exec -T mysql mysql -uroot -proot flash_sale -e "UPDATE inventory SET available = 900000 WHERE sku_id = 2003"
+```
+
+腳本會自動幫每個壓測帳號建一個收貨地址（下單一定要地址）。
 
 ### 熱路徑要先解除單使用者限流
 

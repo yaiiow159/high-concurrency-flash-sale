@@ -6,6 +6,8 @@ import com.flashsale.domain.shared.ErrorCode;
 import io.github.resilience4j.ratelimiter.RequestNotPermitted;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.CannotAcquireLockException;
+import org.springframework.dao.QueryTimeoutException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.http.ResponseEntity;
@@ -13,6 +15,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
+import org.springframework.transaction.CannotCreateTransactionException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
@@ -232,6 +235,33 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleNotFound(Exception e) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(ApiResponse.error(ErrorCode.ENDPOINT_NOT_FOUND, "找不到這個路徑"));
+    }
+
+    /**
+     * 拿不到資料庫連線。
+     *
+     * <p><b>這是容量問題，不是程式錯誤，因此不該落到兜底處理。</b>
+     *
+     * <p>壓測時的實際成因：所有請求搶同一個 SKU 的庫存列，
+     * 等在行鎖上的請求<b>會一直握著它的連線</b>，於是連線池（50）被排隊的人佔滿，
+     * 後面的請求連交易都開不起來——<b>包含那些要買別的商品、
+     * 根本不碰這一列的請求</b>。一個熱門商品就能讓整條同步下單通道陪葬。
+     *
+     * <p>回 500 有兩個問題：客戶端看到「系統異常」不會重試，
+     * 而這恰恰是重試就會好的那種錯誤；同時它會把真正的程式錯誤淹沒在
+     * 尖峰噪音裡。改回 503 並標記可重試，語意才對得上。
+     *
+     * <p><b>不印堆疊。</b> 這種錯誤一出現就是成百上千筆，
+     * 每筆一份堆疊會讓日誌 I/O 在系統已經滿載時再補一刀——
+     * 與熔斷器降級路徑犯過的錯完全相同。
+     */
+    @ExceptionHandler({CannotCreateTransactionException.class,
+            CannotAcquireLockException.class,
+            QueryTimeoutException.class})
+    public ResponseEntity<ApiResponse<Void>> handleDatabaseCapacity(Exception e) {
+        log.warn("資料庫連線或鎖等待逾時，請求已拒絕：{}", e.getMessage());
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(ApiResponse.error(ErrorCode.SYSTEM_BUSY, "系統忙碌中，請稍後再試"));
     }
 
     /**
