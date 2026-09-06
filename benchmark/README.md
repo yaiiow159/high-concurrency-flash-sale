@@ -58,6 +58,13 @@ mvn spring-boot:run -pl flash-sale-api \
 
 ---
 
+## 最近一次結果
+
+數字放在**根目錄 README 的「效能實測」一節**，不在這裡——
+這份文件講怎麼跑，那裡講跑出來是什麼。兩邊各留一份的結果一定會有一邊過期。
+
+---
+
 ## 讀數時要注意的三件事
 
 **1. `errors` 不是伺服器錯誤。** autocannon 的 `errors` 是用戶端 socket 錯誤

@@ -82,15 +82,28 @@ public class SeckillController {
      * <p><b>業務例外必須原樣拋回</b>，否則「已售罄」會被降級成「系統繁忙」，
      * 使用者看到的錯誤訊息與真實原因完全脫節，客服與監控也會被誤導。
      * 降級只該處理基礎設施故障。
+     *
+     * <p><b>必須是 public。</b> Resilience4j 從它自己的套件反射呼叫這個方法，
+     * 宣告成 private 或 package-private 會拿到 {@code IllegalAccessException}，
+     * 再被包成 {@code UndeclaredThrowableException} 往外丟——
+     * 於是熔斷器打開的當下，本來要回 503 的請求變成 500。
+     * <b>這在低流量下永遠看不到</b>：熔斷器不開，降級方法就一次也不會被呼叫。
+     * 壓測時才發現的。
      */
-    @SuppressWarnings("unused")
-    private ResponseEntity<ApiResponse<SeckillTicket>> seckillFallback(
+    public ResponseEntity<ApiResponse<SeckillTicket>> seckillFallback(
             Long userId, SeckillRequest request, Throwable throwable) {
 
         if (throwable instanceof BusinessException businessException) {
             throw businessException;
         }
-        log.warn("搶購請求觸發降級 userId={}, activityId={}", userId, request.activityId(), throwable);
+        // **不印堆疊。** 熔斷器打開時每一個請求都會走到這裡，
+        // 而每筆一份堆疊會讓降級路徑比正常路徑還貴——
+        // 系統已經在麻煩裡了，日誌 I/O 不該再補一刀。
+        // 實測：12 秒的壓測跑出 96 萬行日誌、1 萬份堆疊，
+        // 而那 1 萬份講的是同一件事。
+        // 真正的細節在 resilience4j 的指標裡，那才是該看的地方
+        log.warn("搶購請求觸發降級 userId={}, activityId={}, 原因={}",
+                userId, request.activityId(), throwable.getClass().getSimpleName());
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                 .body(ApiResponse.error(ErrorCode.SYSTEM_BUSY, "系統繁忙，請稍後再試"));
     }
