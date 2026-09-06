@@ -87,7 +87,45 @@ async function loadRelated() {
 
 onMounted(loadRelated)
 
+/**
+ * 看了這個的人也看了。
+ *
+ * 與「同類商品」是兩件不同的事：同類是目錄結構上的鄰居，
+ * 這個是行為上的鄰居——它會推薦出跨類目的搭配（手機殼配手機），
+ * 而那是分類推不出來的。
+ */
+const alsoViewed = ref<ProductView[]>([])
+
+async function loadAlsoViewed() {
+  try {
+    const { request } = useApi()
+    alsoViewed.value = await request<ProductView[]>(
+      `/api/v1/catalog/products/${productId}/also-viewed?limit=8`)
+  } catch {
+    alsoViewed.value = []
+  }
+}
+
 const auth = useAuthStore()
+
+/** 記一次瀏覽。未登入不記，失敗也不管——它是附加價值。 */
+async function recordView() {
+  if (!auth.isAuthenticated) {
+    return
+  }
+  try {
+    const { request } = useApi()
+    await request<void>(`/api/v1/products/${productId}/view`,
+      { method: 'POST', authenticated: true })
+  } catch {
+    // 靜默：瀏覽紀錄記不起來不該讓使用者看到任何東西
+  }
+}
+
+onMounted(() => {
+  void loadAlsoViewed()
+  void recordView()
+})
 const { state, place, reset } = useCheckout()
 const cart = useCartStore()
 
@@ -409,6 +447,15 @@ watchEffect(() => {
           同類商品。放在評價**之後**：使用者看完評價才會決定要不要繼續找，
           放在評價之前等於在他還沒判斷完就叫他離開。
         -->
+        <ProductRail
+          v-if="alsoViewed.length > 0"
+          class="mt-12"
+          eyebrow="Also Viewed"
+          title="看了這個的人也看了"
+          :products="alsoViewed"
+          :more-to="null"
+        />
+
         <ProductRail
           v-if="related.length > 0"
           class="mt-12"

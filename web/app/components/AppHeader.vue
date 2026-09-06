@@ -111,6 +111,13 @@ function isActive(to: string): boolean {
             </span>
           </NuxtLink>
           <NuxtLink
+            to="/wishlist"
+            class="hidden rounded-sm px-2.5 py-1.5 text-ink-muted transition-colors hover:text-ink sm:block"
+            :class="isActive('/wishlist') ? 'font-medium text-accent' : ''"
+          >
+            收藏
+          </NuxtLink>
+          <NuxtLink
             to="/member"
             class="hidden rounded-sm px-2.5 py-1.5 text-ink-muted transition-colors hover:text-ink sm:block"
             :class="isActive('/member') ? 'font-medium text-accent' : ''"

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useAuthStore } from '~/stores/auth'
 import type { ProductRatingView, ProductView } from '~/types/api'
 
 /** 商品卡。 */
@@ -8,7 +9,11 @@ const props = withDefaults(defineProps<{
   rank?: number | null
   /** 主圖網址；沒有時退回確定性色塊（ADR-0027） */
   imageUrl?: string | null
-}>(), { rating: null, rank: null, imageUrl: null })
+  /** 卡片右上角的收藏鈕。列表可關掉以免視覺太吵 */
+  wishlist?: boolean
+}>(), { rating: null, rank: null, imageUrl: null, wishlist: true })
+
+const auth = useAuthStore()
 
 /** 前三名才給顏色。第 4 名開始用一般樣式——不然整排都是重點就沒有重點。 */
 const rankTone = computed(() => {
@@ -36,6 +41,13 @@ const rankTone = computed(() => {
         >
           {{ rank }}
         </span>
+        <!-- 未登入不顯示：按了只會跳「請先登入」，那是一個假的可用按鈕 -->
+        <WishlistButton
+          v-if="wishlist && auth.isAuthenticated"
+          :product-id="product.productId"
+          size="sm"
+          class="absolute right-2 top-2 shadow-rest"
+        />
       </div>
 
       <div class="flex flex-1 flex-col justify-between gap-3 p-3.5 sm:p-4">
