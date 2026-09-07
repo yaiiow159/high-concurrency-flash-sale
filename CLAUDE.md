@@ -41,6 +41,9 @@ api → infrastructure → application → domain
   就是驗證純 CPU 運算、零遠端呼叫。需要的資訊必須全放在 claim 裡
 
 需要新增遠端呼叫時，先問：能不能移到 MQ 消費端的慢車道？
+或者移到**更前面**：開賣前領取資格的冷路徑（[ADR-0028](docs/adr/0028-seckill-qualification-and-risk-control.md)）。
+黑名單、風險評分、驗證題全在那裡做，熱路徑只驗一枚 HMAC 憑證——
+**任何「這個人能不能搶」的新規則都該放進 `SeckillQualificationService`，不是 `attempt`。**
 
 ### 3. 庫存的一致性規則
 

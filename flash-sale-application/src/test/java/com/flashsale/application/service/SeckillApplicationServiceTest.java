@@ -2,6 +2,10 @@ package com.flashsale.application.service;
 
 import com.flashsale.application.port.in.command.SeckillCommand;
 import com.flashsale.application.port.in.dto.SeckillTicket;
+import com.flashsale.application.config.QualificationSettings;
+import com.flashsale.application.port.out.QualificationTokenCodec;
+import com.flashsale.domain.risk.QualificationToken;
+import java.time.Duration;
 import com.flashsale.application.port.out.ActivityRepository;
 import com.flashsale.application.port.out.OrderNoGenerator;
 import com.flashsale.application.port.out.OrderQueueDepth;
@@ -59,14 +63,21 @@ class SeckillApplicationServiceTest {
     @Mock private OrderQueueDepth queueDepth;
     @Mock private OrderNoGenerator orderNoGenerator;
     @Mock private SeckillMetrics metrics;
+    @Mock private QualificationTokenCodec qualificationCodec;
 
     private SeckillApplicationService service;
 
     @BeforeEach
     void setUp() {
-        service = new SeckillApplicationService(
+        service = serviceWithQualification(false);
+    }
+
+    /** 既有測試不帶憑證，預設關掉資格檢查；資格相關的測試自己開。 */
+    private SeckillApplicationService serviceWithQualification(boolean required) {
+        return new SeckillApplicationService(
                 activityRepository, stockRepository, messagePublisher, requestTracker,
-                soldOutMarker, queueDepth, orderNoGenerator, metrics,
+                soldOutMarker, queueDepth, orderNoGenerator, metrics, qualificationCodec,
+                new QualificationSettings(required, Duration.ofMinutes(15), Duration.ofMinutes(30), Duration.ofMinutes(3)),
                 Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
@@ -193,6 +204,52 @@ class SeckillApplicationServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(e -> ((BusinessException) e).errorCode())
                 .isEqualTo(ErrorCode.ACTIVITY_ENDED);
+    }
+
+
+    @Test
+    @DisplayName("要求資格但沒帶憑證：在碰 Redis 之前就拒絕")
+    void requiresQualificationTokenWhenEnabled() {
+        service = serviceWithQualification(true);
+        when(soldOutMarker.isSoldOut(ACTIVITY_ID)).thenReturn(false);
+
+        assertThatThrownBy(() -> service.attempt(command()))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).errorCode())
+                .isEqualTo(ErrorCode.QUALIFICATION_REQUIRED);
+
+        verify(stockRepository, never()).deduct(anyLong(), anyLong(), anyInt(), anyInt(), anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("憑證是別人的或別檔活動的：拒絕，且不透露是哪一項對不上")
+    void rejectsTokenForAnotherUser() {
+        service = serviceWithQualification(true);
+        when(soldOutMarker.isSoldOut(ACTIVITY_ID)).thenReturn(false);
+        when(qualificationCodec.verify("tok")).thenReturn(Optional.of(
+                new QualificationToken(USER_ID + 1, ACTIVITY_ID, NOW.plusSeconds(60), "n")));
+
+        assertThatThrownBy(() -> service.attempt(new SeckillCommand(ACTIVITY_ID, USER_ID, 1, REQUEST_ID, "tok")))
+                .isInstanceOf(BusinessException.class)
+                .extracting(e -> ((BusinessException) e).errorCode())
+                .isEqualTo(ErrorCode.QUALIFICATION_INVALID);
+
+        verify(stockRepository, never()).deduct(anyLong(), anyLong(), anyInt(), anyInt(), anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("憑證有效：一路走到扣減——驗簽是純 CPU，不多任何遠端呼叫")
+    void acceptsValidToken() {
+        service = serviceWithQualification(true);
+        givenPurchasableActivity();
+        givenOrderNoGenerated();
+        givenDeductionResult(StockDeductionResult.success(ORDER_NO));
+        when(qualificationCodec.verify("tok")).thenReturn(Optional.of(
+                new QualificationToken(USER_ID, ACTIVITY_ID, NOW.plusSeconds(60), "n")));
+
+        SeckillTicket ticket = service.attempt(new SeckillCommand(ACTIVITY_ID, USER_ID, 1, REQUEST_ID, "tok"));
+
+        assertThat(ticket.orderNo()).isEqualTo(ORDER_NO);
     }
 
     private void givenPurchasableActivity() {

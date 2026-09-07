@@ -49,6 +49,15 @@ public class SeckillMetrics {
                 .increment();
     }
 
+    /** 資格預檢結果：granted 或被拒的錯誤碼名稱。被拒的比例一高就是有人在刷。 */
+    public void recordQualification(String result) {
+        Counter.builder("seckill_qualification_total")
+                .tag("result", result)
+                .description("搶購資格預檢結果")
+                .register(registry)
+                .increment();
+    }
+
     /** 庫存補償結果；{@code success=false} 代表退庫失敗，需要人工或對帳排程介入。 */
     public void recordCompensation(Long activityId, String trigger, boolean success) {
         Counter.builder(COMPENSATION_COUNTER)

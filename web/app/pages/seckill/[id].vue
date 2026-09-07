@@ -20,6 +20,8 @@ const { data: initialActivity } = await useFetch<{ data: ActivityView }>(
 const {
   activity, outcome, submitting, serverNow,
   seedFromServerRender, loadActivity, startStockPolling, attempt, reset,
+  qualification, qualified, challenge, qualifying, qualificationError,
+  restoreQualification, loadChallenge, qualify,
 } = useSeckill(activityId)
 
 if (initialActivity.value?.data) {
@@ -30,11 +32,36 @@ const started = ref(false)
 const paymentUrl = ref<string | null>(null)
 const paying = ref(false)
 
+/** 驗證題的答案輸入 */
+const answer = ref('')
+
+async function onQualify(): Promise<void> {
+  // type="number" 的 v-model 會把值轉成數字，先轉回字串再交給後端
+  await qualify(String(answer.value ?? '').trim())
+  answer.value = ''
+}
+
+const qualificationExpiry = computed(() => {
+  if (!qualification.value) return ''
+  return new Date(qualification.value.expiresAt).toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' })
+})
+
 onMounted(async () => {
   // 客戶端掛載後立刻重取：SSR 的那份可能來自 CDN 快取，
   // 且時鐘校正需要一次「真實往返」才能算出偏移
   await loadActivity().catch(() => undefined)
   startStockPolling()
+  restoreQualification()
+  if (auth.isAuthenticated && !qualified.value) {
+    loadChallenge().catch(() => undefined)
+  }
+})
+
+// 登入之後才需要題目；沒登入時領也沒用
+watch(() => auth.isAuthenticated, (loggedIn) => {
+  if (loggedIn && !qualified.value) {
+    loadChallenge().catch(() => undefined)
+  }
 })
 
 const soldOut = computed(() => (activity.value?.availableStock ?? 0) <= 0)
@@ -155,12 +182,52 @@ watchEffect(() => {
               :available="activity.availableStock" :total="activity.totalStock"
             />
 
+            <!-- 搶購資格（ADR-0028）：開賣前領好，開賣時只剩一顆按鈕要按 -->
+            <div
+              v-if="auth.isAuthenticated && !soldOut"
+              class="mt-5 rounded border px-4 py-3.5"
+              :class="qualified ? 'border-ok/40 bg-ok-soft' : 'border-line bg-sunken'"
+            >
+              <template v-if="qualified">
+                <p class="flex items-center gap-2 text-sm font-semibold text-ok">
+                  <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true">
+                    <path d="m5 12 5 5 9-10" stroke-linecap="round" stroke-linejoin="round" />
+                  </svg>
+                  已取得搶購資格
+                </p>
+                <p class="mt-0.5 text-xs text-ink-muted">
+                  有效至 <span class="figure">{{ qualificationExpiry }}</span>，開賣後直接按搶購即可
+                </p>
+              </template>
+              <template v-else>
+                <p class="text-sm font-semibold">先取得搶購資格</p>
+                <p class="mt-0.5 text-xs text-ink-muted">
+                  開賣前 30 分鐘起可領。答一題就好，開賣時才不用跟機器人排隊。
+                </p>
+                <form class="mt-3 flex flex-wrap items-center gap-2" @submit.prevent="onQualify">
+                  <span v-if="challenge" class="figure text-base font-bold">{{ challenge.question }}</span>
+                  <span v-else class="text-sm text-ink-faint">題目載入中⋯</span>
+                  <input
+                    v-model="answer" type="number" inputmode="numeric" required
+                    class="field figure w-24 !py-1.5" placeholder="答案" :disabled="!challenge || qualifying"
+                  >
+                  <AppButton type="submit" size="sm" :disabled="!challenge || qualifying">
+                    {{ qualifying ? '確認中⋯' : '取得資格' }}
+                  </AppButton>
+                </form>
+                <p v-if="qualificationError" class="mt-2 text-xs text-danger" role="alert">
+                  {{ qualificationError }}
+                </p>
+              </template>
+            </div>
+
             <div class="mt-6 hidden lg:block">
               <SeckillButton
                 :started="started"
                 :sold-out="soldOut"
                 :submitting="submitting"
                 :authenticated="auth.isAuthenticated"
+                :qualified="qualified"
                 @attempt="onAttempt"
               />
             </div>
@@ -245,6 +312,7 @@ watchEffect(() => {
               :sold-out="soldOut"
               :submitting="submitting"
               :authenticated="auth.isAuthenticated"
+              :qualified="qualified"
               @attempt="onAttempt"
             />
           </div>

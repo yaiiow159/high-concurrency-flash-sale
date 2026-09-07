@@ -178,6 +178,14 @@ useHead({ title: '會員管理' })
                     >
                       訂單
                     </NuxtLink>
+                    <!-- 黑名單只擋秒殺資格，不擋登入：多數刷單的處理到這裡就夠，不必停權 -->
+                    <NuxtLink
+                      v-if="user.role !== 'ADMIN'"
+                      :to="{ path: '/admin/risk', query: { userId: user.userId } }"
+                      class="rounded-sm px-2 py-1 text-xs text-ink-muted transition-colors hover:text-accent"
+                    >
+                      黑名單
+                    </NuxtLink>
                     <!-- 管理員與自己不給停權鈕：按下去只會得到一個 403 -->
                     <AppButton
                       v-if="user.status === 'SUSPENDED'"

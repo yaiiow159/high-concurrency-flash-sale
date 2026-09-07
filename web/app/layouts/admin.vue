@@ -23,6 +23,7 @@ const SECTIONS: Array<{ title: string, items: NavItem[] }> = [
       { to: '/admin', label: '總覽', exact: true, icon: 'M4 5h7v7H4zM13 5h7v4h-7zM13 11h7v8h-7zM4 14h7v5H4z' },
       { to: '/admin/orders', label: '訂單管理', icon: 'M6 3h9l4 4v14H6zM15 3v4h4M9 12h6M9 16h6' },
       { to: '/admin/members', label: '會員管理', icon: 'M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM3 20a6 6 0 0 1 12 0M16 4.5a3 3 0 0 1 0 6M21 20a5 5 0 0 0-4-5' },
+      { to: '/admin/risk', label: '風控黑名單', icon: 'M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6zM9 9l6 6M15 9l-6 6' },
       { to: '/admin/shipments', label: '出貨處理', icon: 'M3 7h11v9H3zM14 10h4l3 3v3h-7zM7 19a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM17 19a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z' },
       { to: '/admin/returns', label: '退貨審核', icon: 'M9 14 4 9l5-5M4 9h10a6 6 0 0 1 0 12h-3' },
       { to: '/admin/questions', label: '問答管理', icon: 'M4 5h16v11H9l-5 4zM12 8v3M12 13h.01' },
