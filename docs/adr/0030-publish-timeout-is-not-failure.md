@@ -26,7 +26,7 @@ kafkaTemplate.send(...).get(sendTimeout, MILLISECONDS);   // 500ms
 `ExecutionException` 是「**確定沒送出**」。
 `TimeoutException` 是「**我不想再等了**」——完全不同的一件事。
 
-而生產者的設定是 `acks=all`、`retries=3`、`enable.idempotence=true`、`linger.ms=5`。
+而生產者的設定是 `acks=all`、`enable.idempotence=true`、`linger.ms=5`（當時還有 `retries: 3`，見決策 3）。
 我們在 500ms 放棄等待之後，**生產者還會繼續重試**，直到它自己的 `delivery.timeout.ms`。
 
 ### 這條路徑會怎麼超賣
@@ -80,21 +80,55 @@ kafkaTemplate.send(...).get(sendTimeout, MILLISECONDS);   // 500ms
 **少賣可以事後補救，超賣不行。** 這與鐵則 8 對 `OVERSELL_RISK` 的立場一致：
 不確定的時候，寧可讓庫存卡住等人來看，也不要放出一份可能已經賣掉的量。
 
-### 3. 時間預算的相依關係要寫下來
+### 3. 「確定沒送出」不能靠 `ExecutionException` 這個型別判斷
 
-三個值必須維持這個關係，否則安全網會誤判：
+第 1 點的正確性壓在一句話上：`ExecutionException` = 確定沒送出。
+**那句話不是 Kafka 給的保證。** `NotEnoughReplicasAfterAppendException` 的字面意思就是
+「已經 append 到 leader 但副本數不足」——ISR 恢復後那筆紀錄會變成可見，
+而它會以 `ExecutionException` 的形式回到我們手上。
+
+先前設定裡有 `retries: 3`，讓這種可重試的錯誤在約 300ms 就耗盡重試、
+在我們的 500ms 之前變成終局失敗，於是走上退庫——**這條路徑會讓超賣以另一個形式回來**。
+
+兩層修正：
+
+1. **拿掉 `retries`**。冪等生產者的預設是 `Integer.MAX_VALUE`，
+   讓 `delivery.timeout.ms` 單獨決定何時放棄（這也是 Kafka 官方對 `retries` 的建議）。
+2. **分類 cause 而不是分類型別**：`RetriableException` 的子類一律當 PENDING，
+   只有序列化、訊息過大、主題不存在、無權限這種「連 append 都不會發生」的才算失敗。
+   這一層讓正確性不再依賴生產者的參數搭配。
+
+### 4. 時間預算的相依關係要寫下來——而且要誠實
 
 ```
-orphan-grace-period (30m)  >>  delivery.timeout.ms (2m)  >>  send-timeout (500ms)
-        安全網                    生產者放棄的時間            熱路徑願意等的時間
+stock.key-ttl-buffer (2h)
+  >  orphan-grace-period (30m)
+  >  max( 消費端積壓, delivery.timeout.ms (2m), payment-window (15m) )
+  >  send-timeout (500ms)
 ```
 
 `delivery.timeout.ms` 先前沒有明訂，靠 Kafka 的預設值。現在明訂在設定裡——
-它是孤兒寬限期的下界，而一個沒有寫下來的下界遲早會被人調破：
-把寬限期調到 1 分鐘看起來很合理，但那會把**還在重試路上**的請求誤判成孤兒而退庫，
-於是我們又回到了超賣。
+一個沒有寫下來的下界遲早會被人調破：把寬限期調到 1 分鐘看起來很合理，
+但那會把**還在重試路上**的請求誤判成孤兒而退庫，於是我們又回到了超賣。
 
-### 4. 這件事要看得見
+**這條不等式目前並不成立，要誠實記下來。** 孤兒判準用的是訂單號的 Snowflake 時戳，
+也就是**扣減的時刻**，不是訊息被消費的時刻。而 [ADR-0023](0023-queue-depth-as-service-level.md)
+實測過建單積壓 46 分鐘——那 46 分鐘裡，每一筆訊息還好端端躺在 Kafka 裡的請求，
+在第 30 分鐘都會被判成孤兒。
+
+在 `auto-repair-orphans=false`（目前的預設）下這只是告警噪音。
+但**開啟自動修復之前必須先滿足兩個前提**，否則它會退掉訊息還在路上的扣減：
+
+- `ADMISSION_CONTROL_ENABLED=true`，且 `admission.max-wait-seconds` 遠小於寬限期
+  （入場控制存在的意義就是把積壓壓在一個上界內）
+- 或者把 `orphan-grace-period` 拉到大於實測的最壞積壓
+
+第二條同樣沒寫下來的界是 `stock.key-ttl-buffer > orphan-grace-period`：
+憑證的 TTL 對齊庫存鍵，而對帳只掃 `now - keyTtlBuffer` 內結束的活動。
+buffer 一旦被調到小於寬限期，孤兒偵測會**安靜地完全失效**——
+憑證與活動都已離開視野，而沒有任何指標會變。
+
+### 5. 這件事要看得見
 
 新增 `seckill_publish_total{outcome}`（acked / pending / failed）。
 
@@ -130,3 +164,7 @@ orphan-grace-period (30m)  >>  delivery.timeout.ms (2m)  >>  send-timeout (500ms
 - 訊息真的遺失時，那份庫存會卡住到孤兒偵測報出來為止。
   想讓它自動放，要開 `auto-repair-orphans`（預設關閉是刻意的，見鐵則 8）
 - `orphan-grace-period` 從此有一個明確的下界，改它之前要先看 ADR
+- 重複請求（同一個 `requestId` 重送）現在會**再投遞一次**同樣的訊息。
+  不重投的話會有一個卡死：首次請求走了 PENDING 而訊息最終遺失時，憑證會留著，
+  於是重送永遠命中冪等分支、永遠不會有訊息被投出去。
+  這條路徑**絕不補償**——重複代表憑證還在，而首次請求可能已經建好單了

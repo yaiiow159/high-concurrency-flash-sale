@@ -157,3 +157,16 @@ groups:
         annotations:
           summary: "出現需要退款的付款回調"
           description: "付款完成時訂單已關閉；錢確實收了，請確認退款流程已啟動"
+
+      # 投遞等待逾時的比例。pending 本身不是錯誤（生產者仍在重試，ADR-0030），
+      # 但持續偏高代表 send-timeout 訂得太緊，或 broker 正在變慢——
+      # 而每一筆 pending 若最終沒送達，都是一份要等 30 分鐘才被孤兒偵測撈出來的庫存。
+      - alert: SeckillPublishPendingHigh
+        expr: sum(rate(seckill_publish_total{outcome="pending"}[5m]))
+             / sum(rate(seckill_publish_total[5m])) > 0.01
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "建單訊息投遞等待逾時的比例超過 1%"
+          description: "生產者仍在重試，尚未遺失；但 broker 可能正在變慢，請檢查 ISR 與磁碟"

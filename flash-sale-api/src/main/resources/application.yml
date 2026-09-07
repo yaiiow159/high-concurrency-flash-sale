@@ -87,7 +87,11 @@ spring:
       properties:
         enable.idempotence: true
         max.in.flight.requests.per.connection: 5
-      retries: 3
+      # **刻意不設 retries。** 冪等生產者的預設是 Integer.MAX_VALUE，由
+      # delivery.timeout.ms 單獨決定何時放棄；設一個小值會讓「可重試的錯誤」
+      # 提早變成終局的 ExecutionException，而那個結果是**未知**而非否定
+      # （NotEnoughReplicasAfterAppendException 的意思是「已 append 但副本不足」）。
+      # 據此退庫就回到了 ADR-0030 要修掉的超賣路徑。
       # 生產者放棄前的總時間。**明訂而不是靠預設值**：
       # 熱路徑只等 flash-sale.mq.send-timeout(500ms)，逾時後不退庫
       # （逾時 = 不知道送到沒，退庫會超賣，見 ADR-0030），

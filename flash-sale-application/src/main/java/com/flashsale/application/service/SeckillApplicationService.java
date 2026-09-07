@@ -101,7 +101,7 @@ public class SeckillApplicationService implements SeckillUseCase {
         // 重送同一個 requestId：回放首次扣減時綁定的訂單號，使用者看到的是同一張訂單。
         if (deduction.isDuplicate()) {
             log.debug("重複的搶購請求 requestId={}, 回放既有訂單 {}", command.requestId(), deduction.orderNo());
-            return SeckillTicket.accepted(deduction.orderNo());
+            return republish(command, OrderNo.of(deduction.orderNo()));
         }
 
         return publishOrCompensate(command, OrderNo.of(deduction.orderNo()));
@@ -176,18 +176,58 @@ public class SeckillApplicationService implements SeckillUseCase {
      * 訊息最終真的沒送達時，那筆扣減會被對帳的孤兒偵測撈出來（ADR-0030）。
      */
     private SeckillTicket publishOrCompensate(SeckillCommand command, OrderNo orderNo) {
+        SeckillMessagePublisher.Outcome outcome;
         try {
             requestTracker.markAccepted(orderNo.value(), command.userId());
-            SeckillMessagePublisher.Outcome outcome = messagePublisher.publish(
+            outcome = messagePublisher.publish(
                     SeckillOrderMessage.of(orderNo.value(), command, clock.instant()));
-            metrics.recordPublish(command.activityId(), outcome.name().toLowerCase(Locale.ROOT));
-            return SeckillTicket.accepted(orderNo.value());
         } catch (RuntimeException e) {
-            metrics.recordPublish(command.activityId(), "failed");
+            // 補償是這個 catch 的第一件事：任何東西都不可以有能力阻止退庫
             compensateStock(command, orderNo, e);
+            recordPublishQuietly(command.activityId(), "failed");
             throw new BusinessException(ErrorCode.MESSAGE_PUBLISH_FAILED,
                     "訂單受理失敗，庫存已退回，請重新嘗試", e);
         }
+        // **記指標在 try 之外。** 放在裡面的話，一個 Micrometer 的例外會讓
+        // 已經 ACK（訂單一定會建）的請求落進 catch 而被退庫——那就是超賣
+        recordPublishQuietly(command.activityId(), outcome.name().toLowerCase(Locale.ROOT));
+        return SeckillTicket.accepted(orderNo.value());
+    }
+
+    /** 遙測不可以改變業務結果，因此它自己的例外一律吞掉。 */
+    private void recordPublishQuietly(Long activityId, String outcome) {
+        try {
+            metrics.recordPublish(activityId, outcome);
+        } catch (RuntimeException e) {
+            log.warn("記錄投遞指標失敗 activityId={}, outcome={}", activityId, outcome, e);
+        }
+    }
+
+    /**
+     * 重複請求：回放同一個訂單號，並且**再投遞一次**同樣的訊息。
+     *
+     * <p>不重投的話會有一個卡死：首次請求若走了 PENDING 而訊息最終遺失，
+     * 憑證會留著，於是重送永遠命中冪等分支、永遠不會有訊息被投出去，
+     * 訂單就停在「處理中」直到追蹤鍵過期——使用者重試幾次都一樣。
+     *
+     * <p>重投的安全性由既有的三層冪等承擔（Redis 已回重複不會再扣、
+     * 消費端 saveIfAbsent、request_id 唯一索引），代價只是一則多餘的訊息。
+     *
+     * <p><b>這條路徑絕不補償。</b>重複代表憑證還在，而首次請求可能已經建好單了；
+     * 此時退庫會把一份已經賣掉的量放回可售池。投遞失敗就讓它失敗，
+     * 剩下的交給對帳的孤兒偵測。
+     */
+    private SeckillTicket republish(SeckillCommand command, OrderNo orderNo) {
+        try {
+            SeckillMessagePublisher.Outcome outcome = messagePublisher.publish(
+                    SeckillOrderMessage.of(orderNo.value(), command, clock.instant()));
+            recordPublishQuietly(command.activityId(), "duplicate-" + outcome.name().toLowerCase(Locale.ROOT));
+        } catch (RuntimeException e) {
+            log.warn("重複請求的訊息重投失敗，不補償 orderNo={}, requestId={}",
+                    orderNo, command.requestId(), e);
+            recordPublishQuietly(command.activityId(), "duplicate-failed");
+        }
+        return SeckillTicket.accepted(orderNo.value());
     }
 
     /** 補償退庫。 */
