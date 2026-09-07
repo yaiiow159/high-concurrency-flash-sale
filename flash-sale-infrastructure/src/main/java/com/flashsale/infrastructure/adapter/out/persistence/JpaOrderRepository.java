@@ -1,5 +1,9 @@
 package com.flashsale.infrastructure.adapter.out.persistence;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
+import jakarta.persistence.TypedQuery;
+import java.util.ArrayList;
 import com.flashsale.application.port.out.OrderRepository;
 import com.flashsale.domain.order.Order;
 import com.flashsale.domain.order.OrderNo;
@@ -29,6 +33,9 @@ public class JpaOrderRepository implements OrderRepository {
     private static final Logger log = LoggerFactory.getLogger(JpaOrderRepository.class);
 
     private final OrderJpaRepository jpaRepository;
+
+    @PersistenceContext
+    private EntityManager entityManager;
 
     public JpaOrderRepository(OrderJpaRepository jpaRepository) {
         this.jpaRepository = jpaRepository;
@@ -127,5 +134,53 @@ public class JpaOrderRepository implements OrderRepository {
         return jpaRepository.findExpiredPending(deadline, Limit.of(limit)).stream()
                 .map(OrderMapper::toDomain)
                 .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Order> search(SearchCriteria criteria, int limit, int offset) {
+        TypedQuery<OrderEntity> query = entityManager.createQuery(
+                "select o from OrderEntity o" + searchWhere(criteria) + " order by o.createdAt desc",
+                OrderEntity.class);
+        bindSearch(query, criteria);
+        return query.setFirstResult(offset).setMaxResults(limit).getResultList().stream()
+                .map(OrderMapper::toDomain)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long countSearch(SearchCriteria criteria) {
+        TypedQuery<Long> query = entityManager.createQuery(
+                "select count(o) from OrderEntity o" + searchWhere(criteria), Long.class);
+        bindSearch(query, criteria);
+        return query.getSingleResult();
+    }
+
+    /** 條件動態拼接而不是 `(:x is null or ...)`：後者讓 MySQL 每個條件都走不了索引。 */
+    private static String searchWhere(SearchCriteria criteria) {
+        List<String> clauses = new ArrayList<>();
+        if (criteria.orderNo() != null) {
+            clauses.add("o.orderNo = :orderNo");
+        }
+        if (criteria.userId() != null) {
+            clauses.add("o.userId = :userId");
+        }
+        if (criteria.status() != null) {
+            clauses.add("o.status = :status");
+        }
+        return clauses.isEmpty() ? "" : " where " + String.join(" and ", clauses);
+    }
+
+    private static void bindSearch(TypedQuery<?> query, SearchCriteria criteria) {
+        if (criteria.orderNo() != null) {
+            query.setParameter("orderNo", criteria.orderNo());
+        }
+        if (criteria.userId() != null) {
+            query.setParameter("userId", criteria.userId());
+        }
+        if (criteria.status() != null) {
+            query.setParameter("status", criteria.status());
+        }
     }
 }

@@ -38,4 +38,12 @@ public interface CouponJpaRepository extends JpaRepository<CouponEntity, Long> {
     @Query("select c.promotionId from CouponEntity c where c.userId = :userId and c.claimKey is not null")
     List<Long> findClaimedPromotionIds(@Param("userId") Long userId);
 
+    /** 各優惠發出與核銷的券數。fk_coupon_promotion 索引撐得住這個 group by。 */
+    @Query("""
+            select c.promotionId, count(c), sum(case when c.status = 'USED' then 1 else 0 end)
+              from CouponEntity c
+             where c.promotionId in :ids
+             group by c.promotionId
+            """)
+    List<Object[]> countByPromotion(@Param("ids") java.util.Collection<Long> ids);
 }

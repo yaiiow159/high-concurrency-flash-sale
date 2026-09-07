@@ -1,5 +1,10 @@
 package com.flashsale.infrastructure.adapter.out.persistence;
 
+import org.springframework.data.domain.PageRequest;
+import java.util.Collection;
+import java.util.HashMap;
+import com.flashsale.domain.shared.BusinessException;
+import com.flashsale.domain.shared.ErrorCode;
 import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.EntityManager;
 import com.flashsale.application.port.out.PromotionRepository;
@@ -166,5 +171,53 @@ public class JpaPromotionRepository implements PromotionRepository {
         return Coupon.restore(entity.getId(), entity.getUserId(), entity.getPromotionId(),
                 entity.getCode(), CouponStatus.valueOf(entity.getStatus()),
                 entity.getExpiresAt(), entity.getUsedOrderNo());
+    }
+
+    @Override
+    @Transactional
+    public Promotion save(Promotion promotion) {
+        PromotionEntity entity;
+        if (promotion.id() == null) {
+            entity = new PromotionEntity(promotion.name(), promotion.type().name(), promotion.rule().name(),
+                    promotion.threshold(), promotion.value(), promotion.maxDiscount(), promotion.pointCost(),
+                    promotion.startAt(), promotion.endAt(), promotion.enabled());
+        } else {
+            entity = promotionJpaRepository.findById(promotion.id())
+                    .orElseThrow(() -> new BusinessException(ErrorCode.PROMOTION_NOT_FOUND));
+            entity.applyChanges(promotion.name(), promotion.rule().name(), promotion.threshold(),
+                    promotion.value(), promotion.maxDiscount(), promotion.pointCost(),
+                    promotion.startAt(), promotion.endAt(), promotion.enabled());
+        }
+        return toDomain(promotionJpaRepository.saveAndFlush(entity));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Promotion> findAll(DiscountType type, int limit, int offset) {
+        return promotionJpaRepository.findAllByType(type == null ? null : type.name(),
+                        PageRequest.of(offset / Math.max(limit, 1), Math.max(limit, 1)))
+                .stream()
+                .map(JpaPromotionRepository::toDomain)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long count(DiscountType type) {
+        return promotionJpaRepository.countByType(type == null ? null : type.name());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<Long, CouponStats> couponStats(Collection<Long> promotionIds) {
+        if (promotionIds == null || promotionIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, CouponStats> stats = new HashMap<>();
+        for (Object[] row : couponJpaRepository.countByPromotion(promotionIds)) {
+            stats.put(((Number) row[0]).longValue(),
+                    new CouponStats(((Number) row[1]).longValue(), ((Number) row[2]).longValue()));
+        }
+        return stats;
     }
 }

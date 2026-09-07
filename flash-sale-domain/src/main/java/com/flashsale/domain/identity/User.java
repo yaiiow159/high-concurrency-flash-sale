@@ -59,9 +59,21 @@ public final class User {
         this.displayName = requireValidDisplayName(displayName);
     }
 
-    /** 停權。 */
+    /** 下單前的守衛。與登入共用同一條規則：被停權的人既不能登入，也不能用還沒過期的令牌下單。 */
+    public void ensureActive() {
+        ensureCanAuthenticate();
+    }
+
+    /** 管理員不可直接停權，得先降權——否則兩個管理員互相停權，後台就沒人進得去。 */
     public void suspend() {
+        if (role == UserRole.ADMIN) {
+            throw new BusinessException(ErrorCode.FORBIDDEN, "管理員不可停權，請先降為一般會員");
+        }
         this.status = UserStatus.SUSPENDED;
+    }
+
+    public void reactivate() {
+        this.status = UserStatus.ACTIVE;
     }
 
     public void promoteTo(UserRole newRole) {

@@ -2,12 +2,8 @@ package com.flashsale.application.service;
 
 import com.flashsale.application.config.SeckillPolicy;
 import com.flashsale.application.port.in.ExpiredOrderCloseUseCase;
-import com.flashsale.application.port.out.EventOutbox;
-import com.flashsale.application.port.out.InventoryService;
 import com.flashsale.application.port.out.OrderRepository;
 import com.flashsale.domain.order.Order;
-import com.flashsale.domain.order.OrderLine;
-import com.flashsale.domain.shared.BusinessException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -25,19 +21,16 @@ public class ExpiredOrderCloseService implements ExpiredOrderCloseUseCase {
     private static final String CLOSE_REASON = "逾時未付款，系統自動關閉";
 
     private final OrderRepository orderRepository;
-    private final InventoryService inventoryService;
-    private final EventOutbox eventOutbox;
+    private final OrderCloser orderCloser;
     private final SeckillPolicy policy;
     private final Clock clock;
 
     public ExpiredOrderCloseService(OrderRepository orderRepository,
-                                    InventoryService inventoryService,
-                                    EventOutbox eventOutbox,
+                                    OrderCloser orderCloser,
                                     SeckillPolicy policy,
                                     Clock clock) {
         this.orderRepository = orderRepository;
-        this.inventoryService = inventoryService;
-        this.eventOutbox = eventOutbox;
+        this.orderCloser = orderCloser;
         this.policy = policy;
         this.clock = clock;
     }
@@ -54,40 +47,13 @@ public class ExpiredOrderCloseService implements ExpiredOrderCloseUseCase {
             return 0;
         }
 
-        int closed = 0;
+        // 不逐筆 catch：撈出來的本來就是待付款，Order.cancel 在這裡不可能拒絕；
+        // 真正的競態（付款回調搶先 commit）是樂觀鎖例外，讓它把整批回滾、30 秒後重跑，
+        // 而不是被吞掉之後在 commit 時變成 UnexpectedRollbackException
         for (Order order : expired) {
-            if (closeOne(order, now)) {
-                closed++;
-            }
+            orderCloser.close(order, CLOSE_REASON, now);
         }
-        log.info("逾期關單完成：撈出 {} 筆，成功關閉 {} 筆", expired.size(), closed);
-        return closed;
-    }
-
-    /** 把一般庫存直接退回可售池。 */
-    private void restoreStandardInventory(Order order) {
-        for (OrderLine line : order.lines()) {
-            if (line.sourceActivityId() != null) {
-                continue;
-            }
-            inventoryService.restore(InventoryService.RestoreCommand.forNormal(
-                    line.skuId(), order.userId(), line.quantity(),
-                    order.requestId(), order.orderNo().value()));
-        }
-    }
-
-    private boolean closeOne(Order order, Instant now) {
-        try {
-            order.cancel(CLOSE_REASON, now);
-            orderRepository.update(order);
-            restoreStandardInventory(order);
-            // 秒殺庫存的退庫事件與關單狀態同交易寫入，避免「關了單卻沒退庫」的漏洞。
-            eventOutbox.append(order.pullDomainEvents());
-            return true;
-        } catch (BusinessException e) {
-            // 訂單在撈取後、關單前被付款了——這是正常的競態，不需告警。
-            log.debug("訂單 {} 已非待付款狀態，略過：{}", order.orderNo(), e.getMessage());
-            return false;
-        }
+        log.info("逾期關單完成：關閉 {} 筆", expired.size());
+        return expired.size();
     }
 }

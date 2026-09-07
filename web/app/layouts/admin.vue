@@ -21,6 +21,8 @@ const SECTIONS: Array<{ title: string, items: NavItem[] }> = [
     title: '營運',
     items: [
       { to: '/admin', label: '總覽', exact: true, icon: 'M4 5h7v7H4zM13 5h7v4h-7zM13 11h7v8h-7zM4 14h7v5H4z' },
+      { to: '/admin/orders', label: '訂單管理', icon: 'M6 3h9l4 4v14H6zM15 3v4h4M9 12h6M9 16h6' },
+      { to: '/admin/members', label: '會員管理', icon: 'M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM3 20a6 6 0 0 1 12 0M16 4.5a3 3 0 0 1 0 6M21 20a5 5 0 0 0-4-5' },
       { to: '/admin/shipments', label: '出貨處理', icon: 'M3 7h11v9H3zM14 10h4l3 3v3h-7zM7 19a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM17 19a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z' },
       { to: '/admin/returns', label: '退貨審核', icon: 'M9 14 4 9l5-5M4 9h10a6 6 0 0 1 0 12h-3' },
       { to: '/admin/questions', label: '問答管理', icon: 'M4 5h16v11H9l-5 4zM12 8v3M12 13h.01' },
@@ -31,6 +33,7 @@ const SECTIONS: Array<{ title: string, items: NavItem[] }> = [
     items: [
       { to: '/admin/products', label: '商品管理', icon: 'M12 3 4 7v10l8 4 8-4V7zM4 7l8 4 8-4M12 11v10' },
       { to: '/admin/activities', label: '秒殺活動', icon: 'M13 2 4 14h6l-1 8 9-12h-6z' },
+      { to: '/admin/promotions', label: '優惠管理', icon: 'M4 12l8-8 8 8-8 8zM9 9h.01M15 15h.01M9 15l6-6' },
       { to: '/admin/home', label: '首頁版型', icon: 'M4 5h16v5H4zM4 13h7v6H4zM13 13h7v6h-7z' },
     ],
   },
