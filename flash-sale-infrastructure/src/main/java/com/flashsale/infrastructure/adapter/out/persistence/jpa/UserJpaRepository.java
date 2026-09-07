@@ -24,7 +24,7 @@ public interface UserJpaRepository extends JpaRepository<UserEntity, Long> {
     @org.springframework.data.jpa.repository.Query("""
             select u from UserEntity u
              where (:status is null or u.status = :status)
-               and (:keyword is null or u.email like :keyword or u.displayName like :keyword)
+               and (:keyword is null or u.email like :keyword escape '\\' or u.displayName like :keyword escape '\\')
              order by u.createdAt desc
             """)
     java.util.List<UserEntity> search(
@@ -35,7 +35,7 @@ public interface UserJpaRepository extends JpaRepository<UserEntity, Long> {
     @org.springframework.data.jpa.repository.Query("""
             select count(u) from UserEntity u
              where (:status is null or u.status = :status)
-               and (:keyword is null or u.email like :keyword or u.displayName like :keyword)
+               and (:keyword is null or u.email like :keyword escape '\\' or u.displayName like :keyword escape '\\')
             """)
     long countSearch(
             @org.springframework.data.repository.query.Param("keyword") String keyword,

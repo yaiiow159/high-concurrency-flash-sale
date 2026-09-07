@@ -4,7 +4,6 @@ import com.flashsale.application.config.SeckillPolicy;
 import com.flashsale.application.port.in.ExpiredOrderCloseUseCase;
 import com.flashsale.application.port.out.OrderRepository;
 import com.flashsale.domain.order.Order;
-import com.flashsale.domain.shared.BusinessException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -48,25 +47,13 @@ public class ExpiredOrderCloseService implements ExpiredOrderCloseUseCase {
             return 0;
         }
 
-        int closed = 0;
+        // 不逐筆 catch：撈出來的本來就是待付款，Order.cancel 在這裡不可能拒絕；
+        // 真正的競態（付款回調搶先 commit）是樂觀鎖例外，讓它把整批回滾、30 秒後重跑，
+        // 而不是被吞掉之後在 commit 時變成 UnexpectedRollbackException
         for (Order order : expired) {
-            if (closeOne(order, now)) {
-                closed++;
-            }
-        }
-        log.info("逾期關單完成：撈出 {} 筆，成功關閉 {} 筆", expired.size(), closed);
-        return closed;
-    }
-
-
-    private boolean closeOne(Order order, Instant now) {
-        try {
             orderCloser.close(order, CLOSE_REASON, now);
-            return true;
-        } catch (BusinessException e) {
-            // 訂單在撈取後、關單前被付款了——這是正常的競態，不需告警。
-            log.debug("訂單 {} 已非待付款狀態，略過：{}", order.orderNo(), e.getMessage());
-            return false;
         }
+        log.info("逾期關單完成：關閉 {} 筆", expired.size());
+        return expired.size();
     }
 }

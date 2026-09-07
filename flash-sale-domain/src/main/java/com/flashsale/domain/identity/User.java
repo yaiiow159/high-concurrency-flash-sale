@@ -59,7 +59,6 @@ public final class User {
         this.displayName = requireValidDisplayName(displayName);
     }
 
-    /** 停權。 */
     /** 下單前的守衛。與登入共用同一條規則：被停權的人既不能登入，也不能用還沒過期的令牌下單。 */
     public void ensureActive() {
         ensureCanAuthenticate();

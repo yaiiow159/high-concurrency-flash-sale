@@ -96,8 +96,8 @@ public class OrderPlacementService implements PlaceOrderUseCase {
             return OrderView.from(existing.get());
         }
 
-        // 停權在令牌過期前仍會生效的唯一地方：這條路徑本來就要進資料庫，多一次讀是便宜的。
-        // 秒殺熱路徑不做這件事（禁止新增遠端呼叫），由消費端接手
+        // 一般結帳本來就要進資料庫，多一次讀擋住停權者是便宜的。
+        // 秒殺不在這裡擋：熱路徑禁止新增遠端呼叫，停權者的秒殺由令牌過期自然收斂
         userRepository.findById(command.userId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND))
                 .ensureActive();
