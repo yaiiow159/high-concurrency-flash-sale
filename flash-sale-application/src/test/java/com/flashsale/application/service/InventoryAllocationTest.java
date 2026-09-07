@@ -1,5 +1,6 @@
 package com.flashsale.application.service;
 
+import com.flashsale.application.port.out.InventoryMetrics;
 import com.flashsale.application.config.SeckillPolicy;
 import com.flashsale.application.port.out.ActivityRepository;
 import com.flashsale.application.port.out.DistributedLock;

@@ -1,5 +1,6 @@
 package com.flashsale.application.service;
 
+import com.flashsale.application.port.out.SeckillMetrics;
 import com.flashsale.application.port.in.SeckillUseCase;
 import com.flashsale.application.port.in.command.SeckillCommand;
 import com.flashsale.application.port.in.dto.SeckillTicket;
@@ -78,6 +79,11 @@ public class SeckillApplicationService implements SeckillUseCase {
             return ticket;
         } catch (BusinessException e) {
             metrics.recordRejection(command.activityId(), e.errorCode(), startNanos);
+            throw e;
+        } catch (RuntimeException e) {
+            // 「賣完了」與「壞掉了」要分得開：少了這一段，Redis 掛掉時儀表板上
+            // 只看得到 QPS 掉下去，沒有任何錯誤指標會上升
+            metrics.recordError(command.activityId(), startNanos);
             throw e;
         }
     }

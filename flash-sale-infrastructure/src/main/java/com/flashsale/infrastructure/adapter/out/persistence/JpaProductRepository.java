@@ -175,12 +175,12 @@ public class JpaProductRepository implements ProductRepository {
     @Override
     @Transactional(readOnly = true)
     @SuppressWarnings("unchecked")
-    public List<Long> findOnShelfIdsPage(int size, int offset) {
+    public List<Long> findOnShelfIdsPage(int limit, int offset) {
         List<Number> ids = entityManager.createNativeQuery("""
                         select id from product where status = 'ON_SHELF'
                         order by id asc limit :size offset :offset
                         """)
-                .setParameter("size", size)
+                .setParameter("size", limit)
                 .setParameter("offset", offset)
                 .getResultList();
         return ids.stream().map(Number::longValue).toList();

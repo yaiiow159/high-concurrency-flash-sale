@@ -19,10 +19,10 @@ public interface ReviewRepository {
     Optional<Review> findByOrderAndSku(String orderNo, Long skuId);
 
     /** 商品的評價列表，新到舊。 */
-    List<Review> findByProductId(Long productId, int offset, int limit);
+    List<Review> findByProductId(Long productId, int limit, int offset);
 
     /** 使用者寫過的評價，新到舊。 */
-    List<Review> findByUserId(Long userId, int offset, int limit);
+    List<Review> findByUserId(Long userId, int limit, int offset);
 
     /** 這張訂單上已經評價過哪些 SKU——畫面要標出哪幾項還能評。 */
     List<Long> findReviewedSkuIds(String orderNo);

@@ -1,5 +1,6 @@
 package com.flashsale.application.service;
 
+import com.flashsale.application.port.out.SeckillMetrics;
 import com.flashsale.application.port.in.command.SeckillCommand;
 import com.flashsale.application.port.in.dto.SeckillTicket;
 import com.flashsale.application.config.QualificationSettings;
@@ -77,7 +78,8 @@ class SeckillApplicationServiceTest {
         return new SeckillApplicationService(
                 activityRepository, stockRepository, messagePublisher, requestTracker,
                 soldOutMarker, queueDepth, orderNoGenerator, metrics, qualificationCodec,
-                new QualificationSettings(required, Duration.ofMinutes(15), Duration.ofMinutes(30), Duration.ofMinutes(3)),
+                new QualificationSettings(required, Duration.ofMinutes(15),
+                        Duration.ofMinutes(30), Duration.ofMinutes(3)),
                 Clock.fixed(NOW, ZoneOffset.UTC));
     }
 

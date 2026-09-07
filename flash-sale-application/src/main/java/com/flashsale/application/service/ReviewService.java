@@ -120,7 +120,7 @@ public class ReviewService implements ReviewUseCase {
         // 先前只有 Controller 夾，於是任何非 Controller 的呼叫端
         // 都會把未夾的 size 送進倉庫——接上倉庫的 offset/limit 換算就是除以零
         Page paging = Page.of(page, size, MAX_PAGE_SIZE);
-        return reviewRepository.findByProductId(productId, paging.offset(), paging.size()).stream()
+        return reviewRepository.findByProductId(productId, paging.size(), paging.offset()).stream()
                 .map(review -> ReviewView.from(review, now))
                 .toList();
     }

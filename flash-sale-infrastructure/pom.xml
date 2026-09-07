@@ -19,6 +19,12 @@
             <artifactId>flash-sale-application</artifactId>
         </dependency>
 
+        <!-- Outbox 兩側手動接續 trace 需要 Tracer / Propagator（ADR-0029）；bridge 與 exporter 在 api 模組 -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-tracing</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-redis</artifactId>

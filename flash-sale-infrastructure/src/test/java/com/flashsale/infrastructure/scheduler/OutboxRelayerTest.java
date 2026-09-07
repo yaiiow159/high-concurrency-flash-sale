@@ -3,6 +3,7 @@ package com.flashsale.infrastructure.scheduler;
 import com.flashsale.infrastructure.adapter.out.persistence.entity.OutboxEventEntity;
 import com.flashsale.infrastructure.adapter.out.persistence.jpa.OutboxEventJpaRepository;
 import com.flashsale.infrastructure.config.FlashSaleProperties;
+import com.flashsale.infrastructure.tracing.TraceContexts;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -56,7 +57,7 @@ class OutboxRelayerTest {
                 new FlashSaleProperties.Outbox(200, MAX_RETRY, 7),
                 null);
         relayer = new OutboxRelayer(outboxRepository, kafkaTemplate, properties,
-                Clock.fixed(NOW, ZoneOffset.UTC));
+                TraceContexts.noop(), Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
     private static OutboxEventEntity event(String id) {

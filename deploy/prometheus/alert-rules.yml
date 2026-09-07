@@ -135,3 +135,25 @@ groups:
         annotations:
           summary: "系統類錯誤（C 開頭）佔比超過 1%"
           description: "業務拒絕（售罄、限購）屬正常，此告警只計入基礎設施故障"
+
+      # DEAD 的意思是「這個事件永遠不會被投遞」，而下游可能是退庫、通知、積分。
+      # 先前這個狀態沒有任何讀者：清理排程只清 PUBLISHED，而下面 StockDriftDetected
+      # 要漂移超過 10 件才響——少於那個量的洩漏完全不可見。
+      - alert: OutboxEventsDead
+        expr: outbox_dead_total > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "有 {{ $value }} 筆 Outbox 事件投遞已放棄"
+          description: "重試已耗盡，下游動作（退庫／通知／積分）不會發生，需人工重送或補償"
+
+      # 鐵則 8-1：收款成功絕不可被改寫成失敗。這個計數應恆為 0——
+      # 非 0 代表發生了「錢收了但訂單已關閉」的競態，每一筆都對應一筆要退的錢。
+      - alert: PaymentRefundRequired
+        expr: increase(payment_callback_total{result="refund-required"}[10m]) > 0
+        labels:
+          severity: critical
+        annotations:
+          summary: "出現需要退款的付款回調"
+          description: "付款完成時訂單已關閉；錢確實收了，請確認退款流程已啟動"

@@ -6,6 +6,7 @@ import com.flashsale.application.port.out.EventOutbox;
 import com.flashsale.domain.shared.DomainEvent;
 import com.flashsale.infrastructure.adapter.out.persistence.entity.OutboxEventEntity;
 import com.flashsale.infrastructure.adapter.out.persistence.jpa.OutboxEventJpaRepository;
+import com.flashsale.infrastructure.tracing.TraceContexts;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,10 +19,13 @@ public class JpaEventOutbox implements EventOutbox {
 
     private final OutboxEventJpaRepository outboxRepository;
     private final ObjectMapper objectMapper;
+    private final TraceContexts traceContexts;
 
-    public JpaEventOutbox(OutboxEventJpaRepository outboxRepository, ObjectMapper objectMapper) {
+    public JpaEventOutbox(OutboxEventJpaRepository outboxRepository, ObjectMapper objectMapper,
+                          TraceContexts traceContexts) {
         this.outboxRepository = outboxRepository;
         this.objectMapper = objectMapper;
+        this.traceContexts = traceContexts;
     }
 
     @Override
@@ -30,16 +34,19 @@ public class JpaEventOutbox implements EventOutbox {
         if (events.isEmpty()) {
             return;
         }
-        outboxRepository.saveAll(events.stream().map(this::toEntity).toList());
+        // 同一批事件來自同一個請求，traceparent 抓一次就好
+        String traceContext = traceContexts.current().orElse(null);
+        outboxRepository.saveAll(events.stream().map(event -> toEntity(event, traceContext)).toList());
     }
 
-    private OutboxEventEntity toEntity(DomainEvent event) {
+    private OutboxEventEntity toEntity(DomainEvent event, String traceContext) {
         return new OutboxEventEntity(
                 event.eventId(),
                 event.eventType(),
                 event.aggregateId(),
                 serialize(event),
-                event.occurredAt());
+                event.occurredAt(),
+                traceContext);
     }
 
     private String serialize(DomainEvent event) {

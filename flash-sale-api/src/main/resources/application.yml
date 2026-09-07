@@ -104,6 +104,11 @@ spring:
       ack-mode: record
       # 消費端並行度另在 @KafkaListener 上以設定值指定，方便依 topic 個別調整
       type: single
+      # 消費端從 header 接續 trace（ADR-0029）
+      observation-enabled: true
+    template:
+      # 生產端把 traceparent 放進 header
+      observation-enabled: true
 
 flash-sale:
   mq:
@@ -197,8 +202,6 @@ flash-sale:
     # 過期令牌的清理排程；已過期的紀錄仍保留 30 天供安全事件調查
     token-cleanup-cron: "0 15 4 * * *"
 
-  # 入場控制（ADR-0023）。**預設關閉**——會主動拒絕合法請求的機制，
-  # 先讓指標跑一段時間、確認閾值訂得合理再打開。
   # 風控與資格預檢（ADR-0028）。熱路徑只驗憑證簽章，其餘檢查都在領資格時做。
   risk:
     # 簽資格憑證與驗證題的金鑰。正式環境務必覆寫——用預設值等於任何人都能自己簽資格
@@ -218,6 +221,8 @@ flash-sale:
     max-qualifications-per-user: 5
     reject-score: 60
 
+  # 入場控制（ADR-0023）。**預設關閉**——會主動拒絕合法請求的機制，
+  # 先讓指標跑一段時間、確認閾值訂得合理再打開。
   admission:
     enabled: ${ADMISSION_CONTROL_ENABLED:false}
     # 閾值以「使用者要等多久」表示，不以訊息數表示——
@@ -314,6 +319,16 @@ management:
     metrics:
       export:
         enabled: true
+  # 分散式追蹤（ADR-0029）。
+  # **預設值刻意保守**：忘記設定的後果應該是 trace 少，而不是尖峰時每個請求多背
+  # 一份 span 建立成本（Lettuce 那部分還跑在所有 Redis 命令共用的 netty event loop 上）。
+  # 本機除錯時 TRACING_SAMPLING_PROBABILITY=1.0 開滿
+  tracing:
+    sampling:
+      probability: ${TRACING_SAMPLING_PROBABILITY:0.05}
+  otlp:
+    tracing:
+      endpoint: ${OTLP_TRACES_ENDPOINT:http://localhost:4318/v1/traces}
 
 server:
   port: 8080
@@ -327,11 +342,16 @@ server:
     max-connections: 10000
   shutdown: graceful
 
+# datasource-micrometer：只追蹤查詢與取回，不追蹤「取連線」——
+# 否則排程執行緒每次拿連線都開一條 root trace，Tempo 裡全是叫 connection 的噪音
+jdbc:
+  includes: query,fetch
+
 logging:
   level:
     com.flashsale: INFO
   pattern:
-    console: "%d{HH:mm:ss.SSS} %-5level [%thread] %logger{36} [orderNo=%X{orderNo:-}] - %msg%n"
+    console: "%d{HH:mm:ss.SSS} %-5level [%thread] %logger{36} [traceId=%X{traceId:-} orderNo=%X{orderNo:-}] - %msg%n"
 
 springdoc:
   swagger-ui:

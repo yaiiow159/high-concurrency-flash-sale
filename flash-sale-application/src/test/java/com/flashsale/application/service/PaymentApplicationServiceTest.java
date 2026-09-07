@@ -1,5 +1,6 @@
 package com.flashsale.application.service;
 
+import com.flashsale.application.port.out.PaymentMetrics;
 import com.flashsale.application.port.in.dto.PaymentIntentView;
 import com.flashsale.application.port.out.EventOutbox;
 import com.flashsale.application.port.out.OrderRepository;
@@ -73,9 +74,13 @@ class PaymentApplicationServiceTest {
 
     @BeforeEach
     void setUp() {
+        Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
+        // 用真的 PaymentPreparer 而不是 mock：付款單的建立與重用規則搬到那裡了，
+        // mock 掉等於把這幾條測試想驗的東西一起 mock 掉
         service = new PaymentApplicationService(paymentRepository, orderRepository, paymentGateway,
                 paymentNoGenerator, eventOutbox, metrics, eventPublisher,
-                Clock.fixed(NOW, ZoneOffset.UTC));
+                new PaymentPreparer(orderRepository, paymentRepository, paymentNoGenerator, clock),
+                clock);
 
         when(paymentNoGenerator.next()).thenReturn(PaymentNo.of(PAYMENT_NO));
         when(paymentRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));

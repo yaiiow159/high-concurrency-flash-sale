@@ -1,5 +1,6 @@
 package com.flashsale.application.service;
 
+import com.flashsale.application.port.out.PaymentMetrics;
 import com.flashsale.application.port.in.PaymentUseCase;
 import com.flashsale.application.port.in.dto.PaymentIntentView;
 import com.flashsale.application.port.in.dto.PaymentView;
@@ -53,6 +54,7 @@ public class PaymentApplicationService implements PaymentUseCase {
     private final EventOutbox eventOutbox;
     private final PaymentMetrics metrics;
     private final ApplicationEventPublisher eventPublisher;
+    private final PaymentPreparer paymentPreparer;
     private final Clock clock;
 
     public PaymentApplicationService(PaymentRepository paymentRepository,
@@ -62,6 +64,7 @@ public class PaymentApplicationService implements PaymentUseCase {
                                      EventOutbox eventOutbox,
                                      PaymentMetrics metrics,
                                      ApplicationEventPublisher eventPublisher,
+                                     PaymentPreparer paymentPreparer,
                                      Clock clock) {
         this.paymentRepository = paymentRepository;
         this.orderRepository = orderRepository;
@@ -70,22 +73,20 @@ public class PaymentApplicationService implements PaymentUseCase {
         this.eventOutbox = eventOutbox;
         this.metrics = metrics;
         this.eventPublisher = eventPublisher;
+        this.paymentPreparer = paymentPreparer;
         this.clock = clock;
     }
 
+    /**
+     * 付款單的建立在交易內，呼叫閘道在交易外。
+     *
+     * <p>閘道是遠端呼叫：包進交易等於把它的延遲換算成 MySQL 連線的佔用時間，
+     * 而 Hikari 只有 50 條連線且與全站共用——閘道一慢，連線池會先被抽乾。
+     * 目前只有行程內的模擬閘道所以不會咬人，但這個埠的形狀就是為真實金流設計的。
+     */
     @Override
-    @Transactional
     public PaymentIntentView initiate(String orderNo, Long userId) {
-        Order order = requireOwnedOrder(OrderNo.of(orderNo), userId);
-        if (order.status() != OrderStatus.PENDING_PAYMENT) {
-            throw new BusinessException(ErrorCode.ORDER_NOT_PAYABLE,
-                    "訂單目前為 %s，無法付款".formatted(order.status()));
-        }
-
-        Payment payment = paymentRepository.findByOrderNo(order.orderNo())
-                .map(existing -> reuseOrRetry(existing))
-                .orElseGet(() -> createPayment(order));
-
+        Payment payment = paymentPreparer.prepare(orderNo, userId);
         PaymentGateway.PaymentIntent intent = paymentGateway.initiate(payment);
         metrics.recordInitiated(payment.status().name());
 
@@ -97,30 +98,8 @@ public class PaymentApplicationService implements PaymentUseCase {
                 intent.paymentUrl(), payment.status().name());
     }
 
-    /** 重複發起時沿用既有付款單。 */
-    private Payment reuseOrRetry(Payment existing) {
-        if (existing.status() == PaymentStatus.FAILED) {
-            existing.retry(clock.instant());
-            return paymentRepository.save(existing);
-        }
-        if (existing.status().moneyReceived()) {
-            throw new BusinessException(ErrorCode.ORDER_NOT_PAYABLE, "此訂單已完成付款");
-        }
-        return existing;
-    }
 
-    private Payment createPayment(Order order) {
-        // 金額取自訂單，不接受呼叫端傳入——否則前端就能自己決定要付多少。
-        //
-        // **用 payableAmount() 而不是 totalAmount()**：後者不含運費（ADR-0019 決策 2）。
-        // 用錯的話運費就收不到，而且**沒有任何東西會發現**——
-        // 付款成功、訂單完成、貨也寄了，只有月底對帳時才發現每一單都少收幾十元。
-        //
-        // 退款上限跟著這個金額走，因此這一行同時決定了「運費退不退得出來」。
-        return paymentRepository.save(Payment.initiate(
-                paymentNoGenerator.next(), order.orderNo(), order.userId(),
-                order.payableAmount(), clock.instant()));
-    }
+
 
     @Override
     @Transactional

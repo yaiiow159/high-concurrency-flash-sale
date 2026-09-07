@@ -1,5 +1,6 @@
 package com.flashsale.application.service;
 
+import com.flashsale.application.port.out.InventoryMetrics;
 import com.flashsale.application.port.out.InventoryRepository;
 import com.flashsale.domain.inventory.Inventory;
 import com.flashsale.domain.inventory.InventoryMovement;

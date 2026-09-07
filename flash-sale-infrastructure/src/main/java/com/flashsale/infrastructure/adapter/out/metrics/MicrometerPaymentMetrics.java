@@ -1,12 +1,13 @@
-package com.flashsale.application.service;
+package com.flashsale.infrastructure.adapter.out.metrics;
 
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
+import com.flashsale.application.port.out.PaymentMetrics;
 import org.springframework.stereotype.Component;
 
 /** 付款流程的業務指標。 */
 @Component
-public class PaymentMetrics {
+public class MicrometerPaymentMetrics implements PaymentMetrics {
 
     private static final String INITIATED_COUNTER = "payment.initiated.total";
     private static final String CALLBACK_COUNTER = "payment.callback.total";
@@ -14,10 +15,11 @@ public class PaymentMetrics {
 
     private final MeterRegistry registry;
 
-    public PaymentMetrics(MeterRegistry registry) {
+    public MicrometerPaymentMetrics(MeterRegistry registry) {
         this.registry = registry;
     }
 
+    @Override
     public void recordInitiated(String status) {
         Counter.builder(INITIATED_COUNTER)
                 .tag("status", status)
@@ -31,6 +33,7 @@ public class PaymentMetrics {
      *
      * @param result settled / duplicate / failed / refund-required / invalid-signature
      */
+    @Override
     public void recordCallback(String result) {
         Counter.builder(CALLBACK_COUNTER)
                 .tag("result", result)
@@ -39,6 +42,7 @@ public class PaymentMetrics {
                 .increment();
     }
 
+    @Override
     public void recordRefund(boolean succeeded) {
         Counter.builder(REFUND_COUNTER)
                 .tag("result", succeeded ? "success" : "failure")

@@ -78,6 +78,7 @@ class ArchitectureTest {
                         "org.springframework.web..",
                         "org.apache.kafka..",
                         "org.redisson..",
+                        "io.micrometer..",
                         "jakarta.persistence..")
                 .because("Use Case 應該只認得 Port 介面；換掉 Redis 或 Kafka 不該需要改動應用層")
                 .check(classes);

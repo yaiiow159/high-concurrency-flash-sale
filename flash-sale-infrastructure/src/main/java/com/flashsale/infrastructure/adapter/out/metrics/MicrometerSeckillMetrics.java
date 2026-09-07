@@ -1,4 +1,4 @@
-package com.flashsale.application.service;
+package com.flashsale.infrastructure.adapter.out.metrics;
 
 import com.flashsale.application.port.in.dto.ActivityReconciliation;
 import com.flashsale.domain.shared.ErrorCode;
@@ -6,6 +6,7 @@ import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
+import com.flashsale.application.port.out.SeckillMetrics;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
@@ -16,10 +17,11 @@ import java.util.concurrent.atomic.AtomicLong;
 
 /** 秒殺鏈路的業務指標。 */
 @Component
-public class SeckillMetrics {
+public class MicrometerSeckillMetrics implements SeckillMetrics {
 
     private static final String ATTEMPT_TIMER = "seckill.attempt.duration";
     private static final String REJECTION_COUNTER = "seckill.rejection.total";
+    private static final String ERROR_COUNTER = "seckill.error.total";
     private static final String COMPENSATION_COUNTER = "seckill.compensation.total";
     private static final String ORDER_PERSIST_COUNTER = "seckill.order.persist.total";
     private static final String RECONCILIATION_COUNTER = "seckill.reconciliation.total";
@@ -31,14 +33,30 @@ public class SeckillMetrics {
     /** 各活動的庫存偏差值。 */
     private final Map<Long, AtomicLong> driftGauges = new ConcurrentHashMap<>();
 
-    public SeckillMetrics(MeterRegistry registry) {
+    public MicrometerSeckillMetrics(MeterRegistry registry) {
         this.registry = registry;
     }
 
+    @Override
     public void recordSuccess(Long activityId, long startNanos) {
         timer(activityId, "success").record(System.nanoTime() - startNanos, TimeUnit.NANOSECONDS);
     }
 
+    /**
+     * 非預期的失敗。與 rejection 分開計：那是「賣完了」（正常），這是「壞掉了」。
+     * 少了它，Redis 掛掉時儀表板上是一片空白——只看得到 QPS 掉下去，卻沒有任何錯誤指標上升。
+     */
+    @Override
+    public void recordError(Long activityId, long startNanos) {
+        timer(activityId, "error").record(System.nanoTime() - startNanos, TimeUnit.NANOSECONDS);
+        Counter.builder(ERROR_COUNTER)
+                .tag("activity", String.valueOf(activityId))
+                .description("搶購因非預期例外而失敗的次數；正常應為 0")
+                .register(registry)
+                .increment();
+    }
+
+    @Override
     public void recordRejection(Long activityId, ErrorCode errorCode, long startNanos) {
         timer(activityId, "rejected").record(System.nanoTime() - startNanos, TimeUnit.NANOSECONDS);
         Counter.builder(REJECTION_COUNTER)
@@ -50,6 +68,7 @@ public class SeckillMetrics {
     }
 
     /** 資格預檢結果：granted 或被拒的錯誤碼名稱。被拒的比例一高就是有人在刷。 */
+    @Override
     public void recordQualification(String result) {
         Counter.builder("seckill.qualification.total")
                 .tag("result", result)
@@ -59,6 +78,7 @@ public class SeckillMetrics {
     }
 
     /** 庫存補償結果；{@code success=false} 代表退庫失敗，需要人工或對帳排程介入。 */
+    @Override
     public void recordCompensation(Long activityId, String trigger, boolean success) {
         Counter.builder(COMPENSATION_COUNTER)
                 .tag("activity", String.valueOf(activityId))
@@ -69,6 +89,7 @@ public class SeckillMetrics {
                 .increment();
     }
 
+    @Override
     public void recordOrderPersisted(Long activityId, String result) {
         Counter.builder(ORDER_PERSIST_COUNTER)
                 .tag("activity", String.valueOf(activityId))
@@ -79,6 +100,7 @@ public class SeckillMetrics {
     }
 
     /** 記錄一次對帳結果。 */
+    @Override
     public void recordReconciliation(ActivityReconciliation result) {
         Counter.builder(RECONCILIATION_COUNTER)
                 .tag("activity", String.valueOf(result.activityId()))
@@ -98,6 +120,7 @@ public class SeckillMetrics {
     }
 
     /** 孤兒扣減的偵測與修復結果。{@code action} 為 detected / repaired / repair-failed 等。 */
+    @Override
     public void recordOrphanBinding(Long activityId, String action) {
         Counter.builder(ORPHAN_COUNTER)
                 .tag("activity", String.valueOf(activityId))

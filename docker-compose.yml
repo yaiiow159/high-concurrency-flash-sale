@@ -177,6 +177,8 @@ services:
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.retention.time=7d
+      # Tempo 的 metrics generator 用 remote write 把 span 指標推過來
+      - --web.enable-remote-write-receiver
 
   grafana:
     image: grafana/grafana:11.1.0
@@ -192,9 +194,23 @@ services:
       - grafana-data:/var/lib/grafana
     depends_on:
       - prometheus
+      - tempo
+
+  # 分散式追蹤（ADR-0029）。應用端以 OTLP/HTTP 送到 4318；Grafana 的 Explore 用 Tempo 資料來源查
+  tempo:
+    image: grafana/tempo:2.5.0
+    container_name: flash-sale-tempo
+    command: ["-config.file=/etc/tempo.yaml"]
+    ports:
+      - "3200:3200"
+      - "4318:4318"
+    volumes:
+      - ./deploy/tempo/tempo.yaml:/etc/tempo.yaml:ro
+      - tempo-data:/var/tempo
 
 volumes:
   mysql-data:
   grafana-data:
+  tempo-data:
   es-data:
   minio-data:
