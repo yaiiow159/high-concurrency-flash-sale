@@ -167,6 +167,12 @@ useHead({ title: '秒殺活動' })
                 >
                   預熱庫存
                 </AppButton>
+                <NuxtLink
+                  :to="`/admin/activities/${activity.activityId}`"
+                  class="rounded-sm px-2 py-1 text-center text-xs font-medium text-accent transition-colors hover:underline"
+                >
+                  即時監控 →
+                </NuxtLink>
               </div>
             </div>
           </div>

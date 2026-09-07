@@ -13,6 +13,7 @@ import java.util.List;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import com.flashsale.application.port.in.ActivityMonitorUseCase;
 
 /** 活動上下架。 */
 @RestController
@@ -25,11 +26,14 @@ public class ActivityAdminController {
 
     private final ActivityAdminUseCase activityAdminUseCase;
     private final ActivityQueryUseCase activityQueryUseCase;
+    private final ActivityMonitorUseCase monitor;
 
     public ActivityAdminController(ActivityAdminUseCase activityAdminUseCase,
-                                   ActivityQueryUseCase activityQueryUseCase) {
+                                   ActivityQueryUseCase activityQueryUseCase,
+                                   ActivityMonitorUseCase monitor) {
         this.activityAdminUseCase = activityAdminUseCase;
         this.activityQueryUseCase = activityQueryUseCase;
+        this.monitor = monitor;
     }
 
     /** 後台的活動清單。 */
@@ -41,6 +45,12 @@ public class ActivityAdminController {
 
         return ApiResponse.ok(activityQueryUseCase.listAllForAdmin(
                 Math.max(page, 0), Math.clamp(size, 1, MAX_PAGE_SIZE)));
+    }
+
+    @GetMapping("/{activityId}/monitor")
+    @Operation(summary = "活動即時監控", description = "餘量與售罄標記直讀 Redis，計數為本節點的指標暫存值")
+    public ApiResponse<ActivityMonitorUseCase.ActivityMonitorView> monitor(@PathVariable Long activityId) {
+        return ApiResponse.ok(monitor.snapshot(activityId));
     }
 
     @PostMapping("/{activityId}/offline")

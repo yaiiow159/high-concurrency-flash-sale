@@ -109,6 +109,10 @@ public class OrderEntity {
     @Column(name = "close_reason", length = 128)
     private String closeReason;
 
+    /** 建單當下的 trace id。只在建立時寫一次；沒有上游 trace 時為 NULL。 */
+    @Column(name = "trace_id", length = 32, updatable = false)
+    private String traceId;
+
     @Version
     @Column(name = "version", nullable = false)
     private long version;
@@ -271,5 +275,13 @@ public class OrderEntity {
 
     public List<OrderLineEntity> getLines() {
         return lines;
+    }
+
+    public void attachTrace(String traceId) {
+        this.traceId = traceId;
+    }
+
+    public String getTraceId() {
+        return traceId;
     }
 }

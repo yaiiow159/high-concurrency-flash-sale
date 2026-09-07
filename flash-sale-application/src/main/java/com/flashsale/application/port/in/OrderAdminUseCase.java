@@ -2,6 +2,7 @@ package com.flashsale.application.port.in;
 
 import com.flashsale.application.port.in.dto.OrderView;
 import com.flashsale.application.port.in.dto.PageView;
+import java.util.Optional;
 
 /** 後台的訂單查詢與關單。呼叫端必須已具備 admin scope；這裡不再驗身分。 */
 public interface OrderAdminUseCase {
@@ -18,4 +19,7 @@ public interface OrderAdminUseCase {
      * 非待付款狀態拋 {@code ILLEGAL_ORDER_STATE_TRANSITION}。
      */
     OrderView close(String orderNo, String reason);
+
+    /** 後台跳轉 Tempo 用。訂單不存在時拋 ORDER_NOT_FOUND，沒有 trace 時回 empty。 */
+    Optional<String> traceId(String orderNo);
 }

@@ -16,6 +16,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import java.util.HashMap;
+import java.util.Map;
 
 /** 後台訂單管理。整段 /api/v1/admin/** 由 SecurityConfig 要求 admin scope。 */
 @RestController
@@ -44,6 +46,14 @@ public class OrderAdminController {
     @Operation(summary = "訂單明細")
     public ApiResponse<OrderView> find(@PathVariable String orderNo) {
         return ApiResponse.ok(orders.find(orderNo));
+    }
+
+    @GetMapping("/{orderNo}/trace")
+    @Operation(summary = "訂單的 trace id", description = "供後台跳轉 Tempo；沒有上游 trace 的單回 null")
+    public ApiResponse<Map<String, String>> trace(@PathVariable String orderNo) {
+        Map<String, String> body = new HashMap<>();
+        body.put("traceId", orders.traceId(orderNo).orElse(null));
+        return ApiResponse.ok(body);
     }
 
     @PostMapping("/{orderNo}/close")

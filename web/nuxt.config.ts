@@ -21,6 +21,8 @@ export default defineNuxtConfig({
       // 對外網址。沒設就從請求標頭推——寫死的話同一份產物部署到
       // 測試環境會產生指向正式站的 sitemap 與 canonical
       siteUrl: process.env.NUXT_PUBLIC_SITE_URL || '',
+      // 後台「查看追蹤」跳轉用。只是一個連結的目的地，不含任何憑證
+      grafanaUrl: process.env.NUXT_PUBLIC_GRAFANA_URL || 'http://localhost:3000',
     },
   },
 

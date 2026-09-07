@@ -138,4 +138,13 @@ public class OrderAdminService implements OrderAdminUseCase {
             throw new BusinessException(ErrorCode.INVALID_PARAMETER, "參數「status」的值不正確");
         }
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<String> traceId(String orderNo) {
+        OrderNo no = OrderNo.of(orderNo);
+        orderRepository.findByOrderNo(no).orElseThrow(() -> new BusinessException(
+                ErrorCode.ORDER_NOT_FOUND, "訂單 %s 不存在".formatted(orderNo)));
+        return orderRepository.findTraceId(no);
+    }
 }

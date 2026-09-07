@@ -1,5 +1,6 @@
 import { useApi } from '~/composables/useApi'
 import type {
+  ActivityMonitorView,
   ActivityView,
   BlacklistView,
   OrderView,
@@ -147,6 +148,15 @@ export function useAdmin() {
     return request<PageView<OrderView>>(`/api/v1/admin/orders?${params}`, auth)
   }
 
+  /** 沒有上游 trace 的單（排程建的）traceId 為 null。 */
+  function orderTrace(orderNo: string) {
+    return request<{ traceId: string | null }>(`/api/v1/admin/orders/${orderNo}/trace`, auth)
+  }
+
+  function activityMonitor(activityId: number) {
+    return request<ActivityMonitorView>(`/api/v1/admin/activities/${activityId}/monitor`, auth)
+  }
+
   function order(orderNo: string) {
     return request<OrderView>(`/api/v1/admin/orders/${orderNo}`, auth)
   }
@@ -229,7 +239,7 @@ export function useAdmin() {
     products, createProduct, putOnShelf, takeOffShelf,
     activities, publishActivity, offlineActivity, warmUp,
     reindex, searchReconciliation,
-    orders, order, closeOrder, staffNote, writeStaffNote,
+    orders, order, orderTrace, closeOrder, staffNote, writeStaffNote, activityMonitor,
     users, suspendUser, reactivateUser,
     promotions, createPromotion, updatePromotion, setPromotionEnabled,
     blacklist, addToBlacklist, removeFromBlacklist,

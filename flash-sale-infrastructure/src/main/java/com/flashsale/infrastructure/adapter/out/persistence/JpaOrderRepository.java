@@ -27,6 +27,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.Map;
 import java.util.LinkedHashMap;
+import com.flashsale.infrastructure.tracing.TraceContexts;
 
 /** 訂單持久化埠的 JPA 實作。 */
 @Repository
@@ -35,12 +36,15 @@ public class JpaOrderRepository implements OrderRepository {
     private static final Logger log = LoggerFactory.getLogger(JpaOrderRepository.class);
 
     private final OrderJpaRepository jpaRepository;
+    private final TraceContexts traceContexts;
 
     @PersistenceContext
     private EntityManager entityManager;
 
-    public JpaOrderRepository(OrderJpaRepository jpaRepository) {
+    public JpaOrderRepository(OrderJpaRepository jpaRepository,
+                              TraceContexts traceContexts) {
         this.jpaRepository = jpaRepository;
+        this.traceContexts = traceContexts;
     }
 
     /** {@inheritDoc} */
@@ -51,7 +55,10 @@ public class JpaOrderRepository implements OrderRepository {
             return Optional.empty();
         }
         try {
-            OrderEntity saved = jpaRepository.saveAndFlush(OrderMapper.toEntity(order));
+            OrderEntity entity = OrderMapper.toEntity(order);
+            // 消費端在還原出來的 span 底下建單，這裡拿到的就是整條鏈的 trace id
+            traceContexts.currentTraceId().ifPresent(entity::attachTrace);
+            OrderEntity saved = jpaRepository.saveAndFlush(entity);
             return Optional.of(OrderMapper.toDomain(saved));
         } catch (DataIntegrityViolationException e) {
             log.debug("requestId={} 觸發唯一鍵衝突，判定為重複請求", order.requestId());
@@ -128,6 +135,12 @@ public class JpaOrderRepository implements OrderRepository {
             return Set.of();
         }
         return Set.copyOf(jpaRepository.findExistingOrderNos(orderNos));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<String> findTraceId(OrderNo orderNo) {
+        return jpaRepository.findTraceId(orderNo.value());
     }
 
     @Override
