@@ -209,6 +209,31 @@ export interface PromotionRequest {
   enabled: boolean
 }
 
+export interface BlacklistView {
+  userId: number
+  email: string | null
+  displayName: string | null
+  reason: string
+  createdBy: number | null
+  createdAt: string
+  expiresAt: string | null
+}
+
+// ---------------------------------------------------------------------------
+// 搶購資格（ADR-0028）
+// ---------------------------------------------------------------------------
+
+export interface ChallengeView {
+  challengeToken: string
+  question: string
+  expiresAt: string
+}
+
+export interface QualificationView {
+  token: string
+  expiresAt: string
+}
+
 /** 排隊資訊。 `estimatedWaitSeconds` 為 -1 代表**算不出來**，不是「不用等」—— 顯示成「約 0 秒」然後讓人等四十分鐘，比誠實說不知道更糟。 */
 export interface OrderQueue {
   ahead: number

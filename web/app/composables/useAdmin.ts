@@ -1,6 +1,7 @@
 import { useApi } from '~/composables/useApi'
 import type {
   ActivityView,
+  BlacklistView,
   OrderView,
   PageView,
   ProductView,
@@ -206,6 +207,22 @@ export function useAdmin() {
       { ...auth, method: 'POST' })
   }
 
+  // ---- 風控：黑名單 ----
+
+  function blacklist(page = 0, size = 20) {
+    return request<PageView<BlacklistView>>(`/api/v1/admin/risk/blacklist?page=${page}&size=${size}`, auth)
+  }
+
+  function addToBlacklist(userId: number, reason: string, expiresAt: string | null) {
+    return request<BlacklistView>('/api/v1/admin/risk/blacklist', {
+      ...auth, method: 'POST', body: { userId, reason, expiresAt },
+    })
+  }
+
+  function removeFromBlacklist(userId: number) {
+    return request<void>(`/api/v1/admin/risk/blacklist/${userId}`, { ...auth, method: 'DELETE' })
+  }
+
   return {
     shipments, dispatch, markDelivered, markFailed,
     returns, approveReturn, rejectReturn,
@@ -215,5 +232,6 @@ export function useAdmin() {
     orders, order, closeOrder, staffNote, writeStaffNote,
     users, suspendUser, reactivateUser,
     promotions, createPromotion, updatePromotion, setPromotionEnabled,
+    blacklist, addToBlacklist, removeFromBlacklist,
   }
 }

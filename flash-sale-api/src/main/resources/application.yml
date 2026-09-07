@@ -199,6 +199,25 @@ flash-sale:
 
   # 入場控制（ADR-0023）。**預設關閉**——會主動拒絕合法請求的機制，
   # 先讓指標跑一段時間、確認閾值訂得合理再打開。
+  # 風控與資格預檢（ADR-0028）。熱路徑只驗憑證簽章，其餘檢查都在領資格時做。
+  risk:
+    # 簽資格憑證與驗證題的金鑰。正式環境務必覆寫——用預設值等於任何人都能自己簽資格
+    secret: ${RISK_SECRET:dev-only-risk-secret-change-me-0123456789abcdef}
+    # 關掉後熱路徑不驗憑證，只給壓測與舊腳本用
+    require-qualification: ${RISK_REQUIRE_QUALIFICATION:true}
+    token-ttl: 15m
+    # 開賣前多久可以開始領資格
+    lead-time: 30m
+    challenge-ttl: 3m
+    # 風險訊號（同 IP／同裝置的帳號數）只看這個窗口
+    signal-window: 10m
+    young-account-seconds: 600
+    # 20 而不是 5：行動網路的 CGNAT 出口後面是成千上萬個真人
+    max-users-per-ip: 20
+    max-users-per-device: 3
+    max-qualifications-per-user: 5
+    reject-score: 60
+
   admission:
     enabled: ${ADMISSION_CONTROL_ENABLED:false}
     # 閾值以「使用者要等多久」表示，不以訊息數表示——

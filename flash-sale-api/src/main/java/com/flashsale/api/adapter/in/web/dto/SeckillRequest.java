@@ -7,9 +7,8 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
-/** 搶購請求體。 */
+/** 搶購請求。qualificationToken 是開賣前領到的資格憑證；要不要驗由後端設定決定。 */
 public record SeckillRequest(
-
         @NotNull(message = "activityId 不可為空")
         Long activityId,
 
@@ -17,13 +16,15 @@ public record SeckillRequest(
         @Max(value = 100, message = "單次購買數量過大")
         int quantity,
 
-        /** 由前端在使用者按下按鈕前產生的冪等鍵（建議用 UUID）。 網路逾時後重送相同的值，可確保只會扣一次庫存、拿到同一張訂單。 */
         @NotBlank(message = "requestId 不可為空")
         @Size(max = 64, message = "requestId 長度不可超過 64")
-        String requestId
+        String requestId,
+
+        @Size(max = 512, message = "qualificationToken 長度不可超過 512")
+        String qualificationToken
 ) {
 
     public SeckillCommand toCommand(Long userId) {
-        return new SeckillCommand(activityId, userId, quantity, requestId);
+        return new SeckillCommand(activityId, userId, quantity, requestId, qualificationToken);
     }
 }

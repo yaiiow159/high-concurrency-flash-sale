@@ -3,6 +3,9 @@ package com.flashsale.application.service;
 import com.flashsale.application.port.in.SeckillUseCase;
 import com.flashsale.application.port.in.command.SeckillCommand;
 import com.flashsale.application.port.in.dto.SeckillTicket;
+import com.flashsale.application.config.QualificationSettings;
+import com.flashsale.application.port.out.QualificationTokenCodec;
+import com.flashsale.domain.risk.QualificationToken;
 import com.flashsale.application.port.out.ActivityRepository;
 import com.flashsale.application.port.out.OrderNoGenerator;
 import com.flashsale.application.port.out.OrderQueueDepth;
@@ -38,6 +41,8 @@ public class SeckillApplicationService implements SeckillUseCase {
     private final OrderQueueDepth queueDepth;
     private final OrderNoGenerator orderNoGenerator;
     private final SeckillMetrics metrics;
+    private final QualificationTokenCodec qualificationCodec;
+    private final QualificationSettings qualificationSettings;
     private final Clock clock;
 
     public SeckillApplicationService(ActivityRepository activityRepository,
@@ -48,6 +53,8 @@ public class SeckillApplicationService implements SeckillUseCase {
                                      OrderQueueDepth queueDepth,
                                      OrderNoGenerator orderNoGenerator,
                                      SeckillMetrics metrics,
+                                     QualificationTokenCodec qualificationCodec,
+                                     QualificationSettings qualificationSettings,
                                      Clock clock) {
         this.activityRepository = activityRepository;
         this.stockRepository = stockRepository;
@@ -57,6 +64,8 @@ public class SeckillApplicationService implements SeckillUseCase {
         this.queueDepth = queueDepth;
         this.orderNoGenerator = orderNoGenerator;
         this.metrics = metrics;
+        this.qualificationCodec = qualificationCodec;
+        this.qualificationSettings = qualificationSettings;
         this.clock = clock;
     }
 
@@ -76,6 +85,7 @@ public class SeckillApplicationService implements SeckillUseCase {
     private SeckillTicket execute(SeckillCommand command) {
         rejectIfSoldOutLocally(command.activityId());
         rejectIfQueueOverloaded();
+        verifyQualification(command);
 
         SeckillActivity activity = loadPurchasableActivity(command);
         OrderNo candidateOrderNo = orderNoGenerator.next();
@@ -91,6 +101,22 @@ public class SeckillApplicationService implements SeckillUseCase {
     }
 
     /** 第 1 層漏斗：本機售罄標記。 */
+    /**
+     * 資格憑證：純 CPU 驗簽，零遠端呼叫——這是它能待在熱路徑上的唯一理由。
+     * 身分、黑名單、風險評分都在領憑證時（冷路徑）做完了，這裡只認簽章與到期。
+     */
+    private void verifyQualification(SeckillCommand command) {
+        if (!qualificationSettings.requireQualification()) {
+            return;
+        }
+        if (command.qualificationToken() == null || command.qualificationToken().isBlank()) {
+            throw new BusinessException(ErrorCode.QUALIFICATION_REQUIRED);
+        }
+        QualificationToken token = qualificationCodec.verify(command.qualificationToken())
+                .orElseThrow(() -> new BusinessException(ErrorCode.QUALIFICATION_INVALID));
+        token.ensureUsableBy(command.userId(), command.activityId(), clock.instant());
+    }
+
     private void rejectIfSoldOutLocally(Long activityId) {
         if (soldOutMarker.isSoldOut(activityId)) {
             throw new BusinessException(ErrorCode.SOLD_OUT);

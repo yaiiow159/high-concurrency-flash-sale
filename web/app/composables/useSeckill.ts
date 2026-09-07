@@ -1,5 +1,7 @@
 import { useApi, ApiError } from '~/composables/useApi'
-import type { ActivityView, OrderView, SeckillOutcome, SeckillTicket } from '~/types/api'
+import type {
+  ActivityView, ChallengeView, OrderView, QualificationView, SeckillOutcome, SeckillTicket,
+} from '~/types/api'
 
 /**
  * 訂單輪詢的分層節奏。 剛送出時消費端多半在數百毫秒內就落庫，因此前段密集； 之後拉長間隔避免對後端造成不必要的壓力。 **必須有上限。** 無限輪詢在尖峰時會變成第二波流量—— 而且是打在系統已經很吃力的時候。超過上限就請使用者去訂單頁看， 那是一次由使用者主導、分散在時間軸上的查詢。
@@ -77,7 +79,7 @@ export function useSeckill(activityId: number) {
       const ticket = await request<SeckillTicket>('/api/v1/seckill/orders', {
         method: 'POST',
         authenticated: true,
-        body: { activityId, quantity, requestId },
+        body: { activityId, quantity, requestId, qualificationToken: qualification.value?.token ?? null },
       })
       outcome.value = { kind: 'processing', orderNo: ticket.orderNo }
       await pollOrder(ticket.orderNo)
@@ -85,6 +87,11 @@ export function useSeckill(activityId: number) {
       const apiError = error instanceof ApiError
         ? error
         : new ApiError('UNKNOWN', '發生未預期的錯誤', 0, false)
+      // 後端說資格無效或缺少：清掉本機那份，讓使用者重領，而不是一直按一直 403
+      if (apiError.code === 'B0054' || apiError.code === 'B0055') {
+        clearQualification()
+        loadChallenge().catch(() => undefined)
+      }
       outcome.value = { kind: 'rejected', code: apiError.code, message: apiError.message }
     } finally {
       submitting.value = false
@@ -135,6 +142,80 @@ export function useSeckill(activityId: number) {
     outcome.value = { kind: 'idle' }
   }
 
+  // ---- 搶購資格（ADR-0028）----
+  //
+  // 憑證存 sessionStorage：使用者開賣前領好、重新整理頁面不該要他再答一次題。
+  // 不存 localStorage——它綁定活動與人，關掉分頁就沒有留著的理由
+
+  const qualification = ref<QualificationView | null>(null)
+  const challenge = ref<ChallengeView | null>(null)
+  const qualifying = ref(false)
+  const qualificationError = ref<string | null>(null)
+
+  const storageKey = `seckill:qualification:${activityId}`
+
+  function restoreQualification(): void {
+    if (!import.meta.client) return
+    try {
+      const raw = sessionStorage.getItem(storageKey)
+      if (!raw) return
+      const stored = JSON.parse(raw) as QualificationView
+      if (new Date(stored.expiresAt).getTime() > now()) {
+        qualification.value = stored
+      } else {
+        sessionStorage.removeItem(storageKey)
+      }
+    } catch {
+      // 讀不到就當沒有，讓使用者重領
+    }
+  }
+
+  function clearQualification(): void {
+    qualification.value = null
+    try {
+      sessionStorage.removeItem(storageKey)
+    } catch {
+      // 忽略：私密視窗可能不允許存取
+    }
+  }
+
+  async function loadChallenge(): Promise<void> {
+    qualificationError.value = null
+    // 題目要登入才能領：沒登入的人領了也用不到
+    challenge.value = await request<ChallengeView>('/api/v1/seckill/challenge', { authenticated: true })
+  }
+
+  /** 開賣前領資格。答錯只換題不清資格；被風控擋下的訊息原樣顯示，不告訴他是哪一條 */
+  async function qualify(answer: string): Promise<void> {
+    if (!challenge.value || qualifying.value) return
+    qualifying.value = true
+    qualificationError.value = null
+    try {
+      const granted = await request<QualificationView>(
+        `/api/v1/seckill/activities/${activityId}/qualify`, {
+          method: 'POST',
+          authenticated: true,
+          body: { challengeToken: challenge.value.challengeToken, answer },
+        })
+      qualification.value = granted
+      try {
+        sessionStorage.setItem(storageKey, JSON.stringify(granted))
+      } catch {
+        // 存不進去也沒關係，這一頁內仍然有效
+      }
+    } catch (error) {
+      qualificationError.value = error instanceof ApiError ? error.message : '取得資格失敗，請再試一次'
+      // 題目是一次性的語意：答錯或過期就換一題
+      await loadChallenge().catch(() => undefined)
+    } finally {
+      qualifying.value = false
+    }
+  }
+
+  /** 憑證到期或被後端判定無效時，前端也要跟著清掉，否則按鈕會一直亮著卻一直 403 */
+  const qualified = computed(() =>
+    qualification.value !== null && new Date(qualification.value.expiresAt).getTime() > now())
+
   onUnmounted(stopStockPolling)
 
   return {
@@ -148,5 +229,14 @@ export function useSeckill(activityId: number) {
     stopStockPolling,
     attempt,
     reset,
+    qualification: readonly(qualification),
+    qualified,
+    challenge: readonly(challenge),
+    qualifying: readonly(qualifying),
+    qualificationError: readonly(qualificationError),
+    restoreQualification,
+    loadChallenge,
+    qualify,
+    clearQualification,
   }
 }

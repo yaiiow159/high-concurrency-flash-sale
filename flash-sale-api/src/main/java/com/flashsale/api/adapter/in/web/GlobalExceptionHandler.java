@@ -104,7 +104,13 @@ public class GlobalExceptionHandler {
             Map.entry(ErrorCode.INSUFFICIENT_POINTS, HttpStatus.CONFLICT),
             // 費率表有缺口是**設定問題**而不是使用者輸入錯誤。
             // 回 409 而非 400：同一個請求在補上費率之後會成功
-            Map.entry(ErrorCode.SHIPPING_RATE_NOT_FOUND, HttpStatus.CONFLICT)
+            Map.entry(ErrorCode.SHIPPING_RATE_NOT_FOUND, HttpStatus.CONFLICT),
+            // 資格與風控：沒資格是 403，不是 401——他登入了，只是這一檔不讓他搶
+            Map.entry(ErrorCode.QUALIFICATION_REQUIRED, HttpStatus.FORBIDDEN),
+            Map.entry(ErrorCode.QUALIFICATION_INVALID, HttpStatus.FORBIDDEN),
+            Map.entry(ErrorCode.RISK_REJECTED, HttpStatus.FORBIDDEN),
+            Map.entry(ErrorCode.USER_BLACKLISTED, HttpStatus.FORBIDDEN),
+            Map.entry(ErrorCode.CHALLENGE_FAILED, HttpStatus.BAD_REQUEST)
     );
 
     @ExceptionHandler(BusinessException.class)
