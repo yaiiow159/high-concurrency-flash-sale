@@ -11,7 +11,7 @@ const model = defineModel<string>({ required: true })
 
 <template>
   <div
-    class="scroll-x flex gap-1 border-b border-line"
+    class="scroll-x scroll-hide flex gap-1 border-b border-line"
     role="tablist"
   >
     <button

@@ -149,6 +149,16 @@ export interface PaymentIntentView {
   status: string
 }
 
+export interface PaymentView {
+  paymentNo: string
+  orderNo: string
+  amount: number
+  status: string
+  createdAt: string
+  paidAt: string | null
+  failureReason: string | null
+}
+
 /** 排隊資訊。 `estimatedWaitSeconds` 為 -1 代表**算不出來**，不是「不用等」—— 顯示成「約 0 秒」然後讓人等四十分鐘，比誠實說不知道更糟。 */
 export interface OrderQueue {
   ahead: number

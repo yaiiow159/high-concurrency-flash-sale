@@ -155,7 +155,9 @@ flash-sale:
     # 回調簽章金鑰。正式環境由金流商提供，絕不可用預設值——
     # 那等於公開了偽造「付款成功」的方法。
     callback-secret: ${PAYMENT_CALLBACK_SECRET:dev-only-payment-secret-change-me-0123456789abcdef}
-    simulated-checkout-url: http://localhost:8080/simulated-checkout
+    # 相對路徑：由前端解析成自己的 /pay/simulated 頁。先前指到後端一個不存在的路徑，
+    # 使用者按下付款就被丟到一頁 401 的 JSON 上
+    simulated-checkout-url: ${PAYMENT_SIMULATED_CHECKOUT_URL:/pay/simulated}
     # 模擬閘道多久後送回調。真實金流是使用者操作完才回調，
     # 這裡用短延遲模擬「非同步」這個本質特性
     simulate-callback-delay: 2s
