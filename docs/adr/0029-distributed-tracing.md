@@ -42,14 +42,17 @@ observation 的自動傳播靠的是執行緒上的當前 span，排程執行緒
 存的是 `traceparent` 字串而不是 trace id：前者帶 parent span id 與 sampled 旗標，
 還原出來的 span 才會掛在正確的父節點下、且尊重上游的取樣決定。
 
-### 3. 取樣率是設定，開發環境 100%
+### 3. 取樣率預設保守，不預設 100%
 
-正式環境的秒殺尖峰每秒上千筆，全採樣會讓 Tempo 的寫入量跟業務流量一樣大。
-`management.tracing.sampling.probability` 由環境變數覆寫；本機預設 1.0 是為了「每一筆都查得到」。
+秒殺尖峰每秒上千筆，全採樣不只讓 Tempo 的寫入量跟業務流量一樣大——span 的**建立**成本
+也是每個請求都要付的，而 Lettuce 那部分跑在所有 Redis 命令共用的 netty event loop 上。
+
+預設 5%，本機除錯時用 `TRACING_SAMPLING_PROBABILITY=1.0` 開滿。
+這個方向與 `snowflake.node-id` 預設 0 的教訓相同：**忘記設定的後果必須是安全的那一邊**。
 
 ### 4. log 帶 traceId
 
-log 格式加上 `traceId`／`spanId`。從一行 ERROR 直接拿到 trace id 貼進 Grafana，
+log 格式加上 `traceId`。從一行 ERROR 直接拿到 trace id 貼進 Grafana，
 是這件事對維運最直接的價值——比 service map 好看的圖有用得多。
 
 ---

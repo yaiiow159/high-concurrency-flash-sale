@@ -21,7 +21,9 @@ public class LettuceTracingConfig {
 
     @Bean
     public ClientResourcesBuilderCustomizer lettuceTracingCustomizer(ObservationRegistry observationRegistry) {
-        // includeCommandArgsInSpanTags=false：Lua 腳本與 key 會進 tag，但參數（userId、requestId）不進
+        // 第三個參數是 includeCommandArgsInSpanTags。**沒有「只記 key 不記參數」這個檔位**：
+        // 改成 true 會把整條命令字串（含 key 與 userId、requestId）寫進 span 與 metrics 的 tag。
+        // 要那種中間狀態得自己實作 LettuceObservationConvention
         return builder -> builder.tracing(new MicrometerTracing(observationRegistry, "redis", false));
     }
 }

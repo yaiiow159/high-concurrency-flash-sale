@@ -81,21 +81,25 @@ public class OutboxRelayer {
         return published;
     }
 
-    /** 送出但不等待。 */
+    /** 送出但不等待。span 從這裡開到 ack 為止，scope 只在 send 期間——不然下一筆會掛成這一筆的子節點。 */
     private Optional<InFlight> dispatch(OutboxEventEntity event) {
+        TraceContexts.Trace trace = traceContexts.open(event.getTraceContext(), "outbox.relay");
         try {
             ProducerRecord<String, String> record = new ProducerRecord<>(
                     KafkaTopics.ORDER_EVENT, event.getAggregateId(), event.getPayload());
             // 事件型別放在標頭，消費端不必反序列化 payload 就能決定要不要處理。
             record.headers().add(KafkaTopics.HEADER_EVENT_TYPE,
                     event.getEventType().getBytes(StandardCharsets.UTF_8));
-            // 在寫入時存下的 trace 底下送：KafkaTemplate 的 observation 會把它當父節點，
-            // 消費端從 header 接續的就是同一條 trace（ADR-0029）
-            CompletableFuture<SendResult<String, String>> future = traceContexts.runUnder(
-                    event.getTraceContext(), "outbox.relay", () -> kafkaTemplate.send(record));
-            return Optional.of(new InFlight(event, future));
+            // KafkaTemplate 的 observation 會把還原出來的 span 當父節點，消費端從 header 接續（ADR-0029）
+            CompletableFuture<SendResult<String, String>> future = trace.inScope(() -> kafkaTemplate.send(record));
+            return Optional.of(new InFlight(event, future, trace));
         } catch (RuntimeException e) {
-            markFailed(event, e);
+            trace.error(e);
+            trace.inScope(() -> {
+                markFailed(event, e);
+                return null;
+            });
+            trace.end();
             return Optional.empty();
         }
     }
@@ -109,11 +113,19 @@ public class OutboxRelayer {
             return true;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+            sent.trace().error(e);
             sent.event().markFailed("投遞被中斷", properties.outbox().maxRetry());
             return false;
         } catch (Exception e) {
-            markFailed(sent.event(), e);
+            sent.trace().error(e);
+            // 失敗的那行 log 要帶 traceId：從一行 ERROR 直接拿到 trace 是這件事對維運最直接的價值
+            sent.trace().inScope(() -> {
+                markFailed(sent.event(), e);
+                return null;
+            });
             return false;
+        } finally {
+            sent.trace().end();
         }
     }
 
@@ -125,7 +137,7 @@ public class OutboxRelayer {
 
     /** 已送出、等待 ack 的一筆。把事件與它自己的 future 綁在一起，才能逐筆記錄成敗。 */
     private record InFlight(OutboxEventEntity event,
-                            CompletableFuture<SendResult<String, String>> future) {
+                            CompletableFuture<SendResult<String, String>> future, TraceContexts.Trace trace) {
     }
 
     /** 清理已投遞的舊紀錄，避免發件匣表隨訂單量無限成長。 */

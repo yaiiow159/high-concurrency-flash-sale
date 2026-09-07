@@ -319,10 +319,13 @@ management:
     metrics:
       export:
         enabled: true
-  # 分散式追蹤（ADR-0029）。本機 100% 取樣是為了「每一筆都查得到」；正式環境由環境變數壓低
+  # 分散式追蹤（ADR-0029）。
+  # **預設值刻意保守**：忘記設定的後果應該是 trace 少，而不是尖峰時每個請求多背
+  # 一份 span 建立成本（Lettuce 那部分還跑在所有 Redis 命令共用的 netty event loop 上）。
+  # 本機除錯時 TRACING_SAMPLING_PROBABILITY=1.0 開滿
   tracing:
     sampling:
-      probability: ${TRACING_SAMPLING_PROBABILITY:1.0}
+      probability: ${TRACING_SAMPLING_PROBABILITY:0.05}
   otlp:
     tracing:
       endpoint: ${OTLP_TRACES_ENDPOINT:http://localhost:4318/v1/traces}
