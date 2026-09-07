@@ -30,6 +30,11 @@ function flashSaleItems(section: HomeSectionView) {
   return activities.value.slice(0, section.type === 'FLASH_SALE' ? 8 : 0)
 }
 
+/** 橫幅上的倒數跟著「最先能買」的活動走；沒有進行中的就跟著第一個。 */
+const { now: serverNow } = useServerTime()
+const spotlight = computed<ActivityView | null>(() =>
+  activities.value.find((activity) => activity.purchasable) ?? activities.value[0] ?? null)
+
 /** 評分與圖片在客戶端另外取：首頁是 ISR 快取的，併進來會讓新評價要等快取過期。 */
 const ratings = ref<Record<number, ProductRatingView>>({})
 const images = ref<Record<number, ProductImageView>>({})
@@ -51,8 +56,7 @@ async function loadDecorations() {
     ])
     ratings.value = rating
     images.value = image
-    // 收藏狀態一次問完。少了這一步，列表上的愛心永遠是空心的，
-    // 而且因為狀態恆為「未收藏」，從列表也取消不了收藏
+    // 收藏狀態一次問完。少了這一步，列表上的愛心永遠是空心的
     await loadStatus([...new Set(ids)])
   } catch (cause) {
     // fail-open：評分或圖片掛掉不該讓人連首頁都看不到
@@ -95,6 +99,20 @@ onMounted(() => {
   void loadRecentlyViewed()
 })
 
+/** 分類入口的色塊：同一個分類永遠同一個顏色。 */
+const CATEGORY_TONES = [
+  'bg-[#fdeceb] text-[#e11d2b]',
+  'bg-[#fff3e0] text-[#e8730c]',
+  'bg-[#e8f4ff] text-[#1c6fd1]',
+  'bg-[#e9f7ee] text-[#1f8a4c]',
+  'bg-[#f3eefe] text-[#7a3fd1]',
+  'bg-[#fff7d6] text-[#b07a00]',
+] as const
+
+function categoryTone(id: number) {
+  return CATEGORY_TONES[id % CATEGORY_TONES.length]
+}
+
 const { seo } = useSeo()
 seo({
   title: '閃購 — 限時搶購與熱銷商品',
@@ -104,96 +122,118 @@ seo({
 </script>
 
 <template>
-  <div class="flex flex-col gap-12">
+  <div class="flex flex-col gap-10">
     <template v-for="section in sections" :key="section.sectionId">
-      <HomeCarousel v-if="section.type === 'CAROUSEL'" :slides="section.slides" />
+      <!-- 主視覺 + 今日焦點：輪播佔三分之二，右側是最先能買的那檔活動 -->
+      <div
+        v-if="section.type === 'CAROUSEL'"
+        class="grid gap-4"
+        :class="spotlight ? 'lg:grid-cols-[minmax(0,1fr)_19rem]' : ''"
+      >
+        <HomeCarousel :slides="section.slides" />
+        <NuxtLink
+          v-if="spotlight"
+          :to="`/seckill/${spotlight.activityId}`"
+          class="group hidden lg:block"
+        >
+          <AppCard interactive class="flex h-full flex-col overflow-hidden">
+            <div class="bg-promo flex items-center justify-between px-4 py-2.5 text-white">
+              <span class="flex items-center gap-1.5 text-sm font-extrabold">
+                <svg viewBox="0 0 24 24" class="h-4 w-4" fill="currentColor" aria-hidden="true">
+                  <path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z" />
+                </svg>
+                今日焦點
+              </span>
+              <span class="text-[11px] font-semibold text-white/85">
+                限購 {{ spotlight.perUserLimit.toLocaleString() }} 件
+              </span>
+            </div>
+            <div class="flex flex-1 flex-col gap-3 p-4">
+              <ProductTile
+                :seed="spotlight.skuId" :label="spotlight.productName"
+                ratio="wide" class="transition-transform duration-300 group-hover:scale-[1.02]"
+              />
+              <h3 class="line-clamp-2 text-sm font-semibold leading-snug">
+                {{ spotlight.productName }}
+              </h3>
+              <MoneyText :amount="spotlight.seckillPrice" size="xl" tone="danger" />
+              <CountdownTimer
+                :start-at="spotlight.startAt" :end-at="spotlight.endAt" :server-now="serverNow"
+              />
+              <StockIndicator
+                class="mt-auto"
+                :available="spotlight.availableStock" :total="spotlight.totalStock" compact
+              />
+            </div>
+          </AppCard>
+        </NuxtLink>
+      </div>
 
-      <!-- 限時搶購：庫存與售罄狀態是這一區最需要一眼看到的事 -->
+      <!-- 限時搶購：品牌色橫幅 + 倒數，整頁只有這一區用漸層 -->
       <section
         v-else-if="section.type === 'FLASH_SALE' && activities.length > 0"
         :aria-labelledby="`section-${section.sectionId}`"
+        class="overflow-hidden rounded shadow-rest"
       >
-        <div class="mb-4 flex items-end justify-between gap-4">
-          <div>
-            <p class="eyebrow mb-1">Flash Sale</p>
+        <div class="bg-promo flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-white sm:px-5">
+          <div class="flex items-center gap-3">
             <h2
               :id="`section-${section.sectionId}`"
-              class="text-xl font-bold tracking-tight sm:text-2xl"
+              class="flex items-center gap-1.5 text-xl font-extrabold tracking-tight"
             >
+              <svg viewBox="0 0 24 24" class="h-5 w-5" fill="currentColor" aria-hidden="true">
+                <path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z" />
+              </svg>
               {{ section.title }}
             </h2>
-            <p v-if="section.subtitle" class="mt-1 text-xs text-ink-faint">
+            <p v-if="section.subtitle" class="hidden text-sm text-white/85 sm:block">
               {{ section.subtitle }}
             </p>
           </div>
-          <p class="text-xs text-ink-faint">庫存為列表快取值，實際餘量以活動頁為準</p>
+          <CountdownTimer
+            v-if="spotlight"
+            :start-at="spotlight.startAt" :end-at="spotlight.endAt" :server-now="serverNow"
+            tone="light"
+          />
         </div>
-
-        <ul class="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
+        <ul class="grid grid-cols-2 gap-3 bg-surface p-3 sm:grid-cols-3 sm:gap-4 sm:p-4 lg:grid-cols-4">
           <li v-for="activity in flashSaleItems(section)" :key="activity.activityId">
-            <NuxtLink :to="`/seckill/${activity.activityId}`" class="group block h-full">
-              <AppCard interactive class="flex h-full flex-col overflow-hidden">
-                <div class="relative">
-                  <ProductTile
-                    :seed="activity.skuId" :label="activity.productName"
-                    class="transition-transform duration-300 group-hover:scale-[1.03]"
-                  />
-                  <div
-                    v-if="activity.availableStock <= 0"
-                    class="absolute inset-0 flex items-center justify-center bg-black/55"
-                  >
-                    <span class="rounded-sm bg-white/95 px-3 py-1 text-sm font-semibold text-danger">
-                      已售罄
-                    </span>
-                  </div>
-                  <span
-                    v-else
-                    class="absolute left-2 top-2 rounded-sm bg-danger px-1.5 py-0.5
-                           text-xs font-semibold text-white shadow-rest"
-                  >
-                    限時
-                  </span>
-                </div>
-                <div class="flex flex-1 flex-col justify-between gap-3 p-3.5 sm:p-4">
-                  <div>
-                    <h3 class="text-sm font-medium leading-snug sm:text-base">
-                      {{ activity.productName }}
-                    </h3>
-                    <p class="mt-1 text-xs text-ink-faint">
-                      每人限購 <span class="figure">{{ activity.perUserLimit }}</span> 件
-                    </p>
-                  </div>
-                  <!-- 窄卡片上並排會把「餘 996」擠到換行，數字被拆成兩行比不顯示更糟 -->
-                  <div
-                    class="flex flex-col gap-0.5 sm:flex-row sm:items-end
-                           sm:justify-between sm:gap-2"
-                  >
-                    <MoneyText :amount="activity.seckillPrice" size="lg" tone="danger" />
-                    <span class="figure whitespace-nowrap text-xs text-ink-muted">
-                      餘 {{ activity.availableStock }}
-                    </span>
-                  </div>
-                </div>
-              </AppCard>
-            </NuxtLink>
+            <FlashSaleCard :activity="activity" />
           </li>
         </ul>
+        <p class="border-t border-line bg-surface px-4 py-2 text-[11px] text-ink-faint">
+          庫存為列表快取值，實際餘量以活動頁為準
+        </p>
       </section>
 
+      <!-- 分類入口：色塊 + 名稱，一眼掃過去就知道有哪些東西可以逛 -->
       <section
         v-else-if="section.type === 'CATEGORY_GRID' && categoryEntries.length > 0"
         :aria-labelledby="`section-${section.sectionId}`"
       >
-        <h2 :id="`section-${section.sectionId}`" class="eyebrow mb-3">{{ section.title }}</h2>
-        <ul class="flex flex-wrap gap-2">
+        <SectionHeading :title="section.title" :more-to="{ path: '/products' }" more-label="全部商品">
+          <template v-if="section.subtitle" #aside>
+            <span class="text-sm text-ink-muted">{{ section.subtitle }}</span>
+          </template>
+        </SectionHeading>
+        <ul class="grid grid-cols-4 gap-2 sm:grid-cols-6 sm:gap-3 lg:grid-cols-12">
           <li v-for="category in categoryEntries" :key="category.categoryId">
             <NuxtLink
               :to="{ path: '/products', query: { category: category.categoryId } }"
-              class="inline-flex rounded-full border border-line bg-surface px-4 py-2
-                     text-sm text-ink-muted shadow-rest transition-colors
-                     hover:border-accent hover:text-accent"
+              class="group flex flex-col items-center gap-2 rounded bg-surface px-1 py-3
+                     text-center shadow-rest transition hover:-translate-y-0.5 hover:shadow-lift"
             >
-              {{ category.name }}
+              <span
+                class="grid h-12 w-12 place-items-center rounded-full text-lg font-extrabold
+                       transition-transform group-hover:scale-110"
+                :class="categoryTone(category.categoryId)"
+                aria-hidden="true"
+              >
+                {{ category.name.slice(0, 1) }}
+              </span>
+              <span class="line-clamp-1 w-full text-xs font-medium text-ink group-hover:text-accent">
+                {{ category.name }}
+              </span>
             </NuxtLink>
           </li>
         </ul>

@@ -2,14 +2,16 @@
 import { useAuthStore } from '~/stores/auth'
 import { useCartStore } from '~/stores/cart'
 import { useNotifications } from '~/composables/useNotifications'
+import type { ApiResponse, CategoryView } from '~/types/api'
 
 /**
- * 全站頁首。 先前每一頁自己在標題旁邊放幾個連結，於是「購物車」在商品頁有、 在訂單頁沒有，使用者得先按上一頁才找得到。導覽是全站的事， 不該由每一頁各自決定。 購物車數字未登入時取自 localStorage、登入後取自伺服器—— 兩者都由 store 統一計算，這裡只負責顯示。
+ * 全站頁首：工具列（帳戶相關）、主列（品牌、搜尋、購物車）、分類列。
+ * 工具列不固定，主列與分類列固定——那是使用者一路往下捲時仍需要的東西。
  */
 const auth = useAuthStore()
 const cart = useCartStore()
+const route = useRoute()
 
-/** 未讀數。 */
 const { unreadCount, refreshUnreadCount } = useNotifications()
 
 onMounted(() => {
@@ -22,151 +24,247 @@ watch(() => auth.isAuthenticated, (loggedIn) => {
     refreshUnreadCount()
   }
 })
-const route = useRoute()
 
-const links = [
-  { to: '/', label: '限時搶購' },
-  { to: '/products', label: '全部商品' },
-  { to: '/search', label: '搜尋' },
-  { to: '/coupons', label: '領券' },
-]
+/** 分類列只取第二層的前幾個；根類目只有一個，第三層太多。 */
+const { data: categoryData } = await useFetch<ApiResponse<CategoryView[]>>(
+  '/api/v1/catalog/categories')
+const categories = computed(() =>
+  (categoryData.value?.data ?? []).flatMap((root) => root.children ?? []).slice(0, 8))
+
+const activeCategory = computed(() => {
+  const raw = route.query.category
+  return typeof raw === 'string' ? Number(raw) : null
+})
 
 function isActive(to: string): boolean {
   return to === '/' ? route.path === '/' : route.path.startsWith(to)
 }
+
+/** 搜尋。送出後導到搜尋頁；輸入框與網址上的 q 同步，返回時不會清空。 */
+const keyword = ref(typeof route.query.q === 'string' ? route.query.q : '')
+watch(() => route.query.q, (q) => {
+  keyword.value = typeof q === 'string' ? q : ''
+})
+
+function submitSearch() {
+  const q = keyword.value.trim()
+  navigateTo({ path: '/search', query: q ? { q } : {} })
+}
+
+const accountLinks = [
+  { to: '/orders', label: '我的訂單' },
+  { to: '/reviews', label: '評價' },
+  { to: '/returns', label: '退貨' },
+  { to: '/addresses', label: '收貨地址' },
+  { to: '/coupons', label: '優惠券' },
+] as const
 </script>
 
 <template>
-  <header class="sticky top-0 z-20 border-b border-line bg-surface/85 backdrop-blur">
-    <!--
-      whitespace-nowrap 不可省：中文可以在任兩個字之間斷行，
-      少了它「限時搶購」在窄螢幕上會被拆成兩行，整個頁首變成三層高。
-    -->
-    <div class="mx-auto flex max-w-content items-center gap-3 whitespace-nowrap px-4 py-3 sm:gap-6 sm:px-5">
-      <NuxtLink to="/" class="flex items-baseline gap-2 font-semibold tracking-tight">
-        <span class="text-accent">閃購</span>
-        <span class="hidden text-xs font-normal text-ink-faint sm:inline">FLASH SALE</span>
-      </NuxtLink>
+  <div>
+    <!-- 工具列：桌機才有，手機把這些收進會員中心 -->
+    <div class="hidden bg-ink-inverse text-white/80 sm:block">
+      <div class="mx-auto flex h-8 max-w-content items-center justify-between px-5 text-xs">
+        <p class="flex items-center gap-1.5">
+          <span class="inline-block h-1.5 w-1.5 rounded-full bg-[#ff6a2c]" aria-hidden="true" />
+          限時搶購每日更新 · 展示站，所有交易皆為模擬
+        </p>
+        <nav class="flex items-center gap-4" aria-label="帳戶">
+          <template v-if="auth.isAuthenticated">
+            <NuxtLink
+              v-for="link in accountLinks" :key="link.to" :to="link.to"
+              class="transition-colors hover:text-white"
+              :class="isActive(link.to) ? 'text-white' : ''"
+            >
+              {{ link.label }}
+            </NuxtLink>
+            <!-- 後台入口只對有權限的人顯示。這不是安全機制，API 仍要 scope -->
+            <NuxtLink
+              v-if="auth.isAdmin" to="/admin"
+              class="font-semibold text-[#ffb08a] transition-colors hover:text-white"
+            >
+              後台管理
+            </NuxtLink>
+            <button
+              type="button" class="transition-colors hover:text-white"
+              @click="auth.logout()"
+            >
+              登出
+            </button>
+          </template>
+          <template v-else>
+            <NuxtLink to="/coupons" class="transition-colors hover:text-white">優惠券</NuxtLink>
+            <NuxtLink to="/member" class="font-semibold text-white">登入 / 註冊</NuxtLink>
+          </template>
+        </nav>
+      </div>
+    </div>
 
-      <nav class="flex items-center gap-0.5 text-[13px] sm:gap-1 sm:text-sm" aria-label="主導覽">
-        <NuxtLink
-          v-for="link in links"
-          :key="link.to"
-          :to="link.to"
-          class="rounded-sm px-2 py-1.5 transition-colors sm:px-2.5"
-          :class="isActive(link.to)
-            ? 'font-medium text-accent'
-            : 'text-ink-muted hover:text-ink'"
-        >
-          {{ link.label }}
-        </NuxtLink>
-      </nav>
-
-      <!--
-        允許換行。導覽項目加到第六個之後，375px 就裝不下了——
-        實測溢出 21px，而頁面本體橫捲是這個專案明確禁止的。
-        換行讓手機上的標題列高一點，但沒有任何項目被藏起來；
-        把「通知」藏到 sm: 之後才顯示是更糟的取捨，
-        因為未讀紅點正是手機上最需要看到的東西。
-      -->
-      <div class="ml-auto flex flex-wrap items-center justify-end gap-0.5
-                  text-[13px] sm:gap-1 sm:text-sm">
-        <NuxtLink
-          to="/cart"
-          class="flex items-center gap-1.5 rounded-sm px-2 py-1.5 transition-colors sm:px-2.5"
-          :class="isActive('/cart') ? 'font-medium text-accent' : 'text-ink-muted hover:text-ink'"
-        >
-          購物車
-          <!-- 數量用等寬，否則從 9 變 10 時整條導覽會位移 -->
+    <header class="sticky top-0 z-30 bg-surface shadow-[0_1px_0_var(--line),0_2px_8px_rgb(16_18_24/4%)]">
+      <!-- 主列 -->
+      <div class="mx-auto flex h-16 max-w-content items-center gap-3 px-4 sm:gap-6 sm:px-5">
+        <NuxtLink to="/" class="flex shrink-0 items-center gap-2" aria-label="閃購首頁">
           <span
-            v-if="cart.itemCount > 0"
-            class="figure rounded-sm bg-accent px-1.5 py-0.5 text-xs text-on-accent"
+            class="grid h-9 w-9 place-items-center rounded bg-accent text-lg font-extrabold
+                   text-white shadow-[0_4px_10px_-4px_rgb(225_29_43/60%)]"
           >
-            {{ cart.itemCount }}
+            閃
+          </span>
+          <span class="hidden flex-col leading-none sm:flex">
+            <span class="text-lg font-extrabold tracking-tight text-ink">閃購</span>
+            <span class="text-[10px] font-bold tracking-[0.18em] text-accent">FLASH SALE</span>
           </span>
         </NuxtLink>
 
-        <template v-if="auth.isAuthenticated">
-          <NuxtLink
-            to="/orders"
-            class="rounded-sm px-2 py-1.5 text-ink-muted transition-colors hover:text-ink sm:px-2.5"
-            :class="isActive('/orders') ? 'font-medium text-accent' : ''"
+        <form
+          class="flex min-w-0 flex-1 items-center overflow-hidden rounded-sm border-2
+                 border-accent bg-surface sm:max-w-2xl"
+          role="search"
+          @submit.prevent="submitSearch"
+        >
+          <label for="site-search" class="sr-only">搜尋商品</label>
+          <input
+            id="site-search"
+            v-model="keyword"
+            type="search"
+            placeholder="搜尋商品、品牌"
+            autocomplete="off"
+            class="h-10 min-w-0 flex-1 bg-transparent px-3 text-sm placeholder:text-ink-faint
+                   focus:outline-none"
           >
-            訂單
+          <button
+            type="submit"
+            class="grid h-10 w-12 shrink-0 place-items-center bg-accent text-white
+                   transition-colors hover:bg-accent-hover sm:w-16"
+            aria-label="搜尋"
+          >
+            <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2.2">
+              <circle cx="11" cy="11" r="7" />
+              <path d="m20 20-3.5-3.5" stroke-linecap="round" />
+            </svg>
+          </button>
+        </form>
+
+        <nav class="flex shrink-0 items-center gap-1 sm:gap-2" aria-label="快速入口">
+          <NuxtLink
+            v-if="auth.isAuthenticated"
+            to="/wishlist"
+            class="hidden flex-col items-center gap-0.5 rounded-sm px-2 py-1 text-[11px]
+                   transition-colors hover:text-accent sm:flex"
+            :class="isActive('/wishlist') ? 'text-accent' : 'text-ink-muted'"
+          >
+            <svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path
+                d="M12 21s-7.5-4.6-9.5-9A5.2 5.2 0 0 1 12 6.5 5.2 5.2 0 0 1 21.5 12c-2 4.4-9.5 9-9.5 9Z"
+                stroke-linejoin="round"
+              />
+            </svg>
+            收藏
           </NuxtLink>
+
           <NuxtLink
+            v-if="auth.isAuthenticated"
             to="/notifications"
-            class="relative flex items-center gap-1.5 rounded-sm px-2 py-1.5 text-ink-muted
-                   transition-colors hover:text-ink sm:px-2.5"
-            :class="isActive('/notifications') ? 'font-medium text-accent' : ''"
+            class="relative flex flex-col items-center gap-0.5 rounded-sm px-2 py-1 text-[11px]
+                   transition-colors hover:text-accent"
+            :class="isActive('/notifications') ? 'text-accent' : 'text-ink-muted'"
           >
-            通知
-            <!-- 未讀數用等寬，否則從 9 變 10 時整條導覽會位移；
-                 超過 99 顯示 99+，三位數會把導覽撐開 -->
+            <svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15L6 16Z" stroke-linejoin="round" />
+              <path d="M10 20a2 2 0 0 0 4 0" stroke-linecap="round" />
+            </svg>
+            <span class="hidden sm:inline">通知</span>
             <span
               v-if="unreadCount > 0"
-              class="figure rounded-sm bg-danger px-1.5 py-0.5 text-xs text-white"
+              class="figure absolute -top-0.5 right-0 min-w-[1.1rem] rounded-full bg-accent
+                     px-1 py-px text-center text-[10px] leading-4 text-white"
             >
               {{ unreadCount > 99 ? '99+' : unreadCount }}
             </span>
           </NuxtLink>
+
           <NuxtLink
-            to="/wishlist"
-            class="hidden rounded-sm px-2.5 py-1.5 text-ink-muted transition-colors hover:text-ink sm:block"
-            :class="isActive('/wishlist') ? 'font-medium text-accent' : ''"
+            to="/cart"
+            class="relative flex flex-col items-center gap-0.5 rounded-sm px-2 py-1 text-[11px]
+                   transition-colors hover:text-accent"
+            :class="isActive('/cart') ? 'text-accent' : 'text-ink-muted'"
           >
-            收藏
+            <svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path d="M3 4h2l2.4 11.2a1.5 1.5 0 0 0 1.5 1.2h8.6a1.5 1.5 0 0 0 1.5-1.1L21 8H6.5" stroke-linecap="round" stroke-linejoin="round" />
+              <circle cx="10" cy="20" r="1.3" />
+              <circle cx="17" cy="20" r="1.3" />
+            </svg>
+            <span class="hidden sm:inline">購物車</span>
+            <!-- 數量用等寬，否則從 9 變 10 時整條導覽會位移 -->
+            <span
+              v-if="cart.itemCount > 0"
+              class="figure absolute -top-0.5 right-0 min-w-[1.1rem] rounded-full bg-accent
+                     px-1 py-px text-center text-[10px] leading-4 text-white"
+            >
+              {{ cart.itemCount > 99 ? '99+' : cart.itemCount }}
+            </span>
           </NuxtLink>
+
           <NuxtLink
             to="/member"
-            class="hidden rounded-sm px-2.5 py-1.5 text-ink-muted transition-colors hover:text-ink sm:block"
-            :class="isActive('/member') ? 'font-medium text-accent' : ''"
+            class="flex flex-col items-center gap-0.5 rounded-sm px-2 py-1 text-[11px]
+                   transition-colors hover:text-accent"
+            :class="isActive('/member') ? 'text-accent' : 'text-ink-muted'"
           >
-            會員中心
+            <svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="1.8">
+              <circle cx="12" cy="8.5" r="3.5" />
+              <path d="M5 20a7 7 0 0 1 14 0" stroke-linecap="round" />
+            </svg>
+            <span class="hidden sm:inline">{{ auth.isAuthenticated ? '會員' : '登入' }}</span>
           </NuxtLink>
-          <NuxtLink
-            to="/reviews"
-            class="hidden rounded-sm px-2.5 py-1.5 text-ink-muted transition-colors hover:text-ink sm:block"
-            :class="isActive('/reviews') ? 'font-medium text-accent' : ''"
-          >
-            評價
-          </NuxtLink>
-          <NuxtLink
-            to="/returns"
-            class="hidden rounded-sm px-2.5 py-1.5 text-ink-muted transition-colors hover:text-ink sm:block"
-            :class="isActive('/returns') ? 'font-medium text-accent' : ''"
-          >
-            退貨
-          </NuxtLink>
-          <NuxtLink
-            to="/addresses"
-            class="hidden rounded-sm px-2.5 py-1.5 text-ink-muted transition-colors hover:text-ink sm:block"
-            :class="isActive('/addresses') ? 'font-medium text-accent' : ''"
-          >
-            收貨地址
-          </NuxtLink>
-          <!--
-            後台入口只對有權限的人顯示。**這不是安全機制**——
-            改 JS 就能讓它出現，但那沒有意義，因為 /api/v1/admin/** 仍然要 scope。
-            它只是不要讓一般使用者看到一個按下去只會失敗的連結
-          -->
-          <NuxtLink
-            v-if="auth.isAdmin"
-            to="/admin"
-            class="rounded-sm px-2 py-1.5 font-medium text-accent transition-colors
-                   hover:text-accent-hover sm:px-2.5"
-          >
-            後台
-          </NuxtLink>
-          <button
-            type="button"
-            class="rounded-sm px-2 py-1.5 text-ink-muted transition-colors hover:text-ink sm:px-2.5"
-            @click="auth.logout()"
-          >
-            登出
-          </button>
-        </template>
+        </nav>
       </div>
-    </div>
-  </header>
+
+      <!-- 分類列：可橫向捲動，手機上不換行也不截斷 -->
+      <nav class="border-t border-line" aria-label="主導覽">
+        <div
+          class="scroll-hide mx-auto flex h-11 max-w-content items-center gap-1 overflow-x-auto
+                 whitespace-nowrap px-4 text-sm sm:px-5"
+        >
+          <NuxtLink
+            to="/"
+            class="flex items-center gap-1 rounded-sm px-3 py-1.5 font-bold transition-colors"
+            :class="isActive('/') ? 'bg-accent-soft text-accent' : 'text-accent hover:bg-accent-soft'"
+          >
+            <svg viewBox="0 0 24 24" class="h-4 w-4" fill="currentColor" aria-hidden="true">
+              <path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z" />
+            </svg>
+            限時搶購
+          </NuxtLink>
+          <NuxtLink
+            to="/products"
+            class="rounded-sm px-3 py-1.5 font-medium transition-colors"
+            :class="isActive('/products') && activeCategory === null
+              ? 'text-accent' : 'text-ink hover:text-accent'"
+          >
+            全部商品
+          </NuxtLink>
+          <span class="mx-1 h-4 w-px bg-line" aria-hidden="true" />
+          <NuxtLink
+            v-for="category in categories"
+            :key="category.categoryId"
+            :to="{ path: '/products', query: { category: category.categoryId } }"
+            class="rounded-sm px-3 py-1.5 transition-colors"
+            :class="activeCategory === category.categoryId
+              ? 'font-medium text-accent' : 'text-ink-muted hover:text-accent'"
+          >
+            {{ category.name }}
+          </NuxtLink>
+          <NuxtLink
+            to="/coupons"
+            class="ml-auto rounded-sm px-3 py-1.5 font-medium text-ink-muted transition-colors
+                   hover:text-accent"
+            :class="isActive('/coupons') ? 'text-accent' : ''"
+          >
+            領券中心
+          </NuxtLink>
+        </div>
+      </nav>
+    </header>
+  </div>
 </template>
