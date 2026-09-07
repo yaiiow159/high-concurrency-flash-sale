@@ -222,7 +222,7 @@ public class ReturnService implements ReturnUseCase {
         payment.applyRefund(totalRefund, now);
         paymentRepository.save(payment);
 
-        request.markRefunded(now);
+        request.startRefund(now);
         // 事件先取出來。update() 可能回傳一個從 entity 重建的新物件，
         // 而重建出來的聚合根身上沒有剛剛註冊的事件——那會讓退款靜靜地不發生
         List<DomainEvent> events = request.pullDomainEvents();

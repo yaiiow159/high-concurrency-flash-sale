@@ -8,7 +8,7 @@ import StatusBadge from '~/components/StatusBadge.vue'
  * <h2>為什麼值得測</h2>
  *
  * 這個元件是<b>後端列舉與畫面文字之間的對照表</b>，而後端這半年新增了
- * 六個狀態（訂單的 REFUNDED、退貨單的五個）。對照表漏掉一個不會報錯，
+ * 七個狀態（訂單的 REFUNDED、退貨單的六個）。對照表漏掉一個不會報錯，
  * 只會把原始的英文列舉名直接印在畫面上——那種畫面看起來「還能用」，
  * 所以通常是使用者先看到，不是我們。
  *
@@ -22,7 +22,7 @@ const ORDER_STATUSES = [
   'CANCELLED', 'FAILED', 'REFUNDED',
 ]
 const SHIPMENT_STATUSES = ['READY', 'IN_TRANSIT', 'DELIVERED']
-const RETURN_STATUSES = ['REQUESTED', 'APPROVED', 'RECEIVED', 'REFUNDED', 'REJECTED', 'CANCELLED']
+const RETURN_STATUSES = ['REQUESTED', 'APPROVED', 'RECEIVED', 'REFUNDING', 'REFUNDED', 'REJECTED', 'CANCELLED']
 
 function labelOf(status: string) {
   return mount(StatusBadge, { props: { status } }).text()

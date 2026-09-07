@@ -456,6 +456,7 @@ export interface ReturnRequestView {
   createdAt: string
   reviewedAt?: string | null
   receivedAt?: string | null
+  refundStartedAt?: string | null
   refundedAt?: string | null
 }
 

@@ -33,8 +33,10 @@ function nextAction(request: ReadonlyReturn): string {
       return request.requiresGoodsReturn ? '請把商品寄回' : '等待退款'
     case 'RECEIVED':
       return '已驗收，等待退款'
-    case 'REFUNDED':
+    case 'REFUNDING':
       return '款項退回中'
+    case 'REFUNDED':
+      return '款項已退回'
     case 'REJECTED':
       return request.reviewNote ?? '申請未通過'
     default:

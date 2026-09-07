@@ -5,6 +5,9 @@ import com.flashsale.application.port.in.RefundExecutionUseCase;
 import com.flashsale.application.port.out.InventoryService;
 import com.flashsale.application.port.out.PaymentGateway;
 import com.flashsale.application.port.out.PaymentRepository;
+import com.flashsale.application.port.out.ReturnRequestRepository;
+import com.flashsale.domain.aftersales.ReturnNo;
+import com.flashsale.domain.aftersales.ReturnRequest;
 import com.flashsale.domain.aftersales.event.RefundRequestedEvent;
 import com.flashsale.domain.order.OrderNo;
 import com.flashsale.domain.payment.Payment;
@@ -13,7 +16,8 @@ import com.flashsale.domain.shared.ErrorCode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+
+import java.time.Clock;
 
 /** 執行退款——退款 Saga 的慢車道（ADR-0011 決策 8）。 */
 @Service
@@ -22,23 +26,41 @@ public class RefundExecutionService implements RefundExecutionUseCase {
     private static final Logger log = LoggerFactory.getLogger(RefundExecutionService.class);
 
     private final PaymentRepository paymentRepository;
+    private final ReturnRequestRepository returnRepository;
     private final PaymentGateway paymentGateway;
     private final InventoryService inventoryService;
     private final PaymentMetrics metrics;
+    private final Clock clock;
 
     public RefundExecutionService(PaymentRepository paymentRepository,
+                                  ReturnRequestRepository returnRepository,
                                   PaymentGateway paymentGateway,
                                   InventoryService inventoryService,
-                                  PaymentMetrics metrics) {
+                                  PaymentMetrics metrics,
+                                  Clock clock) {
         this.paymentRepository = paymentRepository;
+        this.returnRepository = returnRepository;
         this.paymentGateway = paymentGateway;
         this.inventoryService = inventoryService;
         this.metrics = metrics;
+        this.clock = clock;
     }
 
     /** {@inheritDoc} */
     @Override
     public void execute(RefundRequestedEvent event) {
+        ReturnRequest request = returnRepository.findByReturnNo(ReturnNo.of(event.returnNo()))
+                .orElseThrow(() -> new BusinessException(ErrorCode.RETURN_REQUEST_NOT_FOUND,
+                        "退貨單 %s 不存在".formatted(event.returnNo())));
+
+        // 錢已經出去了就什麼都不做。這一關擋的不只是重複投遞——consumer group
+        // 第一次上線會重放整個 topic（auto-offset-reset=earliest），
+        // 沒有它，歷史上每一筆退款都會再向閘道發起一次（鐵則 4）
+        if (!request.awaitingSettlement()) {
+            log.debug("退貨單 {} 不在待到帳狀態（{}），略過", event.returnNo(), request.status());
+            return;
+        }
+
         Payment payment = paymentRepository.findByOrderNo(OrderNo.of(event.orderNo()))
                 .orElseThrow(() -> new BusinessException(ErrorCode.PAYMENT_NOT_FOUND,
                         "訂單 %s 沒有付款紀錄".formatted(event.orderNo())));
@@ -61,6 +83,12 @@ public class RefundExecutionService implements RefundExecutionUseCase {
                 event.returnNo(), event.refundAmount(), outcome.gatewayReference());
 
         restock(event);
+
+        // 結算擺在最後：中途掛掉的話退貨單留在 REFUNDING，補送排程會再推一次，
+        // 而閘道與庫存回補都是冪等的。反過來先結算就等於在錢還沒確定之前關掉唯一的線索
+        request.settleRefund(clock.instant());
+        returnRepository.update(request);
+
         // 計數放在庫存回補之後：擺在前面的話，回補失敗被重投時會重複計數，
         // 而那個指標正是用來看「退款成功了幾筆」的
         metrics.recordRefund(true);

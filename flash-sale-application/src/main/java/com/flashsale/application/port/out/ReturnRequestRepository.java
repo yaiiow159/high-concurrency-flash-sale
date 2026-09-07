@@ -4,6 +4,7 @@ import com.flashsale.domain.aftersales.ReturnNo;
 import com.flashsale.domain.aftersales.ReturnRequest;
 import com.flashsale.domain.aftersales.ReturnStatus;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -26,4 +27,10 @@ public interface ReturnRequestRepository {
 
     /** 客服後台的待審清單。 */
     List<ReturnRequest> findByStatus(ReturnStatus status, int limit);
+
+    /** 已核可退款、錢卻還沒出去且超過寬限期的退貨單。補送排程的工作集。 */
+    List<ReturnRequest> findStuckRefunds(Instant startedBefore, int limit);
+
+    /** 待到帳的退款筆數。正常應為 0，持續大於 0 代表閘道那一步卡住了。 */
+    long countAwaitingSettlement();
 }

@@ -14,6 +14,8 @@ const TABS = [
   { value: 'REQUESTED', label: '待審核' },
   { value: 'APPROVED', label: '已核准' },
   { value: 'RECEIVED', label: '已收貨' },
+  // 錢還沒出去的單獨立一頁：閘道卡住時它們會堆在這裡，混進「已退款」就看不見了
+  { value: 'REFUNDING', label: '退款處理中' },
   { value: 'REFUNDED', label: '已退款' },
   { value: 'REJECTED', label: '已駁回' },
 ] as const

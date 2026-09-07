@@ -184,6 +184,14 @@ flash-sale:
     # 待退款掃描間隔（毫秒）。每一筆待退款都代表有錢卡在系統裡
     refund-scan-interval-ms: 60000
 
+  aftersales:
+    # 退款發起後多久還沒到帳就算卡住，由補送排程接手（ADR-0031）。
+    # **必須明顯長於消費端的重試預算**（慢檔約 90 秒），
+    # 否則排程會與還在重試的消費端同時對閘道發起同一筆退款
+    refund-settlement-grace-ms: 300000
+    refund-recovery-interval-ms: 60000
+    settlement-scan-interval-ms: 60000
+
   security:
     # 初始管理員：系統中還沒有任何 ADMIN 時才會生效一次。
     #

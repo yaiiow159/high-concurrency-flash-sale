@@ -64,6 +64,10 @@ public class ReturnRequestEntity {
     @Column(name = "received_at")
     private Instant receivedAt;
 
+    /** 退款發起時間。錢還沒出去——到帳時間是 refundedAt。 */
+    @Column(name = "refund_started_at")
+    private Instant refundStartedAt;
+
     @Column(name = "refunded_at")
     private Instant refundedAt;
 
@@ -101,12 +105,13 @@ public class ReturnRequestEntity {
 
     /** 套用狀態變更。 */
     public void applyStateChange(String status, String reviewNote, Instant reviewedAt,
-                                 Instant receivedAt, Instant refundedAt,
+                                 Instant receivedAt, Instant refundStartedAt, Instant refundedAt,
                                  Map<Long, Boolean> restockableBySku) {
         this.status = status;
         this.reviewNote = reviewNote;
         this.reviewedAt = reviewedAt;
         this.receivedAt = receivedAt;
+        this.refundStartedAt = refundStartedAt;
         this.refundedAt = refundedAt;
         // 以 skuId 對應而不是按位置：兩邊的排序規則各自演化時，
         // 按位置寫入會把 A 的驗收結果套到 B 身上，而且完全不會報錯
@@ -168,6 +173,10 @@ public class ReturnRequestEntity {
 
     public Instant getReceivedAt() {
         return receivedAt;
+    }
+
+    public Instant getRefundStartedAt() {
+        return refundStartedAt;
     }
 
     public Instant getRefundedAt() {

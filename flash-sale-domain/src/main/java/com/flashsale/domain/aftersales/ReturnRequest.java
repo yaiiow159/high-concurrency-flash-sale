@@ -32,6 +32,7 @@ public final class ReturnRequest {
     private String reviewNote;
     private Instant reviewedAt;
     private Instant receivedAt;
+    private Instant refundStartedAt;
     private Instant refundedAt;
     private final long version;
 
@@ -42,7 +43,7 @@ public final class ReturnRequest {
                           boolean requiresGoodsReturn,
                           List<ReturnLine> lines, ReturnStatus status, String reviewNote,
                           Instant createdAt, Instant reviewedAt, Instant receivedAt,
-                          Instant refundedAt, long version) {
+                          Instant refundStartedAt, Instant refundedAt, long version) {
         this.id = id;
         this.returnNo = Objects.requireNonNull(returnNo, "returnNo 不可為 null");
         this.orderNo = Objects.requireNonNull(orderNo, "orderNo 不可為 null");
@@ -57,6 +58,7 @@ public final class ReturnRequest {
         this.createdAt = Objects.requireNonNull(createdAt, "createdAt 不可為 null");
         this.reviewedAt = reviewedAt;
         this.receivedAt = receivedAt;
+        this.refundStartedAt = refundStartedAt;
         this.refundedAt = refundedAt;
         this.version = version;
     }
@@ -74,18 +76,19 @@ public final class ReturnRequest {
                                      Instant now) {
         return new ReturnRequest(null, returnNo, orderNo, userId, requestId, reason, reasonDetail,
                 requiresGoodsReturn, lines, ReturnStatus.REQUESTED, null,
-                now, null, null, null, 0L);
+                now, null, null, null, null, 0L);
     }
 
     public static ReturnRequest restore(Long id, ReturnNo returnNo, OrderNo orderNo, Long userId,
                                         String requestId, ReturnReason reason, String reasonDetail,
                                         boolean requiresGoodsReturn, List<ReturnLine> lines,
                                         ReturnStatus status, String reviewNote, Instant createdAt,
-                                        Instant reviewedAt, Instant receivedAt, Instant refundedAt,
+                                        Instant reviewedAt, Instant receivedAt,
+                                        Instant refundStartedAt, Instant refundedAt,
                                         long version) {
         return new ReturnRequest(id, returnNo, orderNo, userId, requestId, reason, reasonDetail,
                 requiresGoodsReturn, lines, status, reviewNote, createdAt,
-                reviewedAt, receivedAt, refundedAt, version);
+                reviewedAt, receivedAt, refundStartedAt, refundedAt, version);
     }
 
     public void approve(String note, Instant now) {
@@ -129,15 +132,24 @@ public final class ReturnRequest {
         this.receivedAt = now;
     }
 
-    /** 標記退款完成。 */
-    public void markRefunded(Instant now) {
+    /**
+     * 核可退款並發起。此刻錢還沒出去——落到 REFUNDING 而不是 REFUNDED，
+     * 是為了讓「已核可但閘道還沒成功」是一個查得出來的狀態（ADR-0031）。
+     */
+    public void startRefund(Instant now) {
         if (requiresGoodsReturn && status != ReturnStatus.RECEIVED) {
             throw new BusinessException(ErrorCode.ILLEGAL_RETURN_STATE_TRANSITION,
                     "退貨單 %s 需寄回，必須先驗收才能退款".formatted(returnNo));
         }
+        transitionTo(ReturnStatus.REFUNDING);
+        this.refundStartedAt = now;
+        registerEvent(RefundRequestedEvent.of(this, now));
+    }
+
+    /** 閘道已確認退款到帳。 */
+    public void settleRefund(Instant now) {
         transitionTo(ReturnStatus.REFUNDED);
         this.refundedAt = now;
-        registerEvent(RefundRequestedEvent.of(this, now));
     }
 
     /** 退款總額。由退貨行的快照單價推導，不獨立儲存——避免出現兩個真實來源。 */
@@ -165,6 +177,11 @@ public final class ReturnRequest {
                 .filter(line -> line.skuId().equals(skuId))
                 .mapToInt(ReturnLine::quantity)
                 .sum();
+    }
+
+    /** 已核可退款但錢還沒出去。補送排程用它決定要不要再推一次。 */
+    public boolean awaitingSettlement() {
+        return status.awaitingSettlement();
     }
 
     public boolean belongsTo(Long candidateUserId) {
@@ -258,6 +275,10 @@ public final class ReturnRequest {
 
     public Instant receivedAt() {
         return receivedAt;
+    }
+
+    public Instant refundStartedAt() {
+        return refundStartedAt;
     }
 
     public Instant refundedAt() {
