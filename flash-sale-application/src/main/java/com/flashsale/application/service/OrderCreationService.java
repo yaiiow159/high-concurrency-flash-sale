@@ -1,5 +1,6 @@
 package com.flashsale.application.service;
 
+import com.flashsale.application.port.out.SeckillMetrics;
 import com.flashsale.application.port.in.OrderCreationUseCase;
 import com.flashsale.application.port.out.ActivityRepository;
 import com.flashsale.application.port.out.EventOutbox;

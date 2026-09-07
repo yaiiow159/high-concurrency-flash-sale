@@ -1,5 +1,6 @@
 package com.flashsale.application.service;
 
+import com.flashsale.application.port.out.SearchIndexMetrics;
 import com.flashsale.application.port.in.SearchIndexReconciliationUseCase;
 import com.flashsale.application.port.in.dto.SearchIndexReconciliation;
 import com.flashsale.application.port.out.ProductRepository;

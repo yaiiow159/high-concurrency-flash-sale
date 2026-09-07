@@ -79,9 +79,25 @@ public class SecurityConfig {
                         // 商品頁要能匿名瀏覽，但只開放 GET。
                         // 這也是這些端點能被 CDN 快取的前提——
                         // 帶 Authorization 的請求無法共用快取。
+                        //
+                        // **逐條列出，不用 `/**`。** 先前這裡有 `/api/v1/catalog/**` 與
+                        // `/api/v1/activities/**` 兩個萬用字元，它們已經涵蓋了下面每一條，
+                        // 讓後面那些「刻意逐條列舉」的註解全部變成死規則——
+                        // 而真正的代價在未來：任何新增在這兩個前綴底下的 GET 會自動公開，
+                        // 而讀這段的人會以為這裡是逐條把關的。
                         .requestMatchers(HttpMethod.GET,
-                                "/api/v1/activities", "/api/v1/activities/**",
-                                "/api/v1/catalog/**",
+                                // 活動列表與詳情。warm-up 是 POST 且需要 admin scope，不在此列
+                                "/api/v1/activities",
+                                "/api/v1/activities/*",
+                                // 商品目錄：列表、詳情、規格、庫存、類目
+                                "/api/v1/catalog/products",
+                                "/api/v1/catalog/products/*",
+                                "/api/v1/catalog/skus",
+                                "/api/v1/catalog/stock",
+                                "/api/v1/catalog/categories",
+                                // 商品圖片：列表頁批次取主圖，詳情頁取全部
+                                "/api/v1/catalog/products/images",
+                                "/api/v1/catalog/products/*/images",
                                 // 首頁版型不含任何身分資料，是它能被 ISR 與 CDN 快取的前提
                                 "/api/v1/home",
                                 // sitemap：爬蟲要讀得到，本來就是公開資料

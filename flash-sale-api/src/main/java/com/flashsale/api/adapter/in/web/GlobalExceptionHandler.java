@@ -6,6 +6,10 @@ import com.flashsale.domain.shared.ErrorCode;
 import io.github.resilience4j.ratelimiter.RequestNotPermitted;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.dao.QueryTimeoutException;
 import org.springframework.http.HttpStatus;
@@ -196,6 +200,30 @@ public class GlobalExceptionHandler {
         log.warn("資料庫連線或鎖等待逾時，請求已拒絕：{}", e.getMessage());
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                 .body(ApiResponse.error(ErrorCode.SYSTEM_BUSY, "系統忙碌中，請稍後再試"));
+    }
+
+    /**
+     * Spring MVC 在進到 Controller 之前就拒絕的請求：缺必填參數、方法不對、媒體型別不支援。
+     *
+     * <p>少了這一段，它們會落進兜底的 500 並印一份完整堆疊——
+     * 而 {@code GET /api/v1/catalog/products/ratings} 不帶參數是**匿名就打得到**的，
+     * 任何人都能用它刷爆日誌與 5xx 告警。回 500 還會帶上 {@code retryable=true}，
+     * 讓前端去重試一個永遠不會成功的請求。
+     */
+    @ExceptionHandler({
+            MissingServletRequestParameterException.class,
+            HandlerMethodValidationException.class,
+            HttpRequestMethodNotSupportedException.class,
+            HttpMediaTypeNotSupportedException.class})
+    public ResponseEntity<ApiResponse<Void>> handleBadRequest(Exception e) {
+        HttpStatus status = switch (e) {
+            case HttpRequestMethodNotSupportedException ignored -> HttpStatus.METHOD_NOT_ALLOWED;
+            case HttpMediaTypeNotSupportedException ignored -> HttpStatus.UNSUPPORTED_MEDIA_TYPE;
+            default -> HttpStatus.BAD_REQUEST;
+        };
+        log.debug("請求不合法：{}", e.getMessage());
+        return ResponseEntity.status(status)
+                .body(ApiResponse.error(ErrorCode.INVALID_PARAMETER, e.getMessage()));
     }
 
     /** 兜底處理。 */

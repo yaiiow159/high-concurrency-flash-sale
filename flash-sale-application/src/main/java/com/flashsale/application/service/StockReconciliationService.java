@@ -1,5 +1,6 @@
 package com.flashsale.application.service;
 
+import com.flashsale.application.port.out.SeckillMetrics;
 import com.flashsale.application.config.ReconciliationPolicy;
 import com.flashsale.application.config.SeckillPolicy;
 import com.flashsale.application.port.in.StockReconciliationUseCase;

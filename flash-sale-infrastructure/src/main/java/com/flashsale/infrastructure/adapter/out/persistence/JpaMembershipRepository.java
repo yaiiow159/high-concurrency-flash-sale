@@ -95,7 +95,7 @@ public class JpaMembershipRepository implements MembershipRepository {
 
     @Override
     @Transactional(readOnly = true)
-    public List<PointTransaction> findTransactions(Long userId, int offset, int limit) {
+    public List<PointTransaction> findTransactions(Long userId, int limit, int offset) {
         return transactionJpaRepository
                 .findByUser(userId, Pageables.of(limit, offset)).stream()
                 .map(JpaMembershipRepository::toDomain)

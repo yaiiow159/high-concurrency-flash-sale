@@ -23,7 +23,7 @@ public interface MembershipRepository {
     boolean redeem(Long userId, long cost, String refNo, Instant now);
 
     /** 流水，新到舊。 */
-    List<PointTransaction> findTransactions(Long userId, int offset, int limit);
+    List<PointTransaction> findTransactions(Long userId, int limit, int offset);
 
     /** 某一筆來源單號的異動；退款要按比例扣回時需要查出原始入帳的點數。 */
     Optional<PointTransaction> findByReference(Long userId, PointReason reason, String refNo);

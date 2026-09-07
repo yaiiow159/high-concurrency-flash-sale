@@ -1,5 +1,6 @@
 package com.flashsale.application.service;
 
+import com.flashsale.application.port.out.SeckillMetrics;
 import com.flashsale.application.config.QualificationSettings;
 import com.flashsale.application.port.in.SeckillQualificationUseCase.Qualification;
 import com.flashsale.application.port.in.SeckillQualificationUseCase.QualifyCommand;
@@ -77,10 +78,12 @@ class SeckillQualificationServiceTest {
         metrics = mock(SeckillMetrics.class);
 
         when(challengeCodec.verify(anyString(), anyString(), any())).thenReturn(true);
-        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user(UserStatus.ACTIVE, NOW.minusSeconds(86_400))));
+        when(userRepository.findById(USER_ID))
+                .thenReturn(Optional.of(user(UserStatus.ACTIVE, NOW.minusSeconds(86_400))));
         when(blacklistRepository.findActive(anyLong(), any())).thenReturn(Optional.empty());
         // 活動 10 分鐘後開賣、持續一小時：在領資格窗口內
-        when(activityRepository.findById(ACTIVITY_ID)).thenReturn(Optional.of(activity(NOW.plusSeconds(600), NOW.plusSeconds(4200))));
+        when(activityRepository.findById(ACTIVITY_ID))
+                .thenReturn(Optional.of(activity(NOW.plusSeconds(600), NOW.plusSeconds(4200))));
         when(riskSignalStore.observe(any())).thenReturn(new RiskSignals(86_400, 1, 1, 1));
         when(tokenCodec.issue(any())).thenReturn("signed");
 
@@ -128,7 +131,8 @@ class SeckillQualificationServiceTest {
     @Test
     @DisplayName("憑證活不過活動結束：活動剩 5 分鐘就只給 5 分鐘")
     void tokenExpiresWithActivity() {
-        when(activityRepository.findById(ACTIVITY_ID)).thenReturn(Optional.of(activity(NOW.minusSeconds(60), NOW.plusSeconds(300))));
+        when(activityRepository.findById(ACTIVITY_ID))
+                .thenReturn(Optional.of(activity(NOW.minusSeconds(60), NOW.plusSeconds(300))));
 
         assertThat(service.qualify(command()).expiresAt()).isEqualTo(NOW.plusSeconds(300));
     }
@@ -162,7 +166,8 @@ class SeckillQualificationServiceTest {
     @Test
     @DisplayName("停權者拿不到資格")
     void suspendedUserRejected() {
-        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user(UserStatus.SUSPENDED, NOW.minusSeconds(86_400))));
+        when(userRepository.findById(USER_ID))
+                .thenReturn(Optional.of(user(UserStatus.SUSPENDED, NOW.minusSeconds(86_400))));
 
         assertRejected(ErrorCode.ACCOUNT_SUSPENDED);
     }
@@ -179,7 +184,8 @@ class SeckillQualificationServiceTest {
     @Test
     @DisplayName("開賣前超過 leadTime：太早，憑證會在開賣前就過期")
     void tooEarlyRejected() {
-        when(activityRepository.findById(ACTIVITY_ID)).thenReturn(Optional.of(activity(NOW.plusSeconds(3600), NOW.plusSeconds(7200))));
+        when(activityRepository.findById(ACTIVITY_ID))
+                .thenReturn(Optional.of(activity(NOW.plusSeconds(3600), NOW.plusSeconds(7200))));
 
         assertRejected(ErrorCode.ACTIVITY_NOT_STARTED);
     }
@@ -187,7 +193,8 @@ class SeckillQualificationServiceTest {
     @Test
     @DisplayName("活動已結束：不發")
     void endedRejected() {
-        when(activityRepository.findById(ACTIVITY_ID)).thenReturn(Optional.of(activity(NOW.minusSeconds(7200), NOW.minusSeconds(1))));
+        when(activityRepository.findById(ACTIVITY_ID))
+                .thenReturn(Optional.of(activity(NOW.minusSeconds(7200), NOW.minusSeconds(1))));
 
         assertRejected(ErrorCode.ACTIVITY_ENDED);
     }

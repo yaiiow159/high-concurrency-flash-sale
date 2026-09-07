@@ -31,7 +31,7 @@ public interface ProductRepository {
      * <p>只取主鍵、走覆蓋索引，深分頁在這裡不是問題——而且它是爬蟲一天打幾次的路徑，
      * 不是使用者翻頁。
      */
-    List<Long> findOnShelfIdsPage(int size, int offset);
+    List<Long> findOnShelfIdsPage(int limit, int offset);
 
     /** 上架商品總數。sitemap 索引要據此算出有幾個分片。 */
     long countOnShelf();

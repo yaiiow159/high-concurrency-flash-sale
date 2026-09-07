@@ -1,5 +1,6 @@
 package com.flashsale.application.service;
 
+import com.flashsale.application.port.out.PaymentMetrics;
 import com.flashsale.application.port.in.RefundExecutionUseCase;
 import com.flashsale.application.port.out.InventoryService;
 import com.flashsale.application.port.out.PaymentGateway;

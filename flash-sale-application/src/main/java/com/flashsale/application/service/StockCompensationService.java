@@ -1,5 +1,6 @@
 package com.flashsale.application.service;
 
+import com.flashsale.application.port.out.SeckillMetrics;
 import com.flashsale.application.port.in.StockCompensationUseCase;
 import com.flashsale.application.port.out.SeckillRequestTracker;
 import com.flashsale.application.port.out.SoldOutMarker;

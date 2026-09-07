@@ -1,5 +1,6 @@
 package com.flashsale.application.service;
 
+import com.flashsale.application.port.out.InventoryMetrics;
 import com.flashsale.application.config.ReconciliationPolicy;
 import com.flashsale.application.port.in.dto.SkuReconciliation;
 import com.flashsale.application.port.out.InventoryRepository;

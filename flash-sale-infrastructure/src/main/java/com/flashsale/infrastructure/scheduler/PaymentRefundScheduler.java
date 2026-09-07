@@ -3,7 +3,7 @@ package com.flashsale.infrastructure.scheduler;
 import com.flashsale.application.port.out.DistributedLock;
 import com.flashsale.application.port.out.PaymentGateway;
 import com.flashsale.application.port.out.PaymentRepository;
-import com.flashsale.application.service.PaymentMetrics;
+import com.flashsale.application.port.out.PaymentMetrics;
 import com.flashsale.domain.payment.Payment;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

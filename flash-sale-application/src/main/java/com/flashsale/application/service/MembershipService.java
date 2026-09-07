@@ -1,5 +1,6 @@
 package com.flashsale.application.service;
 
+import com.flashsale.domain.shared.Page;
 import com.flashsale.application.port.in.MembershipUseCase;
 import com.flashsale.application.port.in.dto.ExchangeableCouponView;
 import com.flashsale.application.port.in.dto.MemberProfileView;
@@ -33,6 +34,8 @@ import java.util.List;
 @Service
 public class MembershipService implements MembershipUseCase {
 
+    private static final int MAX_PAGE_SIZE = 50;
+
     private static final Logger log = LoggerFactory.getLogger(MembershipService.class);
 
     /** 兌換出來的券的有效期。 */
@@ -59,7 +62,8 @@ public class MembershipService implements MembershipUseCase {
     @Override
     @Transactional(readOnly = true)
     public List<PointTransactionView> transactions(Long userId, int page, int size) {
-        return membershipRepository.findTransactions(userId, page * size, size).stream()
+        Page paging = Page.of(page, size, MAX_PAGE_SIZE);
+        return membershipRepository.findTransactions(userId, paging.size(), paging.offset()).stream()
                 .map(PointTransactionView::from)
                 .toList();
     }

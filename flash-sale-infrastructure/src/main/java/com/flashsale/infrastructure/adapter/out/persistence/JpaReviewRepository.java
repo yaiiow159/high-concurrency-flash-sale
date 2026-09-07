@@ -63,7 +63,7 @@ public class JpaReviewRepository implements ReviewRepository {
 
     @Override
     @Transactional(readOnly = true)
-    public List<Review> findByProductId(Long productId, int offset, int limit) {
+    public List<Review> findByProductId(Long productId, int limit, int offset) {
         return reviewJpaRepository
                 .findByProduct(productId, Pageables.of(limit, offset)).stream()
                 .map(JpaReviewRepository::toDomain)
@@ -72,7 +72,7 @@ public class JpaReviewRepository implements ReviewRepository {
 
     @Override
     @Transactional(readOnly = true)
-    public List<Review> findByUserId(Long userId, int offset, int limit) {
+    public List<Review> findByUserId(Long userId, int limit, int offset) {
         return reviewJpaRepository
                 .findByUser(userId, Pageables.of(limit, offset)).stream()
                 .map(JpaReviewRepository::toDomain)

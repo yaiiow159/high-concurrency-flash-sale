@@ -1,5 +1,6 @@
 package com.flashsale.application.service;
 
+import com.flashsale.application.port.out.SearchIndexMetrics;
 import com.flashsale.application.port.in.dto.SearchIndexReconciliation;
 import com.flashsale.application.port.out.ProductRepository;
 import com.flashsale.application.port.out.ProductSearchIndex;
@@ -7,7 +8,6 @@ import com.flashsale.domain.catalog.Product;
 import com.flashsale.domain.catalog.ProductStatus;
 import com.flashsale.domain.catalog.Sku;
 import com.flashsale.domain.catalog.SkuSpec;
-import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
+import static org.mockito.Mockito.mock;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -51,7 +52,7 @@ class SearchIndexReconciliationServiceTest {
     @BeforeEach
     void setUp() {
         service = new SearchIndexReconciliationService(searchIndex, productRepository,
-                new SearchIndexMetrics(new SimpleMeterRegistry()));
+                mock(SearchIndexMetrics.class));
     }
 
     private static Product product(long id, ProductStatus status) {

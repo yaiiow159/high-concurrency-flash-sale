@@ -1,5 +1,6 @@
 package com.flashsale.application.service;
 
+import com.flashsale.application.port.out.SeckillMetrics;
 import com.flashsale.application.config.QualificationSettings;
 import com.flashsale.application.port.in.SeckillQualificationUseCase;
 import com.flashsale.application.port.out.ActivityRepository;

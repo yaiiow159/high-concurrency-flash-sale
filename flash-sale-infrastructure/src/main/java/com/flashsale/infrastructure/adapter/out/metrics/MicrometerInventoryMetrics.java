@@ -1,23 +1,25 @@
-package com.flashsale.application.service;
+package com.flashsale.infrastructure.adapter.out.metrics;
 
 import com.flashsale.application.port.in.dto.SkuReconciliation;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
+import com.flashsale.application.port.out.InventoryMetrics;
 import org.springframework.stereotype.Component;
 
 /** 一般庫存的業務指標。 */
 @Component
-public class InventoryMetrics {
+public class MicrometerInventoryMetrics implements InventoryMetrics {
 
     private static final String RECONCILIATION_COUNTER = "inventory.reconciliation.total";
     private static final String ALLOCATION_COUNTER = "inventory.allocation.total";
 
     private final MeterRegistry registry;
 
-    public InventoryMetrics(MeterRegistry registry) {
+    public MicrometerInventoryMetrics(MeterRegistry registry) {
         this.registry = registry;
     }
 
+    @Override
     public void recordSkuReconciliation(SkuReconciliation result) {
         Counter.builder(RECONCILIATION_COUNTER)
                 .tag("verdict", result.verdict().name())
@@ -27,6 +29,7 @@ public class InventoryMetrics {
     }
 
     /** @param action {@code allocate} 或 {@code release} */
+    @Override
     public void recordAllocation(String action, boolean applied) {
         Counter.builder(ALLOCATION_COUNTER)
                 .tag("action", action)
