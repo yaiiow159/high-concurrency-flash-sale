@@ -2,7 +2,7 @@
 # 生產環境請改用託管服務或具備高可用配置的叢集——此檔案刻意單副本，只求啟動快。
 #
 #   docker compose up -d
-#   mvn spring-boot:run -pl flash-sale-api
+#   mvn spring-boot:run -pl flash-sale-api -Dspring-boot.run.profiles=dev
 
 name: flash-sale
 

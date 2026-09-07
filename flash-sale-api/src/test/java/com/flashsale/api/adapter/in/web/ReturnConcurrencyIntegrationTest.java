@@ -15,6 +15,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.test.context.DynamicPropertySource;
@@ -36,6 +37,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /** 退貨額度的併發正確性——對著<b>真實的 MySQL</b> 執行。 */
+// 整合測試就是 dev：預設金鑰只在這個 profile 下放行（SecretGuard）
+@ActiveProfiles("dev")
 @SpringBootTest
 @Testcontainers
 @DisplayName("退貨額度併發")

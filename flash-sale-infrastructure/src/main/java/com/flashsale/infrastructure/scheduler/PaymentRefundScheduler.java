@@ -9,7 +9,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -42,7 +41,15 @@ public class PaymentRefundScheduler {
     /** 排程方法絕不可讓例外逸出——Spring 會直接取消後續排程， 退款從此靜默停擺，而那些錢會一直卡著。 */
     private void runSafely() {
         try {
-            int refunded = refunder.refundPending(BATCH_SIZE);
+            // 迴圈刻意留在交易之外：整批包在一個交易裡的話，第 50 筆的例外會把
+            // 前 49 筆的「已退款」一起回滾，而那 49 筆的錢已經離開閘道了——
+            // 帳上寫沒退、現實是退了，與鐵則 8-1 是同一個方向的錯
+            int refunded = 0;
+            for (Payment payment : refunder.findPending(BATCH_SIZE)) {
+                if (refunder.refundOne(payment)) {
+                    refunded++;
+                }
+            }
             if (refunded > 0) {
                 log.info("本輪退款完成 {} 筆", refunded);
             }
@@ -72,20 +79,19 @@ public class PaymentRefundScheduler {
             this.clock = clock;
         }
 
-        @Transactional
-        public int refundPending(int batchSize) {
-            List<Payment> pending = paymentRepository.findPendingRefunds(batchSize);
-            int refunded = 0;
-            for (Payment payment : pending) {
-                if (refundOne(payment)) {
-                    refunded++;
-                }
-            }
-            return refunded;
+        public List<Payment> findPending(int batchSize) {
+            return paymentRepository.findPendingRefunds(batchSize);
         }
 
-        /** 單筆失敗不中斷整批——一筆退不掉不該讓其他人的錢也卡著。 */
-        private boolean refundOne(Payment payment) {
+        /**
+         * 退一筆。**這裡沒有 {@code @Transactional}**：閘道呼叫是外部往返，
+         * 包在交易裡會讓連線被佔住整趟，而且讓「已退款」的落庫與付款動作
+         * 綁在同一個可回滾的單位上。落庫由 {@code paymentRepository.save}
+         * 自己的交易負責，範圍剛好是一筆。
+         *
+         * <p>單筆失敗不中斷整批——一筆退不掉不該讓其他人的錢也卡著。
+         */
+        public boolean refundOne(Payment payment) {
             try {
                 PaymentGateway.RefundOutcome outcome =
                         // 冪等鍵用付款單號：這條路徑一定是全額退款，

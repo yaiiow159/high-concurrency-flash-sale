@@ -181,6 +181,16 @@ Redis 連不上時放行——那時這個節點本來就做不了秒殺。
 要開放必須明確加進放行清單。**放行清單逐一列出路徑，不可用 `/**` 一次放行**——
 那會連還沒寫的端點也一起開放。
 
+### 7-0. 簽章金鑰用預設值時拒絕啟動
+
+`jwt.secret`、`payment.callback-secret`、`risk.secret` 的預設值就寫在版控裡——
+拿到它就能偽造已登入的身分、偽造付款成功的回調、自己簽發搶購資格，
+而偽造出來的請求驗簽成功後看起來就是正常流量，不會出現在任何指標上。
+
+`SecretGuard` 因此**拒絕啟動**（fail-closed，與 `SnowflakeNodeIdGuard` 同一個立場），
+本機開發加 `dev` profile 放行。**新增任何簽章金鑰時要一起加進去**——
+只印警告等於沒有防線，正式部署的日誌沒有人在看。
+
 ### 7-1. 撤銷令牌必須走獨立交易
 
 重用偵測的流程是「撤銷整條輪替鏈 → 拋例外拒絕請求」。
@@ -328,7 +338,7 @@ docker compose up -d                                  # 啟動依賴（含 Elast
 curl -X POST localhost:8080/api/v1/admin/search/reindex -H "Authorization: Bearer $TOKEN"  # 重建搜尋索引
 curl -X POST localhost:8080/api/v1/auth/register -H "Content-Type: application/json" -d '{"email":"a@b.com","password":"password123","displayName":"A"}'
 curl -X POST localhost:8080/api/v1/auth/login    -H "Content-Type: application/json" -d '{"email":"a@b.com","password":"password123"}'
-mvn spring-boot:run -pl flash-sale-api                # 啟動應用
+mvn spring-boot:run -pl flash-sale-api -Dspring-boot.run.profiles=dev  # 啟動（預設金鑰只在 dev 放行）
 cd web && npm test                                    # 前端測試（Vitest，約 2 秒，不需 Docker）
 cd web && npx nuxt typecheck                          # 前端型別檢查
 ```
