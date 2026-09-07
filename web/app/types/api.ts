@@ -159,6 +159,56 @@ export interface PaymentView {
   failureReason: string | null
 }
 
+// ---------------------------------------------------------------------------
+// 後台
+// ---------------------------------------------------------------------------
+
+/** 後台列表的一頁：帶總筆數，維運要能直接跳到第 N 頁 */
+export interface PageView<T> {
+  items: T[]
+  total: number
+  page: number
+  size: number
+}
+
+export interface UserView {
+  userId: number
+  email: string
+  displayName: string
+  role: string
+  status: string
+  createdAt: string
+}
+
+export interface PromotionAdminView {
+  id: number
+  name: string
+  type: string
+  rule: string
+  threshold: number
+  value: number
+  maxDiscount: number | null
+  pointCost: number | null
+  startAt: string
+  endAt: string
+  enabled: boolean
+  issuedCoupons: number
+  usedCoupons: number
+}
+
+export interface PromotionRequest {
+  name: string
+  type: string
+  rule: string
+  threshold: number
+  value: number
+  maxDiscount: number | null
+  pointCost: number | null
+  startAt: string
+  endAt: string
+  enabled: boolean
+}
+
 /** 排隊資訊。 `estimatedWaitSeconds` 為 -1 代表**算不出來**，不是「不用等」—— 顯示成「約 0 秒」然後讓人等四十分鐘，比誠實說不知道更糟。 */
 export interface OrderQueue {
   ahead: number

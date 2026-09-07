@@ -50,6 +50,36 @@ public class PromotionEntity {
     @Column(name = "enabled", nullable = false)
     private boolean enabled;
 
+    public PromotionEntity(String name, String type, String rule, BigDecimal threshold,
+                           BigDecimal value, BigDecimal maxDiscount, Long pointCost,
+                           Instant startAt, Instant endAt, boolean enabled) {
+        this.name = name;
+        this.type = type;
+        this.rule = rule;
+        this.threshold = threshold;
+        this.value = value;
+        this.maxDiscount = maxDiscount;
+        this.pointCost = pointCost;
+        this.startAt = startAt;
+        this.endAt = endAt;
+        this.enabled = enabled;
+    }
+
+    /** type 刻意不在這裡：建立後不可改（見 PromotionAdminService）。 */
+    public void applyChanges(String name, String rule, BigDecimal threshold, BigDecimal value,
+                             BigDecimal maxDiscount, Long pointCost,
+                             Instant startAt, Instant endAt, boolean enabled) {
+        this.name = name;
+        this.rule = rule;
+        this.threshold = threshold;
+        this.value = value;
+        this.maxDiscount = maxDiscount;
+        this.pointCost = pointCost;
+        this.startAt = startAt;
+        this.endAt = endAt;
+        this.enabled = enabled;
+    }
+
     protected PromotionEntity() {
         // JPA 專用
     }

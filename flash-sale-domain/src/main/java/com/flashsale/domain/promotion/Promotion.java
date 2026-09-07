@@ -80,6 +80,12 @@ public final class Promotion {
     }
 
     /** 現在能不能用。 */
+    /** 不可變物件的啟停用：回傳只改 enabled 的副本，其餘欄位（含驗證）原封不動。 */
+    public Promotion withEnabled(boolean enabled) {
+        return new Promotion(id, name, type, rule, threshold, value, maxDiscount,
+                startAt, endAt, enabled, pointCost);
+    }
+
     public boolean isApplicableAt(Instant now) {
         return enabled && !now.isBefore(startAt) && now.isBefore(endAt);
     }

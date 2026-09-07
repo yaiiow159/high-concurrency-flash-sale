@@ -1,9 +1,14 @@
 import { useApi } from '~/composables/useApi'
 import type {
   ActivityView,
+  OrderView,
+  PageView,
   ProductView,
+  PromotionAdminView,
+  PromotionRequest,
   ReturnRequestView,
   ShipmentView,
+  UserView,
 } from '~/types/api'
 
 /**
@@ -130,11 +135,85 @@ export function useAdmin() {
       `/api/v1/admin/search/reconciliation?repair=${repair}`, auth)
   }
 
+  // ---- 訂單 ----
+
+  function orders(filters: { orderNo?: string, userId?: number | null, status?: string },
+                  page = 0, size = 20) {
+    const params = new URLSearchParams({ page: String(page), size: String(size) })
+    if (filters.orderNo) params.set('orderNo', filters.orderNo)
+    if (filters.userId) params.set('userId', String(filters.userId))
+    if (filters.status) params.set('status', filters.status)
+    return request<PageView<OrderView>>(`/api/v1/admin/orders?${params}`, auth)
+  }
+
+  function order(orderNo: string) {
+    return request<OrderView>(`/api/v1/admin/orders/${orderNo}`, auth)
+  }
+
+  function closeOrder(orderNo: string, reason: string) {
+    return request<OrderView>(`/api/v1/admin/orders/${orderNo}/close`, {
+      ...auth, method: 'POST', body: { reason },
+    })
+  }
+
+  function staffNote(orderNo: string) {
+    return request<{ note: string | null }>(`/api/v1/admin/orders/${orderNo}/staff-note`, auth)
+  }
+
+  function writeStaffNote(orderNo: string, note: string) {
+    return request<void>(`/api/v1/admin/orders/${orderNo}/staff-note`, {
+      ...auth, method: 'PUT', body: { note },
+    })
+  }
+
+  // ---- 會員 ----
+
+  function users(keyword: string, status: string, page = 0, size = 20) {
+    const params = new URLSearchParams({ page: String(page), size: String(size) })
+    if (keyword) params.set('keyword', keyword)
+    if (status) params.set('status', status)
+    return request<PageView<UserView>>(`/api/v1/admin/users?${params}`, auth)
+  }
+
+  function suspendUser(userId: number) {
+    return request<UserView>(`/api/v1/admin/users/${userId}/suspend`, { ...auth, method: 'POST' })
+  }
+
+  function reactivateUser(userId: number) {
+    return request<UserView>(`/api/v1/admin/users/${userId}/reactivate`, { ...auth, method: 'POST' })
+  }
+
+  // ---- 優惠 ----
+
+  function promotions(type: string, page = 0, size = 20) {
+    const params = new URLSearchParams({ page: String(page), size: String(size) })
+    if (type) params.set('type', type)
+    return request<PageView<PromotionAdminView>>(`/api/v1/admin/promotions?${params}`, auth)
+  }
+
+  function createPromotion(body: PromotionRequest) {
+    return request<PromotionAdminView>('/api/v1/admin/promotions', { ...auth, method: 'POST', body })
+  }
+
+  function updatePromotion(promotionId: number, body: PromotionRequest) {
+    return request<PromotionAdminView>(`/api/v1/admin/promotions/${promotionId}`,
+      { ...auth, method: 'PUT', body })
+  }
+
+  function setPromotionEnabled(promotionId: number, enabled: boolean) {
+    return request<PromotionAdminView>(
+      `/api/v1/admin/promotions/${promotionId}/${enabled ? 'enable' : 'disable'}`,
+      { ...auth, method: 'POST' })
+  }
+
   return {
     shipments, dispatch, markDelivered, markFailed,
     returns, approveReturn, rejectReturn,
     products, createProduct, putOnShelf, takeOffShelf,
     activities, publishActivity, offlineActivity, warmUp,
     reindex, searchReconciliation,
+    orders, order, closeOrder, staffNote, writeStaffNote,
+    users, suspendUser, reactivateUser,
+    promotions, createPromotion, updatePromotion, setPromotionEnabled,
   }
 }

@@ -4,6 +4,8 @@ import com.flashsale.domain.promotion.Coupon;
 import com.flashsale.domain.promotion.Promotion;
 
 import java.time.Instant;
+import com.flashsale.domain.promotion.DiscountType;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -42,4 +44,18 @@ public interface PromotionRepository {
 
     /** 自行領一張券。 */
     boolean claimCoupon(Long userId, Long promotionId, Instant expiresAt);
+
+    /** 新增（id 為 null）或覆寫（id 已存在）。 */
+    Promotion save(Promotion promotion);
+
+    /** 後台列表，type 為 null 代表全部；新到舊。 */
+    List<Promotion> findAll(DiscountType type, int limit, int offset);
+
+    long count(DiscountType type);
+
+    record CouponStats(long issued, long used) {
+    }
+
+    /** 各優惠發出與核銷的券數；沒發過券的不會出現在結果裡。 */
+    Map<Long, CouponStats> couponStats(Collection<Long> promotionIds);
 }

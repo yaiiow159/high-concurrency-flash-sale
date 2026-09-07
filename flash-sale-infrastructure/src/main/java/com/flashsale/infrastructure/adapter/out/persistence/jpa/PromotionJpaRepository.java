@@ -35,4 +35,10 @@ public interface PromotionJpaRepository extends JpaRepository<PromotionEntity, L
     List<PromotionEntity> findByTypeAndEnabledTrueAndStartAtBeforeAndEndAtAfterOrderByEndAtAsc(
             String type, Instant startBefore, Instant endAfter);
 
+    @Query("select p from PromotionEntity p where (:type is null or p.type = :type) order by p.id desc")
+    List<PromotionEntity> findAllByType(@Param("type") String type,
+                                        org.springframework.data.domain.Pageable pageable);
+
+    @Query("select count(p) from PromotionEntity p where (:type is null or p.type = :type)")
+    long countByType(@Param("type") String type);
 }

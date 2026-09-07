@@ -3,7 +3,9 @@ package com.flashsale.application.port.out;
 import com.flashsale.domain.identity.Email;
 import com.flashsale.domain.identity.User;
 import com.flashsale.domain.identity.UserRole;
+import com.flashsale.domain.identity.UserStatus;
 
+import java.util.List;
 import java.util.Optional;
 
 /** 使用者持久化埠（出站）。 */
@@ -28,4 +30,9 @@ public interface UserRepository {
 
     /** 系統中是否已經有這個角色的帳號。 */
     boolean existsByRole(UserRole role);
+
+    /** 後台搜尋：keyword 比對信箱前綴或顯示名稱，status 可為 null；建立時間新到舊。 */
+    List<User> search(String keyword, UserStatus status, int limit, int offset);
+
+    long countSearch(String keyword, UserStatus status);
 }

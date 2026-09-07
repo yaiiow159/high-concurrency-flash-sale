@@ -1,5 +1,7 @@
 package com.flashsale.infrastructure.adapter.out.persistence;
 
+import org.springframework.data.domain.PageRequest;
+import java.util.List;
 import com.flashsale.application.port.out.UserRepository;
 import com.flashsale.domain.identity.Email;
 import com.flashsale.domain.identity.PasswordHash;
@@ -106,5 +108,29 @@ public class JpaUserRepository implements UserRepository {
                 UserStatus.valueOf(entity.getStatus()),
                 entity.getCreatedAt(),
                 entity.getVersion());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<User> search(String keyword, UserStatus status, int limit, int offset) {
+        return jpaRepository.search(likePattern(keyword), status == null ? null : status.name(),
+                        PageRequest.of(offset / Math.max(limit, 1), Math.max(limit, 1)))
+                .stream()
+                .map(JpaUserRepository::toDomain)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long countSearch(String keyword, UserStatus status) {
+        return jpaRepository.countSearch(likePattern(keyword), status == null ? null : status.name());
+    }
+
+    /** 前綴比對：信箱那一欄有唯一索引，`abc%` 走得到、`%abc%` 走不到。 */
+    private static String likePattern(String keyword) {
+        if (keyword == null || keyword.isBlank()) {
+            return null;
+        }
+        return keyword.trim().replace("%", "\\%").replace("_", "\\_") + "%";
     }
 }

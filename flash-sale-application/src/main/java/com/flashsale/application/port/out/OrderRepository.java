@@ -58,4 +58,13 @@ public interface OrderRepository {
      * 「待付款」這種少數狀態需要翻很多頁才湊得滿一頁
      */
     List<Order> findByUserId(Long userId, String status, int limit, int offset);
+
+    /** 後台搜尋條件。全部可為 null；三個條件是 AND。 */
+    record SearchCriteria(String orderNo, Long userId, String status) {
+    }
+
+    /** 後台搜尋，建立時間新到舊。 */
+    List<Order> search(SearchCriteria criteria, int limit, int offset);
+
+    long countSearch(SearchCriteria criteria);
 }

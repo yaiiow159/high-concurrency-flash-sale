@@ -27,6 +27,7 @@ import com.flashsale.domain.promotion.PricedItem;
 import com.flashsale.domain.promotion.PricingEngine;
 import com.flashsale.domain.promotion.Promotion;
 import com.flashsale.application.port.out.ShippingRateRepository;
+import com.flashsale.application.port.out.UserRepository;
 import com.flashsale.domain.shipping.ShippingFeeCalculator;
 import com.flashsale.domain.shipping.ShippingMethod;
 import com.flashsale.domain.shipping.ShippingZone;
@@ -59,6 +60,7 @@ public class OrderPlacementService implements PlaceOrderUseCase {
     private final EventOutbox eventOutbox;
     private final PromotionRepository promotionRepository;
     private final ShippingRateRepository shippingRateRepository;
+    private final UserRepository userRepository;
     private final Clock clock;
 
     public OrderPlacementService(ProductRepository productRepository,
@@ -69,7 +71,9 @@ public class OrderPlacementService implements PlaceOrderUseCase {
                                  EventOutbox eventOutbox,
                                  PromotionRepository promotionRepository,
                                  ShippingRateRepository shippingRateRepository,
+                                 UserRepository userRepository,
                                  Clock clock) {
+        this.userRepository = userRepository;
         this.promotionRepository = promotionRepository;
         this.shippingRateRepository = shippingRateRepository;
         this.productRepository = productRepository;
@@ -91,6 +95,12 @@ public class OrderPlacementService implements PlaceOrderUseCase {
             log.debug("requestId {} 已有訂單，回傳既有結果", command.requestId());
             return OrderView.from(existing.get());
         }
+
+        // 停權在令牌過期前仍會生效的唯一地方：這條路徑本來就要進資料庫，多一次讀是便宜的。
+        // 秒殺熱路徑不做這件事（禁止新增遠端呼叫），由消費端接手
+        userRepository.findById(command.userId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND))
+                .ensureActive();
 
         Instant now = clock.instant();
         OrderNo orderNo = orderNoGenerator.next();

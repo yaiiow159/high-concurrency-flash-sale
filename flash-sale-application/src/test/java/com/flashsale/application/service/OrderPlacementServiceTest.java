@@ -16,7 +16,13 @@ import com.flashsale.domain.catalog.Product;
 import com.flashsale.domain.catalog.ProductStatus;
 import com.flashsale.domain.catalog.Sku;
 import com.flashsale.domain.catalog.SkuSpec;
+import com.flashsale.application.port.out.UserRepository;
 import com.flashsale.domain.identity.Address;
+import com.flashsale.domain.identity.Email;
+import com.flashsale.domain.identity.PasswordHash;
+import com.flashsale.domain.identity.User;
+import com.flashsale.domain.identity.UserRole;
+import com.flashsale.domain.identity.UserStatus;
 import com.flashsale.domain.order.Order;
 import com.flashsale.domain.order.OrderChannel;
 import com.flashsale.domain.order.OrderLine;
@@ -92,6 +98,8 @@ class OrderPlacementServiceTest {
     private PromotionRepository promotionRepository;
     @Mock
     private ShippingRateRepository shippingRateRepository;
+    @Mock
+    private UserRepository userRepository;
 
     @Nested
     @DisplayName("價格由目錄決定")
@@ -584,9 +592,13 @@ class OrderPlacementServiceTest {
 
 
     private OrderPlacementService service() {
+        // 每個測試都以一個正常會員下單；停權的情境另有測試
+        when(userRepository.findById(any())).thenReturn(Optional.of(User.restore(
+                1L, Email.of("buyer@example.com"), new PasswordHash("$2a$10$hash"), "買家",
+                UserRole.CUSTOMER, UserStatus.ACTIVE, NOW, 0L)));
         return new OrderPlacementService(productRepository, addressRepository, inventoryService,
                 orderRepository, orderNoGenerator, eventOutbox, promotionRepository,
-                shippingRateRepository, CLOCK);
+                shippingRateRepository, userRepository, CLOCK);
     }
 
     private static PlaceOrderCommand command(OrderItem... items) {
