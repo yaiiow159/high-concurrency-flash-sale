@@ -73,6 +73,9 @@ public interface OrderJpaRepository extends JpaRepository<OrderEntity, Long> {
     @Query("select o.status, count(o) from OrderEntity o where o.userId = :userId group by o.status")
     List<Object[]> countByUserIdGroupedByStatus(@Param("userId") Long userId);
 
+    @Query("select o.traceId from OrderEntity o where o.orderNo = :orderNo")
+    Optional<String> findTraceId(@Param("orderNo") String orderNo);
+
     /** 批次查詢存在的訂單號，供對帳比對孤兒扣減。 */
     @Query("select o.orderNo from OrderEntity o where o.orderNo in :orderNos")
     List<String> findExistingOrderNos(@Param("orderNos") Collection<String> orderNos);

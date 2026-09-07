@@ -9,7 +9,8 @@ import type { OrderView } from '~/types/api'
  */
 definePageMeta({ layout: 'admin', middleware: 'admin', ssr: false })
 
-const { orders, closeOrder, staffNote, writeStaffNote } = useAdmin()
+const { orders, orderTrace, closeOrder, staffNote, writeStaffNote } = useAdmin()
+const { public: { grafanaUrl } } = useRuntimeConfig()
 const route = useRoute()
 
 const STATUS_TABS = [
@@ -80,11 +81,29 @@ async function toggle(order: OrderView) {
   expanded.value = order.orderNo
   noteSaved.value = false
   noteDraft.value = ''
-  try {
-    noteDraft.value = (await staffNote(order.orderNo)).note ?? ''
-  } catch {
-    noteDraft.value = ''
-  }
+  traceId.value = null
+  const [note, trace] = await Promise.all([
+    staffNote(order.orderNo).catch(() => ({ note: '' })),
+    orderTrace(order.orderNo).catch(() => ({ traceId: null })),
+  ])
+  noteDraft.value = note.note ?? ''
+  traceId.value = trace.traceId
+}
+
+const traceId = ref<string | null>(null)
+
+/**
+ * Grafana Explore 的 Tempo 查詢網址。客服查「這張單為什麼卡住」
+ * 從翻日誌變成點一下（ADR-0029）。datasource uid 對齊 deploy/grafana 的 provisioning。
+ */
+function traceUrl(id: string): string {
+  const panes = JSON.stringify({
+    a: {
+      datasource: 'tempo',
+      queries: [{ refId: 'A', datasource: { type: 'tempo', uid: 'tempo' }, queryType: 'traceql', query: id }],
+    },
+  })
+  return `${grafanaUrl}/explore?schemaVersion=1&orgId=1&panes=${encodeURIComponent(panes)}`
 }
 
 async function saveNote(orderNo: string) {
@@ -275,6 +294,19 @@ useHead({ title: '訂單管理' })
                       </AppButton>
                       <span v-if="noteSaved" class="text-xs text-ok">已儲存</span>
                     </div>
+                  </div>
+                  <div class="rounded-sm border border-line bg-sunken px-3 py-2 text-xs">
+                    <p class="eyebrow mb-1">追蹤</p>
+                    <template v-if="traceId">
+                      <a
+                        :href="traceUrl(traceId)" target="_blank" rel="noopener"
+                        class="inline-flex items-center gap-1 font-medium text-accent hover:underline"
+                      >
+                        在 Tempo 查看整條建單鏈 →
+                      </a>
+                      <p class="figure mt-1 truncate text-ink-faint" :title="traceId">{{ traceId }}</p>
+                    </template>
+                    <p v-else class="text-ink-faint">這張單沒有上游 trace（排程或維運工具建立）</p>
                   </div>
                   <div class="flex flex-wrap gap-2 border-t border-line pt-4">
                     <NuxtLink

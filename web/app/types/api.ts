@@ -26,6 +26,28 @@ export interface ActivityView {
   serverTime: string
 }
 
+/** 秒殺熱路徑的即時計數。鍵是指標標籤值（result／code／outcome），沒發生過的不會出現。 */
+export interface SeckillCountersSnapshot {
+  attemptsByResult: Record<string, number>
+  rejectionsByCode: Record<string, number>
+  publishByOutcome: Record<string, number>
+  compensationsByResult: Record<string, number>
+  persistedByResult: Record<string, number>
+  attemptP95Millis: number
+  attemptP99Millis: number
+}
+
+/** 後台活動監控的一次快照。餘量直讀 Redis；計數為本節點的暫存值 */
+export interface ActivityMonitorView {
+  activity: ActivityView
+  soldOutMarked: boolean
+  queueBacklog: number
+  queueDrainRatePerSecond: number
+  queueEstimatedWaitSeconds: number
+  counters: SeckillCountersSnapshot
+  sampledAt: string
+}
+
 export interface SeckillTicket {
   orderNo: string
   message: string

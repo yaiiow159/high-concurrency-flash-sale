@@ -47,6 +47,14 @@ public class TraceContexts {
         this.propagator = propagator;
     }
 
+    /** 當下 trace 的 32 位十六進位 id；沒有 span 時回 empty。 */
+    public Optional<String> currentTraceId() {
+        if (tracer == null || tracer.currentSpan() == null) {
+            return Optional.empty();
+        }
+        return Optional.ofNullable(tracer.currentSpan().context().traceId());
+    }
+
     /** 當下沒有 span 時回 empty。 */
     public Optional<String> current() {
         if (tracer == null || propagator == null || tracer.currentSpan() == null) {

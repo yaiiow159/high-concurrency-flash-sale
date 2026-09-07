@@ -29,6 +29,9 @@ public interface OrderRepository {
      */
     Optional<String> findStaffNote(OrderNo orderNo);
 
+    /** 建單當下的 trace id；沒有上游 trace 或訂單不存在時為 empty。 */
+    Optional<String> findTraceId(OrderNo orderNo);
+
     void updateStaffNote(OrderNo orderNo, String note);
 
     /** 取出訂單並鎖住那一列，直到當前交易結束。 */
