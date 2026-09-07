@@ -145,6 +145,14 @@ public class JpaEngagementRepository implements EngagementRepository {
         return ids.stream().map(Number::longValue).toList();
     }
 
+    @Override
+    @Transactional
+    public void clearViews(Long userId) {
+        entityManager.createNativeQuery("delete from browsing_history where user_id = :userId")
+                .setParameter("userId", userId)
+                .executeUpdate();
+    }
+
     /**
      * 刪掉超過保留期的瀏覽紀錄。
      *

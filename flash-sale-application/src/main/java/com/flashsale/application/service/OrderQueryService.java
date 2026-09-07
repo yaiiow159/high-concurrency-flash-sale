@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
+import java.util.Map;
 
 /** 訂單查詢服務。 */
 @Service
@@ -75,5 +76,11 @@ public class OrderQueryService implements OrderQueryUseCase {
         return orderRepository.findByUserId(userId, status, paging.size(), paging.offset()).stream()
                 .map(OrderView::from)
                 .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<String, Long> summaryForUser(Long userId) {
+        return orderRepository.countByUserIdGroupedByStatus(userId);
     }
 }

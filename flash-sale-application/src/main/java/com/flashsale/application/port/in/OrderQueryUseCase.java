@@ -3,6 +3,7 @@ package com.flashsale.application.port.in;
 import com.flashsale.application.port.in.dto.OrderView;
 
 import java.util.List;
+import java.util.Map;
 
 /** 訂單查詢入站埠，供前端在拿到受理憑證後輪詢最終結果。 */
 public interface OrderQueryUseCase {
@@ -19,4 +20,7 @@ public interface OrderQueryUseCase {
      * 「待付款」或「待收貨」那幾筆
      */
     List<OrderView> listForUser(Long userId, String status, int page, int size);
+
+    /** 各狀態的筆數，供帳戶總覽顯示「待付款 2、運送中 1」。 */
+    Map<String, Long> summaryForUser(Long userId);
 }

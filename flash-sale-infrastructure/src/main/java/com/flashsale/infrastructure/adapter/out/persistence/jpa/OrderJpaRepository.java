@@ -69,6 +69,10 @@ public interface OrderJpaRepository extends JpaRepository<OrderEntity, Long> {
                                             @Param("status") String status,
                                             Pageable pageable);
 
+    /** 各狀態的筆數。走 idx_user_created 的 user_id 前綴，不撈訂單本體。 */
+    @Query("select o.status, count(o) from OrderEntity o where o.userId = :userId group by o.status")
+    List<Object[]> countByUserIdGroupedByStatus(@Param("userId") Long userId);
+
     /** 批次查詢存在的訂單號，供對帳比對孤兒扣減。 */
     @Query("select o.orderNo from OrderEntity o where o.orderNo in :orderNos")
     List<String> findExistingOrderNos(@Param("orderNos") Collection<String> orderNos);

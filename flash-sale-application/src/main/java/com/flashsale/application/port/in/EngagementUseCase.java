@@ -24,6 +24,9 @@ public interface EngagementUseCase {
 
     List<ProductView> recentlyViewed(Long userId, int limit);
 
+    /** 使用者主動清除瀏覽紀錄。 */
+    void clearRecentlyViewed(Long userId);
+
     /** 看了這個的人也看了。資料不足時回空清單，由前端決定要不要顯示這一區。 */
     List<ProductView> alsoViewed(Long productId, int limit);
 }

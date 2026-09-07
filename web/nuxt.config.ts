@@ -48,6 +48,9 @@ export default defineNuxtConfig({
 
     /** 通知同理：它帶著訂單號與金額，而且是寫給特定一個人看的。 */
     '/notifications': { isr: false },
+    /** 帳戶總覽與瀏覽紀錄同理：整頁都是某一個人的資料。 */
+    '/account': { isr: false },
+    '/history': { isr: false },
 
     /** 搜尋結果不快取：結果隨關鍵字而異，快取等於為每一種組合各存一份， 命中率趨近於零，卻要付出全部的儲存與失效成本。 */
     '/search': { isr: false },
