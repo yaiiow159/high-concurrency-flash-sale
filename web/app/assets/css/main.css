@@ -1,26 +1,12 @@
 /*
  * 設計語彙。
  *
- * 四個決定值得寫下來：
- *
- * 1. 中文刻意不下載 webfont。一套 CJK 字檔動輒 1–2 MB，
- *    而這個站的賣點就是秒殺頁的首屏速度——為了字體好看而多等 2 MB，
- *    等於用產品的核心價值換視覺。中文交給系統字體，
- *    只把拉丁字母與數字（Archivo / IBM Plex Mono）從 CDN 取，那兩個只有幾十 KB。
- *
- * 2. 數字一律等寬。價格、庫存、倒數、訂單號都是這個介面的主要內容，
- *    非等寬會讓倒數每秒把版面推來推去。
- *
- * 3. CTA 底色（--cta）與強調色（--accent）刻意分開。
- *    主要按鈕需要的是「行動感」，文字連結需要的是「可讀」，
- *    兩者的最佳亮度本來就不同。共用一個值時，
- *    按鈕會顯得沉、或連結會顯得糊——先前就是共用，按鈕因此偏暗。
- *
- * 4. 底色比卡片深一階。兩者差距不夠時整頁會糊成一片，
- *    那是先前看起來「平」的主因，不是顏色不好看，是層次不夠。
+ * 中文刻意不下載 webfont：一套 CJK 字檔動輒 1–2 MB，而秒殺頁的首屏速度是產品核心。
+ * 只把拉丁字母與數字（Manrope）從 CDN 取，中文交給系統字體。
+ * 數字一律等寬：價格、庫存、倒數逐秒變動，非等寬會讓版面跳動。
  */
 
-@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -28,79 +14,52 @@
 
 @layer base {
   /*
-   * **這個站只有亮色，而且刻意不跟隨系統。**
-   *
-   * 先前有一整套深色 token 掛在 `prefers-color-scheme: dark` 底下，
-   * 於是使用者的作業系統決定了商店長什麼樣子——同一個商品頁，
-   * 有人看到的是米白配陶土，有人看到的是墨綠配青。
-   * 商品的顏色是這個介面最重要的資訊之一（色塊視覺、星等金、售罄紅），
-   * 而讓它隨環境變動等於放棄對「商品看起來如何」的控制。
-   *
-   * 實體零售不會因為外面天黑就把整間店的燈換成另一個色溫，
-   * 線上商店同理。`color-scheme: light` 一併宣告出去，
-   * 讓表單控制項與捲軸也留在亮色，不會出現「亮色頁面配深色下拉選單」。
-   *
-   * 要做深色的話，正確的做法是一個**使用者可以自己切換**的偏好，
-   * 而不是讀系統設定——那是兩件事。
+   * 只有亮色，且不跟隨系統。商品顏色是這個介面最重要的資訊之一，
+   * 讓它隨作業系統變動等於放棄對「商品看起來如何」的控制。
    */
   :root {
     color-scheme: light;
 
-    --ground: #f6f8f9;
+    --ground: #f3f4f6;
     --surface: #ffffff;
-    --surface-sunken: #eef2f4;
-    --line: #e4eaed;
-    --line-strong: #c3ced3;
+    --surface-sunken: #f7f7f9;
+    --line: #e7e8ec;
+    --line-strong: #c9ccd3;
 
-    --ink: #0c1618;
-    --ink-muted: #52626a;
-    --ink-faint: #8494a0;
+    --ink: #17181c;
+    --ink-muted: #5d626c;
+    --ink-faint: #8e929b;
+    --ink-inverse: #1c1d22;
 
-    /* 連結與強調用的深青，對白底有足夠對比 */
-    --accent: #0a6a74;
-    --accent-hover: #085861;
-    --accent-soft: #e3eff1;
+    /* 品牌紅：搶購、價格、選取狀態。電商裡「紅 = 可以買」是全球共通的語彙 */
+    --accent: #e11d2b;
+    --accent-hover: #c41825;
+    --accent-soft: #fdeceb;
     --on-accent: #ffffff;
 
-    /* 主要按鈕：比 accent 亮一階，讀起來是「可以按」而不是「一段文字」 */
-    --cta: #0b7f8c;
-    --cta-hover: #0a9099;
-    --cta-active: #086b76;
+    --cta: #ee3a2c;
+    --cta-hover: #f5503f;
+    --cta-active: #d02f23;
 
-    /* 燒赭：唯一的對比色，只用在價格、售罄、危險操作 */
-    --danger: #b0431c;
-    --danger-soft: #fceee8;
+    /* 價格與危險操作同一個紅：在商店裡它們本來就共用一個色 */
+    --danger: #e11d2b;
+    --danger-soft: #fdeceb;
 
-    --ok: #2f6b4f;
-    --ok-soft: #e6f1ea;
+    --ok: #1f8a4c;
+    --ok-soft: #e6f4ea;
 
-    /*
-     * 星等。
-     *
-     * 刻意**不用 --accent**：星星在電商裡是一個獨立的視覺語彙，
-     * 全世界的使用者都預期它是金黃色的。染成品牌色會讓「這是評分」
-     * 這件事需要多花半秒才認出來，而評分是使用者掃商品列表時
-     * 最先找的東西之一。
-     *
-     * 空星用可見的灰而不是透明：一排「四顆金星 + 一顆看不見的星」
-     * 讀起來像是四星滿分。
-     */
-    --star: #e8a020;
-    --star-empty: #d5dee1;
+    /* 秒殺專用的暖色漸層：只用在活動橫幅與搶購鈕，讓它在整頁裡一眼被找到 */
+    --promo: linear-gradient(115deg, #ff3b30 0%, #ff6a2c 60%, #ff8a3d 100%);
 
-    --radius: 12px;
-    --radius-sm: 8px;
+    /* 星等：全世界的使用者都預期它是金黃色的，不染品牌色 */
+    --star: #f5a524;
+    --star-empty: #dfe2e7;
 
-    /*
-     * 卡片有**靜止時就存在**的陰影。
-     *
-     * 先前只在 hover 時才抬起，靜態列表全靠邊框撐——結果整頁是一堆
-     * 同樣粗細的線，沒有前後關係，看起來就是「平」。
-     * 一層很淡的投影就能讓卡片浮在紙面上，而這是亮色介面
-     * 產生層次最便宜的方式（深色介面靠的是明度差，亮色靠的是陰影）。
-     */
-    --rest: 0 1px 2px rgb(12 22 24 / 4%), 0 1px 3px rgb(12 22 24 / 6%);
-    --lift: 0 2px 4px rgb(12 22 24 / 5%), 0 12px 28px -10px rgb(12 22 24 / 18%);
+    --radius: 10px;
+    --radius-sm: 6px;
+
+    --rest: 0 1px 2px rgb(16 18 24 / 4%), 0 1px 4px rgb(16 18 24 / 5%);
+    --lift: 0 2px 6px rgb(16 18 24 / 6%), 0 14px 32px -12px rgb(16 18 24 / 22%);
   }
 
   html {
@@ -110,18 +69,18 @@
   body {
     background: var(--ground);
     color: var(--ink);
-    font-feature-settings: 'kern' 1;
+    font-feature-settings: 'kern' 1, 'tnum' 1;
     -webkit-font-smoothing: antialiased;
   }
 
   h1, h2, h3 {
-    letter-spacing: -0.018em;
+    letter-spacing: -0.012em;
     text-wrap: balance;
   }
 
-  /* 鍵盤焦點必須看得見。移除 outline 而不補上替代品是最常見的無障礙倒退 */
+  /* 鍵盤焦點必須看得見 */
   :focus-visible {
-    outline: 2px solid var(--cta);
+    outline: 2px solid var(--accent);
     outline-offset: 2px;
     border-radius: var(--radius-sm);
   }
@@ -135,24 +94,22 @@
 }
 
 @layer components {
-  /* 數字對齊：倒數與庫存逐秒變動，非等寬會讓版面跳動 */
   .tabular {
     font-variant-numeric: tabular-nums;
   }
 
-  /* 表格式的數字（價格、單號）統一走這個，省去每處各寫一次 font-mono */
+  /* 數字（價格、單號、倒數）：等寬且加粗，讓它在一片文字裡先被看到 */
   .figure {
-    font-family: theme('fontFamily.mono');
     font-variant-numeric: tabular-nums;
+    font-weight: 600;
   }
 
-  /* 表單欄位。原本每個表單各自拼一次，同一個輸入框在不同頁面長得不一樣 */
   .field {
     width: 100%;
     border-radius: theme('borderRadius.sm');
-    border: 1px solid var(--line);
+    border: 1px solid var(--line-strong);
     background: var(--surface);
-    padding: 0.5rem 0.75rem;
+    padding: 0.55rem 0.75rem;
     font-size: 0.875rem;
   }
 
@@ -161,26 +118,64 @@
     outline-offset: -1px;
   }
 
-  /* 段落標籤：小、全大寫、加字距，標示區塊而不搶主內容的視覺重量 */
+  /* 區塊小標：小、加字距，標示區塊而不搶主內容 */
   .eyebrow {
     font-size: 0.6875rem;
-    font-weight: 600;
+    font-weight: 700;
     letter-spacing: 0.08em;
     text-transform: uppercase;
     color: var(--ink-faint);
   }
 
-  /* 寬內容（表格、程式碼）自己橫向捲動，頁面本體永遠不橫捲 */
+  /* 區塊標題左側的品牌色短槓，全站的「這裡開始一個新區塊」記號 */
+  .section-title {
+    position: relative;
+    padding-left: 0.875rem;
+    font-size: 1.25rem;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+  }
+
+  .section-title::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0.2em;
+    bottom: 0.2em;
+    width: 4px;
+    border-radius: 999px;
+    background: var(--accent);
+  }
+
+  .bg-promo {
+    background-image: var(--promo);
+  }
+
+  /* 秒殺主按鈕：整頁只有它用這個漸層 */
+  .btn-promo {
+    background-image: var(--promo);
+    color: #fff;
+    box-shadow: 0 6px 18px -6px rgb(255 59 48 / 55%);
+  }
+
+  .btn-promo:hover {
+    filter: brightness(1.06);
+  }
+
   .scroll-x {
     overflow-x: auto;
   }
 
-  /*
-   * 手機底部固定操作列的讓位高度。
-   *
-   * 少了它，頁面最後一段內容會被操作列永久蓋住——
-   * 而那通常正是「確認下單」旁邊的條款或金額明細。
-   */
+  /* 橫向捲動列不顯示捲軸：分類列與縮圖列要看起來像一條帶子 */
+  .scroll-hide {
+    scrollbar-width: none;
+  }
+
+  .scroll-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* 手機底部固定操作列的讓位高度 */
   .pb-action-bar {
     padding-bottom: calc(5.5rem + env(safe-area-inset-bottom));
   }

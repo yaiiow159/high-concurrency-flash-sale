@@ -309,21 +309,20 @@ watchEffect(() => {
 
 <template>
   <div v-if="product" class="pb-action-bar">
-    <!--
-      麵包屑取代原本那個「← 全部商品」。
-      單一個返回連結只答得出「怎麼離開」，麵包屑還答得出「我在哪一層」，
-      而後者才是使用者要繼續逛下去需要的資訊。
-    -->
     <nav aria-label="麵包屑" class="text-sm text-ink-muted">
       <ol class="flex flex-wrap items-center gap-1.5">
         <li>
-          <NuxtLink to="/products" class="transition-colors hover:text-ink">全部商品</NuxtLink>
+          <NuxtLink to="/" class="transition-colors hover:text-accent">首頁</NuxtLink>
+        </li>
+        <li class="flex items-center gap-1.5">
+          <span aria-hidden="true" class="text-ink-faint">/</span>
+          <NuxtLink to="/products" class="transition-colors hover:text-accent">全部商品</NuxtLink>
         </li>
         <li v-for="node in breadcrumb" :key="node.categoryId" class="flex items-center gap-1.5">
           <span aria-hidden="true" class="text-ink-faint">/</span>
           <NuxtLink
             :to="{ path: '/products', query: { category: node.categoryId } }"
-            class="transition-colors hover:text-ink"
+            class="transition-colors hover:text-accent"
           >
             {{ node.name }}
           </NuxtLink>
@@ -331,161 +330,121 @@ watchEffect(() => {
       </ol>
     </nav>
 
-    <div class="mt-5 grid gap-8 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start lg:gap-12">
-      <!-- 左欄：商品視覺與規格 -->
-      <div>
-        <ProductTile
-          :seed="product.productId"
-          :label="product.name"
-          :src="heroImage"
-          ratio="wide"
-          class="w-full rounded"
-        />
+    <!-- 主資訊卡：左圖右文，購買動作就在同一張卡裡 -->
+    <AppCard class="mt-4 p-4 sm:p-6">
+      <div class="grid gap-6 lg:grid-cols-[minmax(0,28rem)_minmax(0,1fr)] lg:gap-10">
+        <div class="flex gap-3">
+          <!-- 縮圖列直排在左：只有多張圖時才出現 -->
+          <ul v-if="images.length > 1" class="hidden w-16 flex-col gap-2 sm:flex">
+            <li v-for="(image, index) in images" :key="image.imageId">
+              <button
+                type="button"
+                class="h-16 w-16 overflow-hidden rounded-sm border-2 transition-colors"
+                :class="index === activeImage ? 'border-accent' : 'border-line hover:border-line-strong'"
+                :aria-label="`看第 ${index + 1} 張圖`"
+                :aria-current="index === activeImage"
+                @click="activeImage = index"
+              >
+                <img :src="image.thumbUrl" alt="" loading="lazy" class="h-full w-full object-cover">
+              </button>
+            </li>
+          </ul>
+          <div class="min-w-0 flex-1">
+            <ProductTile
+              :seed="product.productId"
+              :label="product.name"
+              :src="heroImage"
+              class="w-full rounded"
+            />
+            <ul v-if="images.length > 1" class="scroll-hide mt-3 flex gap-2 overflow-x-auto sm:hidden">
+              <li v-for="(image, index) in images" :key="image.imageId" class="shrink-0">
+                <button
+                  type="button"
+                  class="h-14 w-14 overflow-hidden rounded-sm border-2 transition-colors"
+                  :class="index === activeImage ? 'border-accent' : 'border-line'"
+                  :aria-label="`看第 ${index + 1} 張圖`"
+                  @click="activeImage = index"
+                >
+                  <img :src="image.thumbUrl" alt="" loading="lazy" class="h-full w-full object-cover">
+                </button>
+              </li>
+            </ul>
+          </div>
+        </div>
 
-        <!--
-          縮圖列。只有多張圖時才出現——一張圖配一個只有一格的縮圖列
-          看起來像壞掉的輪播。
-        -->
-        <ul v-if="images.length > 1" class="mt-3 flex flex-wrap gap-2">
-          <li v-for="(image, index) in images" :key="image.imageId">
-            <button
-              type="button"
-              class="h-16 w-16 overflow-hidden rounded-sm border transition-colors"
-              :class="index === activeImage ? 'border-accent' : 'border-line hover:border-line-strong'"
-              :aria-label="`看第 ${index + 1} 張圖`"
-              :aria-current="index === activeImage"
-              @click="activeImage = index"
-            >
-              <img :src="image.thumbUrl" alt="" loading="lazy" class="h-full w-full object-cover">
-            </button>
-          </li>
-        </ul>
-
-        <div class="mt-6">
-          <p v-if="product.brand" class="eyebrow">{{ product.brand }}</p>
-          <h1 class="mt-1.5 text-2xl font-bold tracking-tight sm:text-3xl">
+        <div class="min-w-0">
+          <p v-if="product.brand" class="text-xs font-semibold text-accent">{{ product.brand }}</p>
+          <h1 class="mt-1 text-xl font-extrabold leading-snug tracking-tight sm:text-2xl">
             {{ product.name }}
           </h1>
-          <!--
-            緊湊評分緊貼標題，那是電商商品頁的固定位置。
-            做成連結捲到評價區：使用者看到 4.3 分的下一個動作
-            就是想知道那 4.3 分是怎麼來的
-          -->
+          <!-- 評分緊貼標題，做成連結捲到評價區 -->
           <a
             v-if="rating && rating.count > 0"
             href="#reviews"
-            class="mt-2.5 inline-flex items-center gap-2 text-sm transition-opacity hover:opacity-80"
+            class="mt-2 inline-flex items-center gap-2 text-sm transition-opacity hover:opacity-80"
           >
             <StarRating :value="rating.average" size="sm" />
-            <span class="figure font-medium">{{ rating.average.toFixed(1) }}</span>
-            <span class="text-ink-muted underline decoration-line underline-offset-4">
-              {{ rating.count.toLocaleString() }} 則評價
-            </span>
+            <span class="figure text-accent">{{ rating.average.toFixed(1) }}</span>
+            <span class="text-ink-muted">{{ rating.count.toLocaleString() }} 則評價</span>
           </a>
 
-          <p v-if="product.description" class="mt-3 max-w-prose text-ink-muted">
-            {{ product.description }}
-          </p>
-        </div>
+          <!-- 價格跟著規格走，不是商品層級的單一數字——SPU/SKU 分離的重點 -->
+          <div class="mt-4 rounded bg-danger-soft/70 px-4 py-3.5">
+            <p class="eyebrow text-danger/70">售價</p>
+            <MoneyText
+              :amount="selectedSku?.price ?? product.lowestPrice" size="xl" tone="danger"
+              class="mt-0.5"
+            />
+          </div>
 
-        <!-- 價格跟著規格走，不是商品層級的單一數字——SPU/SKU 分離的重點 -->
-        <div class="mt-6">
-          <MoneyText :amount="selectedSku?.price ?? product.lowestPrice" size="xl" />
-        </div>
+          <section class="mt-5" aria-labelledby="spec-heading">
+            <h2 id="spec-heading" class="mb-2 text-sm font-semibold">
+              規格
+              <span v-if="selectedSku" class="ml-1 font-normal text-ink-muted">
+                已選：{{ selectedSku.specDisplay }}
+              </span>
+            </h2>
+            <div class="flex flex-wrap gap-2">
+              <button
+                v-for="sku in product.skus"
+                :key="sku.skuId"
+                type="button"
+                :disabled="!sku.purchasable"
+                :aria-pressed="sku.skuId === selectedSkuId"
+                class="h-10 rounded-sm border px-4 text-sm transition-colors
+                       disabled:cursor-not-allowed disabled:opacity-40 disabled:line-through"
+                :class="sku.skuId === selectedSkuId
+                  ? 'border-accent bg-accent-soft font-semibold text-accent'
+                  : 'border-line-strong hover:border-accent hover:text-accent'"
+                @click="selectedSkuId = sku.skuId"
+              >
+                {{ sku.specDisplay }}
+              </button>
+            </div>
+          </section>
 
-        <section class="mt-8" aria-labelledby="spec-heading">
-          <h2 id="spec-heading" class="eyebrow mb-3">選擇規格</h2>
-          <div class="flex flex-wrap gap-2">
-            <button
-              v-for="sku in product.skus"
-              :key="sku.skuId"
-              type="button"
-              :disabled="!sku.purchasable"
-              :aria-pressed="sku.skuId === selectedSkuId"
-              class="h-11 rounded-sm border px-4 text-sm transition-colors
-                     disabled:cursor-not-allowed disabled:opacity-40"
-              :class="sku.skuId === selectedSkuId
-                ? 'border-cta bg-accent-soft font-medium text-accent'
-                : 'border-line hover:border-line-strong'"
-              @click="selectedSkuId = sku.skuId"
+          <section class="mt-5 flex flex-wrap items-center gap-4">
+            <h2 class="text-sm font-semibold">數量</h2>
+            <QuantityStepper v-model="quantity" :max="999" />
+            <p
+              v-if="stockHint"
+              class="text-sm"
+              :class="stockHint.urgent ? 'font-medium text-accent' : 'text-ink-muted'"
             >
-              {{ sku.specDisplay }}
-            </button>
-          </div>
-        </section>
+              {{ stockHint.text }}
+            </p>
+          </section>
 
-        <section class="mt-6 flex items-center gap-3">
-          <label for="quantity" class="eyebrow">數量</label>
-          <input
-            id="quantity"
-            v-model.number="quantity"
-            type="number"
-            min="1"
-            max="999"
-            class="figure h-11 w-20 rounded-sm border border-line bg-surface px-3 text-center"
-          >
-        </section>
-
-        <section id="reviews" class="mt-12 scroll-mt-24" aria-labelledby="reviews-heading">
-          <h2 id="reviews-heading" class="eyebrow mb-4">商品評價</h2>
-
-          <RatingSummary :rating="rating" :loading="reviewsLoading && reviews.length === 0" />
-
-          <!-- divide-y 而不是各自加邊框：最後一則不該有底線 -->
-          <div v-if="reviews.length > 0" class="mt-2 divide-y divide-line">
-            <ReviewCard v-for="review in reviews" :key="review.reviewId" :review="review" />
-          </div>
-
-          <div v-if="hasMoreReviews" class="mt-5 flex justify-center">
-            <AppButton
-              variant="secondary" size="sm" :disabled="reviewsLoading"
-              @click="loadMoreReviews(productId)"
-            >
-              {{ reviewsLoading ? '載入中⋯' : '看更多評價' }}
-            </AppButton>
-          </div>
-        </section>
-
-        <!--
-          同類商品。放在評價**之後**：使用者看完評價才會決定要不要繼續找，
-          放在評價之前等於在他還沒判斷完就叫他離開。
-        -->
-        <ProductQuestions class="mt-12" :product-id="Number(productId)" />
-
-        <ProductRail
-          v-if="alsoViewed.length > 0"
-          class="mt-12"
-          eyebrow="Also Viewed"
-          title="看了這個的人也看了"
-          :products="alsoViewed"
-          :more-to="null"
-        />
-
-        <ProductRail
-          v-if="related.length > 0"
-          class="mt-12"
-          title="同類商品"
-          :products="related"
-          :more-to="product.categoryId === null
-            ? { path: '/products' }
-            : { path: '/products', query: { category: product.categoryId } }"
-        />
-      </div>
-
-      <!-- 右欄：購買面板。桌機固定在側，手機改用底部操作列 -->
-      <AppCard class="hidden p-5 lg:sticky lg:top-24 lg:block">
-        <template v-if="auth.isAuthenticated">
-          <section aria-labelledby="address-heading">
-            <h2 id="address-heading" class="eyebrow mb-3">寄送至</h2>
-
+          <section v-if="auth.isAuthenticated" class="mt-5" aria-labelledby="address-heading">
+            <h2 id="address-heading" class="mb-2 text-sm font-semibold">寄送至</h2>
             <div v-if="addresses.length > 0" class="flex flex-col gap-2">
               <label
                 v-for="address in addresses"
                 :key="address.addressId"
-                class="flex cursor-pointer items-start gap-3 rounded-sm border p-3.5
+                class="flex cursor-pointer items-start gap-3 rounded-sm border px-3.5 py-3
                        text-sm transition-colors"
                 :class="address.addressId === selectedAddressId
-                  ? 'border-cta bg-accent-soft'
+                  ? 'border-accent bg-accent-soft/50'
                   : 'border-line hover:border-line-strong'"
               >
                 <input
@@ -493,18 +452,17 @@ watchEffect(() => {
                   type="radio"
                   name="address"
                   :value="address.addressId"
-                  class="mt-1 accent-[var(--cta)]"
+                  class="mt-1 accent-[var(--accent)]"
                 >
-                <span>
+                <span class="min-w-0">
                   <span class="font-medium">{{ address.recipientName }}</span>
-                  <span class="mt-1 block text-ink-muted">{{ address.fullAddress }}</span>
+                  <span class="mt-0.5 block text-ink-muted">{{ address.fullAddress }}</span>
                 </span>
               </label>
-              <NuxtLink to="/addresses" class="mt-1 text-sm text-accent hover:underline">
+              <NuxtLink to="/addresses" class="text-sm text-accent hover:underline">
                 管理地址 →
               </NuxtLink>
             </div>
-
             <p v-else class="text-sm text-ink-muted">
               還沒有收貨地址，
               <NuxtLink to="/addresses" class="text-accent hover:underline">先新增一筆</NuxtLink>
@@ -512,130 +470,113 @@ watchEffect(() => {
             </p>
           </section>
 
-          <p
-            v-if="stockHint"
-            class="mt-5 text-sm"
-            :class="stockHint.urgent ? 'text-accent' : 'text-ink-muted'"
-          >
-            {{ stockHint.text }}
-          </p>
-
-          <div class="mt-6 flex flex-col gap-2.5">
-            <!--
-              缺貨時把兩顆購買鈕換成「有貨通知我」。
-              留著一顆按不下去的按鈕只是讓人一直去按它。
-            -->
+          <!-- 主要動作。手機由底部操作列接手，這裡只在桌機顯示 -->
+          <div class="mt-6 hidden gap-3 lg:flex">
+            <!-- 缺貨時把兩顆購買鈕換成「有貨通知我」，留著按不下去的按鈕只是讓人一直去按 -->
             <RestockAlertButton
               v-if="soldOut && selectedSkuId !== null"
               :key="selectedSkuId"
               :sku-id="selectedSkuId"
+              class="flex-1"
             />
             <template v-else>
               <AppButton
-                variant="secondary"
+                variant="outline"
                 size="lg"
-                block
+                class="flex-1"
                 :disabled="!selectedSku?.purchasable || addingToCart"
                 @click="addToCart"
               >
                 {{ addingToCart ? '加入中⋯' : '加入購物車' }}
               </AppButton>
-              <AppButton size="lg" block :disabled="!canBuy" @click="buy">
+              <AppButton
+                v-if="auth.isAuthenticated"
+                size="lg" class="flex-1" :disabled="!canBuy" @click="buy"
+              >
                 {{ submitting ? '處理中⋯' : '立即購買' }}
               </AppButton>
             </template>
           </div>
-        </template>
 
-        <template v-else>
-          <p class="text-sm text-ink-muted">
+          <p v-if="!auth.isAuthenticated" class="mt-5 text-sm text-ink-muted">
             可以先加入購物車，登入後會自動併入你的帳號。
           </p>
-          <AppButton
-            class="mt-4"
-            variant="secondary"
-            size="lg"
-            block
-            :disabled="!selectedSku?.purchasable || addingToCart"
-            @click="addToCart"
+
+          <p v-if="cartMessage" class="mt-3 text-sm text-ok" role="status">
+            {{ cartMessage }}
+            <NuxtLink to="/cart" class="font-medium text-accent hover:underline">查看購物車 →</NuxtLink>
+          </p>
+          <p
+            v-if="state.kind === 'failed'"
+            class="mt-3 rounded-sm border border-danger/40 bg-danger-soft p-3 text-sm text-danger"
+            role="alert"
           >
-            {{ addingToCart ? '加入中⋯' : '加入購物車' }}
-          </AppButton>
-          <AuthPanel class="mt-6" />
-        </template>
+            {{ state.message }}
+          </p>
 
-        <p v-if="cartMessage" class="mt-3 text-sm text-ink-muted" role="status">
-          {{ cartMessage }}
-          <NuxtLink to="/cart" class="text-accent hover:underline">查看購物車 →</NuxtLink>
-        </p>
-
-        <p
-          v-if="state.kind === 'failed'"
-          class="mt-3 rounded-sm border border-danger/40 bg-danger-soft p-3 text-sm text-danger"
-          role="alert"
-        >
-          {{ state.message }}
-        </p>
-      </AppCard>
-    </div>
-
-    <!-- 手機：地址與登入留在內容流裡，主要動作交給底部操作列 -->
-    <div class="mt-8 lg:hidden">
-      <template v-if="auth.isAuthenticated">
-        <h2 class="eyebrow mb-3">寄送至</h2>
-        <div v-if="addresses.length > 0" class="flex flex-col gap-2">
-          <label
-            v-for="address in addresses"
-            :key="address.addressId"
-            class="flex cursor-pointer items-start gap-3 rounded-sm border p-3.5
-                   text-sm transition-colors"
-            :class="address.addressId === selectedAddressId
-              ? 'border-cta bg-accent-soft'
-              : 'border-line'"
-          >
-            <input
-              v-model="selectedAddressId"
-              type="radio"
-              name="address-mobile"
-              :value="address.addressId"
-              class="mt-1 accent-[var(--cta)]"
-            >
-            <span>
-              <span class="font-medium">{{ address.recipientName }}</span>
-              <span class="mt-1 block text-ink-muted">{{ address.fullAddress }}</span>
-            </span>
-          </label>
+          <AuthPanel v-if="!auth.isAuthenticated" class="mt-6" />
         </div>
-        <p v-else class="text-sm text-ink-muted">
-          還沒有收貨地址，
-          <NuxtLink to="/addresses" class="text-accent hover:underline">先新增一筆</NuxtLink>
-          才能直接購買。
-        </p>
-      </template>
-      <AuthPanel v-else />
+      </div>
+    </AppCard>
 
-      <p v-if="cartMessage" class="mt-3 text-sm text-ink-muted" role="status">
-        {{ cartMessage }}
-        <NuxtLink to="/cart" class="text-accent hover:underline">查看購物車 →</NuxtLink>
+    <AppCard v-if="product.description" class="mt-5 p-5 sm:p-6">
+      <h2 class="section-title mb-4 !text-base">商品說明</h2>
+      <p class="max-w-prose whitespace-pre-line leading-relaxed text-ink-muted">
+        {{ product.description }}
       </p>
-      <p
-        v-if="state.kind === 'failed'"
-        class="mt-3 rounded-sm border border-danger/40 bg-danger-soft p-3 text-sm text-danger"
-        role="alert"
-      >
-        {{ state.message }}
-      </p>
-    </div>
+    </AppCard>
+
+    <AppCard id="reviews" class="mt-5 scroll-mt-32 p-5 sm:p-6" aria-labelledby="reviews-heading">
+      <h2 id="reviews-heading" class="section-title mb-4 !text-base">商品評價</h2>
+
+      <RatingSummary :rating="rating" :loading="reviewsLoading && reviews.length === 0" />
+
+      <div v-if="reviews.length > 0" class="mt-2 divide-y divide-line">
+        <ReviewCard v-for="review in reviews" :key="review.reviewId" :review="review" />
+      </div>
+
+      <div v-if="hasMoreReviews" class="mt-5 flex justify-center">
+        <AppButton
+          variant="secondary" size="sm" :disabled="reviewsLoading"
+          @click="loadMoreReviews(productId)"
+        >
+          {{ reviewsLoading ? '載入中⋯' : '看更多評價' }}
+        </AppButton>
+      </div>
+    </AppCard>
+
+    <AppCard class="mt-5 p-5 sm:p-6">
+      <ProductQuestions :product-id="Number(productId)" />
+    </AppCard>
+
+    <!-- 推薦放在評價之後：使用者看完評價才會決定要不要繼續找 -->
+    <ProductRail
+      v-if="alsoViewed.length > 0"
+      class="mt-10"
+      title="看了這個的人也看了"
+      :products="alsoViewed"
+      :more-to="null"
+    />
+
+    <ProductRail
+      v-if="related.length > 0"
+      class="mt-10"
+      title="同類商品"
+      :products="related"
+      :more-to="product.categoryId === null
+        ? { path: '/products' }
+        : { path: '/products', query: { category: product.categoryId } }"
+    />
 
     <StickyActionBar>
       <template #info>
-        <MoneyText :amount="selectedSku?.price ?? product.lowestPrice" size="lg" />
+        <MoneyText :amount="selectedSku?.price ?? product.lowestPrice" size="lg" tone="danger" />
         <p class="mt-0.5 truncate text-xs text-ink-faint">{{ selectedSku?.specDisplay }}</p>
       </template>
       <template #action>
         <div class="flex gap-2">
           <AppButton
-            variant="secondary"
+            variant="outline"
             :disabled="!selectedSku?.purchasable || addingToCart"
             @click="addToCart"
           >

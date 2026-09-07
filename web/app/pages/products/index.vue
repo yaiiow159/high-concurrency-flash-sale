@@ -232,131 +232,170 @@ seo({
 
 <template>
   <div>
-    <PageHeader
-      eyebrow="Catalog"
-      title="全部商品"
-      :description="activeCategoryName
-        ? `目前顯示「${activeCategoryName}」類目下的商品`
-        : '價格掛在規格上——同一個商品的不同規格各有各的價格'"
-    />
-
-    <nav class="mb-8 flex flex-wrap gap-2" aria-label="類目篩選">
-      <NuxtLink
-        to="/products"
-        class="rounded-full border px-3.5 py-1.5 text-sm transition-colors"
-        :class="categoryId === null
-          ? 'border-accent bg-accent-soft font-medium text-accent'
-          : 'border-line bg-surface text-ink-muted hover:border-line-strong hover:text-ink'"
-      >
-        全部
-      </NuxtLink>
-      <NuxtLink
-        v-for="option in categoryOptions"
-        :key="option.id"
-        :to="{ path: '/products', query: { category: option.id } }"
-        class="rounded-full border px-3.5 py-1.5 text-sm transition-colors"
-        :class="[
-          categoryId === option.id
-            ? 'border-accent bg-accent-soft font-medium text-accent'
-            : 'border-line bg-surface text-ink-muted hover:border-line-strong hover:text-ink',
-        ]"
-        :style="option.depth > 0 ? { marginLeft: `${option.depth * 10}px` } : undefined"
-      >
-        <span v-if="option.depth > 0" class="mr-1 text-ink-faint">└</span>{{ option.label }}
-      </NuxtLink>
-    </nav>
-
-    <!--
-      排序做成分段控制項的樣子，而不是一排文字連結。
-
-      先前是純文字，混在標題與商品格之間讀起來像說明文字而不是可以按的東西。
-      仍然用 <a>：每一種排序都要是可以貼出去的網址。
-    -->
-    <div class="mb-5 flex flex-wrap items-center justify-between gap-3">
-      <div class="inline-flex rounded-sm border border-line bg-surface p-0.5 shadow-rest">
-        <NuxtLink
-          v-for="option in SORT_OPTIONS"
-          :key="option.value"
-          :to="{ path: '/products', query: {
-            ...(categoryId === null ? {} : { category: categoryId }),
-            ...(option.value === 'NEWEST' ? {} : { sort: option.value }),
-          } }"
-          class="rounded-sm px-3 py-1.5 text-xs font-medium transition-colors"
-          :class="sort === option.value
-            ? 'bg-accent text-on-accent'
-            : 'text-ink-muted hover:bg-sunken hover:text-ink'"
-        >
-          {{ option.label }}
-        </NuxtLink>
+    <div class="mb-5 flex flex-wrap items-end justify-between gap-3">
+      <div>
+        <p class="eyebrow mb-1">Catalog</p>
+        <h1 class="text-xl font-extrabold tracking-tight sm:text-2xl">
+          {{ activeCategoryName ?? '全部商品' }}
+        </h1>
       </div>
-      <div class="flex items-center gap-2">
-        <!--
-          價格區間。上下限顛倒時後端會自動對調而不是報錯——
-          把 1000 打在「最低」是很常見的手滑，而回一個「參數錯誤」
-          只會讓人盯著兩個看起來都沒問題的數字
-        -->
-        <label class="sr-only" for="min-price">最低價</label>
-        <input
-          id="min-price" v-model="minInput" type="number" min="0" inputmode="numeric"
-          placeholder="最低" class="figure w-20 rounded-sm border border-line bg-surface
-                 px-2 py-1.5 text-xs shadow-rest placeholder:text-ink-faint"
-          @keyup.enter="applyPrice"
-        >
-        <span class="text-xs text-ink-faint">–</span>
-        <label class="sr-only" for="max-price">最高價</label>
-        <input
-          id="max-price" v-model="maxInput" type="number" min="0" inputmode="numeric"
-          placeholder="最高" class="figure w-20 rounded-sm border border-line bg-surface
-                 px-2 py-1.5 text-xs shadow-rest placeholder:text-ink-faint"
-          @keyup.enter="applyPrice"
-        >
-        <AppButton variant="secondary" size="sm" @click="applyPrice">篩選</AppButton>
-        <AppButton
-          v-if="priceQuery.min !== null || priceQuery.max !== null"
-          variant="ghost" size="sm" @click="clearPrice"
-        >
-          清除
-        </AppButton>
-      </div>
+      <p v-if="products.length > 0" class="figure text-xs text-ink-faint">
+        已顯示 {{ products.length.toLocaleString() }} 件
+      </p>
     </div>
 
-    <p v-if="products.length > 0" class="mb-4 figure text-xs text-ink-faint">
-      已顯示 {{ products.length.toLocaleString() }} 件
-    </p>
+    <div class="grid gap-5 lg:grid-cols-[15rem_minmax(0,1fr)]">
+      <!-- 桌機側欄：分類樹 + 價格區間，跟著捲動 -->
+      <aside class="hidden lg:block">
+        <AppCard class="sticky top-32 p-4">
+          <nav aria-label="類目篩選">
+            <p class="eyebrow mb-2">商品分類</p>
+            <ul class="flex flex-col">
+              <li>
+                <NuxtLink
+                  to="/products"
+                  class="block rounded-sm px-2.5 py-1.5 text-sm transition-colors"
+                  :class="categoryId === null
+                    ? 'bg-accent-soft font-semibold text-accent'
+                    : 'text-ink-muted hover:bg-sunken hover:text-ink'"
+                >
+                  全部
+                </NuxtLink>
+              </li>
+              <li v-for="option in categoryOptions" :key="option.id">
+                <NuxtLink
+                  :to="{ path: '/products', query: { category: option.id } }"
+                  class="block truncate rounded-sm py-1.5 pr-2.5 text-sm transition-colors"
+                  :class="categoryId === option.id
+                    ? 'bg-accent-soft font-semibold text-accent'
+                    : 'text-ink-muted hover:bg-sunken hover:text-ink'"
+                  :style="{ paddingLeft: `${0.625 + option.depth * 0.75}rem` }"
+                >
+                  {{ option.label }}
+                </NuxtLink>
+              </li>
+            </ul>
+          </nav>
 
-    <ul
-      v-if="products.length > 0"
-      class="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4"
-    >
-      <li v-for="product in products" :key="product.productId">
-        <ProductCard
-          :product="product"
-          :rating="ratings[product.productId] ?? null"
-          :image-url="images[product.productId]?.listUrl ?? null"
-        />
-      </li>
-    </ul>
+          <div class="mt-6 border-t border-line pt-5">
+            <p class="eyebrow mb-2">價格區間</p>
+            <div class="flex items-center gap-2">
+              <label class="sr-only" for="min-price">最低價</label>
+              <input
+                id="min-price" v-model="minInput" type="number" min="0" inputmode="numeric"
+                placeholder="最低" class="field figure !py-1.5 text-xs"
+                @keyup.enter="applyPrice"
+              >
+              <span class="text-xs text-ink-faint">–</span>
+              <label class="sr-only" for="max-price">最高價</label>
+              <input
+                id="max-price" v-model="maxInput" type="number" min="0" inputmode="numeric"
+                placeholder="最高" class="field figure !py-1.5 text-xs"
+                @keyup.enter="applyPrice"
+              >
+            </div>
+            <div class="mt-3 flex gap-2">
+              <AppButton variant="secondary" size="sm" block @click="applyPrice">套用</AppButton>
+              <AppButton
+                v-if="priceQuery.min !== null || priceQuery.max !== null"
+                variant="ghost" size="sm" @click="clearPrice"
+              >
+                清除
+              </AppButton>
+            </div>
+          </div>
+        </AppCard>
+      </aside>
 
-    <EmptyState v-else title="這個類目下目前沒有上架商品。">
-      <AppButton variant="secondary" size="sm" @click="navigateTo('/products')">
-        看全部商品
-      </AppButton>
-    </EmptyState>
+      <div class="min-w-0">
+        <!-- 手機：分類改成橫向可捲動的膠囊 -->
+        <nav class="scroll-hide -mx-4 mb-3 flex gap-2 overflow-x-auto px-4 lg:hidden" aria-label="類目篩選">
+          <NuxtLink
+            to="/products"
+            class="shrink-0 rounded-full border px-3.5 py-1.5 text-sm transition-colors"
+            :class="categoryId === null
+              ? 'border-accent bg-accent-soft font-semibold text-accent'
+              : 'border-line bg-surface text-ink-muted'"
+          >
+            全部
+          </NuxtLink>
+          <NuxtLink
+            v-for="option in categoryOptions"
+            :key="option.id"
+            :to="{ path: '/products', query: { category: option.id } }"
+            class="shrink-0 rounded-full border px-3.5 py-1.5 text-sm transition-colors"
+            :class="categoryId === option.id
+              ? 'border-accent bg-accent-soft font-semibold text-accent'
+              : 'border-line bg-surface text-ink-muted'"
+          >
+            {{ option.label }}
+          </NuxtLink>
+        </nav>
 
-    <!--
-      載入更多，不是頁碼。keyset 分頁只知道「上一頁的最後一筆」，
-      跳頁做不到——而商店的互動本來就是往下捲（ADR-0021 決策 4）
-    -->
-    <div v-if="hasMore" class="mt-8 flex justify-center">
-      <AppButton variant="secondary" :disabled="loadingMore" @click="loadMore">
-        {{ loadingMore ? '載入中⋯' : '載入更多' }}
-      </AppButton>
+        <!-- 工具列：排序仍然是 <a>，每一種排序都要是可以貼出去的網址 -->
+        <AppCard class="mb-4 flex flex-wrap items-center gap-x-1 gap-y-2 px-3 py-2">
+          <span class="mr-1 text-xs text-ink-faint">排序</span>
+          <NuxtLink
+            v-for="option in SORT_OPTIONS"
+            :key="option.value"
+            :to="{ path: '/products', query: {
+              ...(categoryId === null ? {} : { category: categoryId }),
+              ...(option.value === 'NEWEST' ? {} : { sort: option.value }),
+            } }"
+            class="rounded-sm px-3 py-1.5 text-sm transition-colors"
+            :class="sort === option.value
+              ? 'bg-accent font-semibold text-on-accent'
+              : 'text-ink-muted hover:bg-sunken hover:text-ink'"
+          >
+            {{ option.label }}
+          </NuxtLink>
+
+          <div class="ml-auto flex items-center gap-2 lg:hidden">
+            <input
+              v-model="minInput" type="number" min="0" inputmode="numeric" aria-label="最低價"
+              placeholder="最低" class="field figure w-20 !py-1.5 text-xs" @keyup.enter="applyPrice"
+            >
+            <span class="text-xs text-ink-faint">–</span>
+            <input
+              v-model="maxInput" type="number" min="0" inputmode="numeric" aria-label="最高價"
+              placeholder="最高" class="field figure w-20 !py-1.5 text-xs" @keyup.enter="applyPrice"
+            >
+            <AppButton variant="secondary" size="sm" @click="applyPrice">篩選</AppButton>
+          </div>
+        </AppCard>
+
+        <ul
+          v-if="products.length > 0"
+          class="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 xl:grid-cols-4"
+        >
+          <li v-for="product in products" :key="product.productId">
+            <ProductCard
+              :product="product"
+              :rating="ratings[product.productId] ?? null"
+              :image-url="images[product.productId]?.listUrl ?? null"
+            />
+          </li>
+        </ul>
+
+        <EmptyState v-else title="這個類目下目前沒有上架商品。">
+          <AppButton variant="secondary" size="sm" @click="navigateTo('/products')">
+            看全部商品
+          </AppButton>
+        </EmptyState>
+
+        <!-- 載入更多而不是頁碼：keyset 分頁跳頁做不到（ADR-0021 決策 4） -->
+        <div v-if="hasMore" class="mt-8 flex justify-center">
+          <AppButton variant="secondary" :disabled="loadingMore" @click="loadMore">
+            {{ loadingMore ? '載入中⋯' : '載入更多' }}
+          </AppButton>
+        </div>
+        <p
+          v-else-if="products.length > 0"
+          class="mt-8 text-center text-xs text-ink-faint"
+        >
+          已顯示全部 {{ products.length.toLocaleString() }} 件商品
+        </p>
+      </div>
     </div>
-    <p
-      v-else-if="products.length > 0"
-      class="mt-8 text-center text-xs text-ink-faint"
-    >
-      已顯示全部 {{ products.length.toLocaleString() }} 件商品
-    </p>
   </div>
 </template>

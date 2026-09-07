@@ -1,9 +1,10 @@
 <script setup lang="ts">
 /**
- * 搶購按鈕 —— 削峰漏斗的第 0 層。 三個必須做對的細節： 1. **互動能力必須在開賣前就緒。** 若按鈕要等 hydration 完成才能點， 開賣瞬間的第一波使用者會全部點空。 2. **開賣瞬間加隨機抖動。** 所有人的倒數同時歸零、同時送出請求， 會製造一個尖銳到不必要的脈衝——把它打散幾百毫秒， 對使用者無感，對後端差別很大。 3. **按下後立即禁用。** 使用者連點是常態，重複送出雖有 requestId 冪等兜底， 但那是最後防線，不該當成第一道。
+ * 搶購按鈕——削峰漏斗的第 0 層。
+ * 開賣瞬間加隨機抖動：所有人的倒數同時歸零、同時送出會製造尖銳的脈衝，
+ * 打散幾百毫秒對使用者無感、對後端差別很大。按下後立即禁用擋連點。
  */
 const props = defineProps<{
-  /** 活動時間窗口是否已開始 */
   started: boolean
   soldOut: boolean
   submitting: boolean
@@ -12,7 +13,6 @@ const props = defineProps<{
 
 const emit = defineEmits<{ attempt: [] }>()
 
-/** 開賣後的隨機延遲，讓瞬間湧入的請求散開。 */
 const JITTER_MAX_MILLIS = 300
 
 const jitterElapsed = ref(false)
@@ -55,10 +55,9 @@ const text = computed(() => {
   <button
     type="button"
     :disabled="!clickable"
-    class="w-full rounded px-6 py-4 text-base font-semibold transition-colors
-           disabled:cursor-not-allowed disabled:border disabled:border-line
-           disabled:bg-sunken disabled:text-ink-faint
-           enabled:bg-danger enabled:text-white enabled:hover:brightness-110"
+    class="h-14 w-full rounded-sm px-6 text-lg font-extrabold tracking-wide transition
+           disabled:cursor-not-allowed disabled:bg-sunken disabled:text-ink-faint
+           disabled:shadow-none enabled:btn-promo"
     @click="emit('attempt')"
   >
     {{ text }}

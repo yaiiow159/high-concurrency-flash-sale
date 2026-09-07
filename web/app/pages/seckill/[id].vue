@@ -98,160 +98,136 @@ watchEffect(() => {
 <template>
   <div class="pb-action-bar">
     <template v-if="activity">
-      <!-- 靜態部分：可被 CDN 完全承接 -->
-      <PageHeader eyebrow="限時搶購" :title="activity.productName">
-        <template #actions>
-          <NuxtLink to="/" class="text-sm text-ink-muted transition-colors hover:text-ink">
-            ← 回活動列表
-          </NuxtLink>
-        </template>
-      </PageHeader>
+      <nav aria-label="麵包屑" class="text-sm text-ink-muted">
+        <ol class="flex items-center gap-1.5">
+          <li><NuxtLink to="/" class="transition-colors hover:text-accent">首頁</NuxtLink></li>
+          <li class="flex items-center gap-1.5">
+            <span aria-hidden="true" class="text-ink-faint">/</span>
+            <span class="text-ink">限時搶購</span>
+          </li>
+        </ol>
+      </nav>
 
-      <div class="grid gap-8 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start lg:gap-12">
-        <div>
-          <ProductTile
-            :seed="activity.skuId" :label="activity.productName"
-            ratio="wide" class="mb-6 w-full rounded"
+      <AppCard class="mt-4 overflow-hidden">
+        <!-- 活動狀態列：整頁只有這裡與搶購鈕用品牌漸層 -->
+        <div class="bg-promo flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-white sm:px-6">
+          <div class="flex items-center gap-2">
+            <span class="flex items-center gap-1 rounded-sm bg-white/20 px-2 py-0.5 text-xs font-extrabold">
+              <svg viewBox="0 0 24 24" class="h-3.5 w-3.5" fill="currentColor" aria-hidden="true">
+                <path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z" />
+              </svg>
+              限時搶購
+            </span>
+            <span class="text-sm font-semibold">
+              每人限購 <span class="figure">{{ activity.perUserLimit.toLocaleString() }}</span> 件
+            </span>
+          </div>
+          <CountdownTimer
+            :start-at="activity.startAt"
+            :end-at="activity.endAt"
+            :server-now="serverNow"
+            tone="light"
+            size="lg"
+            @started="started = true"
           />
-          <MoneyText :amount="activity.seckillPrice" size="xl" tone="danger" />
-          <p class="mt-2 text-sm text-ink-muted">
-            每人限購 <span class="figure">{{ activity.perUserLimit }}</span> 件
-          </p>
-
-          <AppCard class="mt-6 p-5">
-            <CountdownTimer
-              :start-at="activity.startAt"
-              :end-at="activity.endAt"
-              :server-now="serverNow"
-              @started="started = true"
-            />
-            <!-- 動態部分：獨立請求，不隨頁面快取 -->
-            <div class="mt-6">
-              <StockIndicator :available="activity.availableStock" :total="activity.totalStock" />
-            </div>
-          </AppCard>
         </div>
 
-        <AppCard class="hidden p-5 lg:sticky lg:top-24 lg:block">
-          <SeckillButton
-            :started="started"
-            :sold-out="soldOut"
-            :submitting="submitting"
-            :authenticated="auth.isAuthenticated"
-            @attempt="onAttempt"
+        <div class="grid gap-6 p-4 sm:p-6 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] lg:gap-10">
+          <ProductTile
+            :seed="activity.skuId" :label="activity.productName" class="w-full rounded"
           />
 
-          <div class="mt-4 text-sm" role="status" aria-live="polite">
-            <p v-if="outcome.kind === 'processing'" class="text-ink-muted">
-              已受理，訂單建立中⋯
-              <span class="figure block">{{ outcome.orderNo }}</span>
-              <span v-if="queueHint" class="mt-1 block text-xs text-ink-faint">{{ queueHint }}</span>
-            </p>
+          <div class="min-w-0">
+            <h1 class="text-xl font-extrabold leading-snug tracking-tight sm:text-2xl">
+              {{ activity.productName }}
+            </h1>
 
-            <div
-              v-else-if="outcome.kind === 'success'"
-              class="rounded-sm border border-ok/40 bg-ok-soft p-4"
-            >
-              <p class="font-semibold text-ok">搶購成功</p>
-              <p class="figure mt-1 text-xs text-ink-muted">{{ outcome.orderNo }}</p>
-              <ul class="mt-2 flex flex-col gap-1">
-                <li v-for="line in outcome.order.lines" :key="line.skuId" class="text-ink-muted">
-                  {{ line.skuSnapshot }}
-                  <span class="figure">× {{ line.quantity }}</span>
-                </li>
-              </ul>
+            <div class="mt-4 rounded bg-danger-soft/70 px-4 py-3.5">
+              <p class="eyebrow text-danger/70">秒殺價</p>
+              <MoneyText :amount="activity.seckillPrice" size="xl" tone="danger" class="mt-0.5" />
+            </div>
 
-              <AppButton
-                v-if="outcome.order.status === 'PENDING_PAYMENT' && !paymentUrl"
-                class="mt-4" size="sm" block :disabled="paying"
-                @click="payNow(outcome.orderNo)"
+            <!-- 庫存是獨立請求，不隨頁面快取 -->
+            <StockIndicator
+              class="mt-5"
+              :available="activity.availableStock" :total="activity.totalStock"
+            />
+
+            <div class="mt-6 hidden lg:block">
+              <SeckillButton
+                :started="started"
+                :sold-out="soldOut"
+                :submitting="submitting"
+                :authenticated="auth.isAuthenticated"
+                @attempt="onAttempt"
+              />
+            </div>
+
+            <div class="mt-4 text-sm" role="status" aria-live="polite">
+              <p v-if="outcome.kind === 'processing'" class="text-ink-muted">
+                已受理，訂單建立中⋯
+                <span class="figure block">{{ outcome.orderNo }}</span>
+                <span v-if="queueHint" class="mt-1 block text-xs text-ink-faint">{{ queueHint }}</span>
+              </p>
+
+              <div
+                v-else-if="outcome.kind === 'success'"
+                class="rounded-sm border border-ok/40 bg-ok-soft p-4"
               >
-                {{ paying ? '前往付款⋯' : '去付款' }}
-              </AppButton>
+                <p class="font-bold text-ok">搶購成功</p>
+                <p class="figure mt-1 text-xs text-ink-muted">{{ outcome.orderNo }}</p>
+                <ul class="mt-2 flex flex-col gap-1">
+                  <li v-for="line in outcome.order.lines" :key="line.skuId" class="text-ink-muted">
+                    {{ line.skuSnapshot }}
+                    <span class="figure">× {{ line.quantity }}</span>
+                  </li>
+                </ul>
 
-              <p v-if="paymentUrl" class="mt-3 text-xs text-ink-muted">
-                已建立付款單，模擬閘道將在數秒後回調完成付款。
+                <AppButton
+                  v-if="outcome.order.status === 'PENDING_PAYMENT' && !paymentUrl"
+                  class="mt-4" size="sm" block :disabled="paying"
+                  @click="payNow(outcome.orderNo)"
+                >
+                  {{ paying ? '前往付款⋯' : '去付款' }}
+                </AppButton>
+
+                <p v-if="paymentUrl" class="mt-3 text-xs text-ink-muted">
+                  已建立付款單，模擬閘道將在數秒後回調完成付款。
+                </p>
+                <NuxtLink
+                  :to="`/orders/${outcome.orderNo}`"
+                  class="mt-2 block text-accent hover:underline"
+                >
+                  查看訂單 →
+                </NuxtLink>
+              </div>
+
+              <!-- 逾時不等於失敗：庫存可能已扣、訂單也在建立，只是消費端還沒跟上 -->
+              <div
+                v-else-if="outcome.kind === 'timeout'"
+                class="rounded-sm border border-line bg-sunken p-4 text-ink-muted"
+              >
+                <p>處理時間較長，請稍後至訂單頁查看。</p>
+                <NuxtLink
+                  :to="`/orders/${outcome.orderNo}`"
+                  class="figure mt-1 block text-accent hover:underline"
+                >
+                  {{ outcome.orderNo }} →
+                </NuxtLink>
+              </div>
+
+              <p v-else-if="outcome.kind === 'rejected'" class="text-danger">
+                {{ outcome.message }}
+                <button type="button" class="ml-2 underline" @click="reset()">重試</button>
               </p>
             </div>
 
-            <!--
-              逾時不等於失敗。庫存可能已經扣了、訂單也還在建立中，
-              只是消費端還沒跟上。讓使用者去訂單頁查，
-              而不是留在這裡無限輪詢——那在尖峰時是第二波流量。
-            -->
-            <div
-              v-else-if="outcome.kind === 'timeout'"
-              class="rounded-sm border border-line bg-sunken p-4 text-ink-muted"
-            >
-              <p>處理時間較長，請稍後至訂單頁查看。</p>
-              <NuxtLink
-                :to="`/orders/${outcome.orderNo}`"
-                class="figure mt-1 block text-accent hover:underline"
-              >
-                {{ outcome.orderNo }} →
-              </NuxtLink>
+            <div v-if="!auth.isAuthenticated" id="auth-panel" class="mt-6">
+              <AuthPanel />
             </div>
-
-            <p v-else-if="outcome.kind === 'rejected'" class="text-danger">
-              {{ outcome.message }}
-              <button type="button" class="ml-2 underline" @click="reset()">重試</button>
-            </p>
           </div>
-
-          <div v-if="!auth.isAuthenticated" id="auth-panel" class="mt-5">
-            <AuthPanel />
-          </div>
-        </AppCard>
-      </div>
-
-      <!--
-        手機：搶購鈕放進底部固定列，結果與登入面板留在內容流。
-        桌機的側欄已經固定在畫面上，不需要再蓋一條。
-      -->
-      <div class="mt-8 lg:hidden">
-        <div v-if="!auth.isAuthenticated" id="auth-panel-mobile">
-          <AuthPanel />
         </div>
-
-        <div class="mt-4 text-sm" role="status" aria-live="polite">
-          <p v-if="outcome.kind === 'processing'" class="text-ink-muted">
-            已受理，訂單建立中⋯
-            <span class="figure block">{{ outcome.orderNo }}</span>
-            <span v-if="queueHint" class="mt-1 block text-xs text-ink-faint">{{ queueHint }}</span>
-          </p>
-
-          <div
-            v-else-if="outcome.kind === 'success'"
-            class="rounded-sm border border-ok/40 bg-ok-soft p-4"
-          >
-            <p class="font-semibold text-ok">搶購成功</p>
-            <NuxtLink
-              :to="`/orders/${outcome.orderNo}`"
-              class="figure mt-1 block text-accent hover:underline"
-            >
-              {{ outcome.orderNo }} →
-            </NuxtLink>
-          </div>
-
-          <div
-            v-else-if="outcome.kind === 'timeout'"
-            class="rounded-sm border border-line bg-sunken p-4 text-ink-muted"
-          >
-            <p>處理時間較長，請稍後至訂單頁查看。</p>
-            <NuxtLink
-              :to="`/orders/${outcome.orderNo}`"
-              class="figure mt-1 block text-accent hover:underline"
-            >
-              {{ outcome.orderNo }} →
-            </NuxtLink>
-          </div>
-
-          <p v-else-if="outcome.kind === 'rejected'" class="text-danger">
-            {{ outcome.message }}
-            <button type="button" class="ml-2 underline" @click="reset()">重試</button>
-          </p>
-        </div>
-      </div>
+      </AppCard>
 
       <StickyActionBar>
         <template #info>
@@ -261,7 +237,7 @@ watchEffect(() => {
           </p>
         </template>
         <template #action>
-          <div class="w-36">
+          <div class="w-40">
             <SeckillButton
               :started="started"
               :sold-out="soldOut"
@@ -274,13 +250,13 @@ watchEffect(() => {
       </StickyActionBar>
     </template>
 
-    <div v-else class="grid gap-8 lg:grid-cols-[minmax(0,1fr)_22rem]">
-      <div class="flex flex-col gap-6">
-        <SkeletonBlock height="aspect-[16/10]" width="w-full" rounded />
+    <div v-else class="grid gap-6 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]">
+      <SkeletonBlock height="aspect-square" width="w-full" rounded />
+      <div class="flex flex-col gap-4">
         <SkeletonBlock height="h-8" width="w-2/3" />
-        <SkeletonBlock height="h-24" width="w-full" rounded />
+        <SkeletonBlock height="h-20" width="w-full" rounded />
+        <SkeletonBlock height="h-14" width="w-full" rounded />
       </div>
-      <SkeletonBlock height="h-32" width="w-full" rounded />
     </div>
   </div>
 </template>

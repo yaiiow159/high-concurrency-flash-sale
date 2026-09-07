@@ -1,5 +1,5 @@
 <script setup lang="ts">
-/** 卡片。 用 1px 邊框而非陰影：這是一個要讓人看清楚數字的介面， 密集列表上的陰影只會讓版面浮躁。 */
+/** 卡片。靜止時就有一層很淡的投影，亮色介面靠陰影而不是邊框產生層次。 */
 withDefaults(defineProps<{
   interactive?: boolean
   muted?: boolean
@@ -12,8 +12,6 @@ withDefaults(defineProps<{
     class="rounded border bg-surface shadow-rest transition-[border-color,box-shadow,transform] duration-200"
     :class="[
       highlighted ? 'border-accent' : 'border-line',
-      /* 靜態列表維持純邊框；只有可點的卡片在 hover 時抬起，
-         讓「可以按」這件事看得出來，而不必額外加一個箭頭圖示 */
       interactive ? 'hover:-translate-y-0.5 hover:border-line-strong hover:shadow-lift' : '',
       muted ? 'opacity-60' : '',
     ]"
