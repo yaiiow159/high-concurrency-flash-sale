@@ -72,6 +72,13 @@ public class EngagementController {
         return ApiResponse.ok(engagement.recentlyViewed(userId, limit));
     }
 
+    @DeleteMapping("/api/v1/products/recently-viewed")
+    @Operation(summary = "清除瀏覽紀錄")
+    public ApiResponse<Void> clearRecentlyViewed(@CurrentUser Long userId) {
+        engagement.clearRecentlyViewed(userId);
+        return ApiResponse.ok(null);
+    }
+
     /** 匿名可讀：它不含身分，而它出現在商品頁上——那一頁本身就是可快取的。 */
     @GetMapping("/api/v1/catalog/products/{productId}/also-viewed")
     @Operation(summary = "看了這個的人也看了", description = "資料不足時回空清單")

@@ -25,6 +25,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Map;
 
 /** 一般下單 API。 */
 @RestController
@@ -100,6 +101,12 @@ public class OrderController {
             @CurrentUser Long userId) {
 
         return ApiResponse.ok(orderQueryUseCase.listForUser(userId, status, page, size));
+    }
+
+    @GetMapping("/summary")
+    @Operation(summary = "我的訂單各狀態筆數", description = "帳戶總覽用；鍵為狀態名，沒有的狀態不會出現")
+    public ApiResponse<Map<String, Long>> summary(@CurrentUser Long userId) {
+        return ApiResponse.ok(orderQueryUseCase.summaryForUser(userId));
     }
 
     @GetMapping("/{orderNo}")

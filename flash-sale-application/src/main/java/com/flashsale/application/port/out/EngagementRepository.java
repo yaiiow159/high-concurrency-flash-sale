@@ -40,4 +40,7 @@ public interface EngagementRepository {
      * @return 刪除的列數
      */
     int purgeOldViews();
+
+    /** 清掉某個使用者的全部瀏覽紀錄。 */
+    void clearViews(Long userId);
 }

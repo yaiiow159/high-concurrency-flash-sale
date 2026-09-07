@@ -2,6 +2,7 @@
 import { errorMessage, useApi } from '~/composables/useApi'
 import { useReturns } from '~/composables/useReturns'
 import { useReviews } from '~/composables/useReviews'
+import { useCartStore } from '~/stores/cart'
 import type { OrderView, PaymentIntentView, ShipmentView } from '~/types/api'
 
 /** 訂單詳情與付款。 這一頁**不做 ISR**：訂單是每個使用者專屬的資料， 被 CDN 快取等於把別人的訂單發給下一個訪客。 只有匿名且對所有人相同的內容才適合快取。 */
@@ -10,6 +11,7 @@ const orderNo = route.params.orderNo as string
 const { request } = useApi()
 const { inspect } = useReturns()
 const { reviewable } = useReviews()
+const cart = useCartStore()
 
 const order = ref<OrderView | null>(null)
 /** 出貨進度另外取：訂單尚未付款時還沒有出貨單，查不到是正常的 */
@@ -43,6 +45,38 @@ async function load() {
   shipment.value = shipmentResult
   canReturn.value = returnable
   canReview.value = reviewableNow
+}
+
+const reordering = ref(false)
+const reorderNotice = ref<string | null>(null)
+
+/**
+ * 再買一次：把訂單行原樣加回購物車。逐行加而不是一次送整批——
+ * 其中一件已下架時，其他件仍然要進得去，並且要說清楚少了哪一件。
+ */
+async function reorder() {
+  if (!order.value) {
+    return
+  }
+  reordering.value = true
+  reorderNotice.value = null
+  const skipped: string[] = []
+  for (const line of order.value.lines) {
+    try {
+      await cart.addItem(line.skuId, line.quantity)
+    } catch {
+      skipped.push(line.skuSnapshot)
+    }
+  }
+  reordering.value = false
+  if (skipped.length === order.value.lines.length) {
+    reorderNotice.value = '這些商品目前都無法購買'
+    return
+  }
+  if (skipped.length > 0) {
+    reorderNotice.value = `已加入購物車；「${skipped.join('」「')}」目前無法購買，已略過`
+  }
+  await navigateTo('/cart')
 }
 
 async function pay() {
@@ -172,6 +206,17 @@ useHead({ title: `訂單 ${orderNo}` })
           >
             撰寫評價
           </AppButton>
+
+          <!-- 再買一次只給已付款之後的單：待付款的單本來就還在購物流程裡，
+               已關閉的單再買等於重走一次結帳，那正是這顆按鈕要省掉的事 -->
+          <AppButton
+            v-if="order.status === 'PAID' || order.status === 'SHIPPED' || order.status === 'COMPLETED'"
+            class="mt-6" variant="secondary" block :disabled="reordering"
+            @click="reorder"
+          >
+            {{ reordering ? '加入中⋯' : '再買一次' }}
+          </AppButton>
+          <p v-if="reorderNotice" class="mt-2 text-xs text-ink-muted" role="status">{{ reorderNotice }}</p>
 
           <!-- 退貨是次要動作，用 secondary：它不是我們希望使用者做的事，
                但也不該藏起來讓人找不到而只好打客服 -->

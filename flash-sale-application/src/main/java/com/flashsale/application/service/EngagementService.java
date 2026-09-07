@@ -106,6 +106,15 @@ public class EngagementService implements EngagementUseCase {
     }
 
     @Override
+    @Transactional
+    public void clearRecentlyViewed(Long userId) {
+        if (userId == null) {
+            return;
+        }
+        engagementRepository.clearViews(userId);
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public List<ProductView> recentlyViewed(Long userId, int limit) {
         if (userId == null) {

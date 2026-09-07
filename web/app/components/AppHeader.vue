@@ -94,7 +94,7 @@ const accountLinks = [
           </template>
           <template v-else>
             <NuxtLink to="/coupons" class="transition-colors hover:text-white">優惠券</NuxtLink>
-            <NuxtLink to="/member" class="font-semibold text-white">登入 / 註冊</NuxtLink>
+            <NuxtLink to="/account" class="font-semibold text-white">登入 / 註冊</NuxtLink>
           </template>
         </nav>
       </div>
@@ -206,10 +206,10 @@ const accountLinks = [
           </NuxtLink>
 
           <NuxtLink
-            to="/member"
+            to="/account"
             class="flex flex-col items-center gap-0.5 rounded-sm px-2 py-1 text-[11px]
                    transition-colors hover:text-accent"
-            :class="isActive('/member') ? 'text-accent' : 'text-ink-muted'"
+            :class="isActive('/account') || isActive('/member') ? 'text-accent' : 'text-ink-muted'"
           >
             <svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="1.8">
               <circle cx="12" cy="8.5" r="3.5" />

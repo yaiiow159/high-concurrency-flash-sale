@@ -25,6 +25,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.Map;
+import java.util.LinkedHashMap;
 
 /** 訂單持久化埠的 JPA 實作。 */
 @Repository
@@ -126,6 +128,16 @@ public class JpaOrderRepository implements OrderRepository {
             return Set.of();
         }
         return Set.copyOf(jpaRepository.findExistingOrderNos(orderNos));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<String, Long> countByUserIdGroupedByStatus(Long userId) {
+        Map<String, Long> counts = new LinkedHashMap<>();
+        for (Object[] row : jpaRepository.countByUserIdGroupedByStatus(userId)) {
+            counts.put((String) row[0], ((Number) row[1]).longValue());
+        }
+        return counts;
     }
 
     @Override
