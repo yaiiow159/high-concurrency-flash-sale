@@ -7,6 +7,50 @@
 > 每一個關鍵取捨都有對應的 [ADR](docs/adr/)。
 > 程式碼說明「做了什麼」，ADR 說明「**為什麼不用另一種做法**」。
 
+**怎麼讀這份文件**：想在十分鐘內理解設計，讀〈核心設計〉與〈技術難點〉就夠；
+想改程式，再讀〈架構與流程〉與 [`CLAUDE.md`](CLAUDE.md) 的鐵則；
+想知道「這樣做到底撐不撐得住」，看〈效能實測〉——每個數字都是本機量出來的，含踩到的坑。
+
+---
+
+## 全系統長什麼樣
+
+```
+                          瀏覽器 / 行動裝置
+                                │
+                    ┌───────────▼───────────┐
+                    │  Nuxt 3（SSR + ISR）   │  漏斗第 0 層：靜態頁走 CDN，
+                    │  BFF：refresh token   │  庫存數字另走輕量請求
+                    │  收進 httpOnly cookie  │
+                    └───────────┬───────────┘
+                                │ /api/v1/**（JWT）
+                    ┌───────────▼───────────┐
+                    │   Spring Boot 單體      │  六角架構：api → infrastructure → application → domain
+                    │   ┌─────────────────┐ │
+                    │   │ 秒殺熱路徑       │ │  Caffeine 售罄標記 → 入場控制 → 多級快取
+                    │   │ （零 DB）        │ │  → Redis Lua 扣減 → Kafka 投遞 → 202
+                    │   └─────────────────┘ │
+                    │   ┌─────────────────┐ │
+                    │   │ 一般交易通道     │ │  MySQL 條件式 UPDATE + Outbox，同一交易，201
+                    │   └─────────────────┘ │
+                    │   9 個 Kafka 消費端    │  建單／補償／出貨／積分／通知／退款／索引／縮圖／銷量
+                    │   12 個背景排程        │  Outbox 中繼、逾時關單、退款補送、對帳、預熱…
+                    └──┬────┬────┬────┬────┘
+                       │    │    │    │
+             ┌─────────▼┐ ┌─▼──┐ ┌▼───┐ ┌▼──────────────┐
+             │  Redis   │ │MySQL│ │Kafka│ │ Elasticsearch │   MinIO（商品圖）
+             │ 秒殺庫存  │ │真實 │ │佇列 │ │ 搜尋讀模型     │
+             │ 多級快取  │ │來源 │ │+DLT │ │               │
+             │ 分散式鎖  │ └────┘ └────┘ └───────────────┘
+             └──────────┘
+                       ▲ 指標 / 追蹤 / 告警
+             Prometheus + Grafana + Tempo（OTLP），整條建單鏈同一個 trace id
+```
+
+**兩條下單通道刻意不共用任何一段程式**：秒殺是「所有人搶同一件」，一般交易是
+「數萬個 SKU 各自獨立」，流量特徵完全相反，用同一套機制必然有一邊做不好
+（[ADR-0006](docs/adr/0006-dual-order-channels.md)）。
+
 ---
 
 ## 核心設計
@@ -63,6 +107,46 @@
 
 訂單落庫與領域事件寫入 `outbox_event` **在同一個資料庫交易內**，天然原子，
 不需要任何分散式交易協調者（[ADR-0004](docs/adr/0004-outbox-saga-over-seata.md)）。
+
+圖上「投遞失敗 → 立即退庫」有一個容易做錯的細節：**等待逾時不是失敗**。
+逾時的語意是「不知道送到沒」，生產者仍在自己的 `delivery.timeout.ms` 內重試；
+據此退庫的話，庫存會被別人買走，而訂單稍後照樣建立——那是真實超賣。
+只有「確定沒送出」才退，不確定時一律選少賣，讓對帳的孤兒偵測接手
+（[ADR-0030](docs/adr/0030-publish-timeout-is-not-failure.md)）。
+
+---
+
+## 技術難點
+
+這個系統真正難的地方不在任何一個元件，而在**分散式系統裡「失敗」有很多種長相**，
+每一種都要有人接住，而且接的方式不能讓另一種失敗變得更糟。
+下面每一條都是實作或壓測時真的踩到的，不是預想的。
+
+| 難點 | 為什麼難 | 怎麼解 | 證據 |
+|---|---|---|---|
+| **超賣** | 「讀餘量 → 判斷 → 扣減」三步之間任何並行都會多賣 | 扣減與判斷寫進**同一支 Lua**，全系統只有這一個強一致點；三層冪等（Redis 映射／`saveIfAbsent`／唯一索引）擋重複 | 1000 執行緒搶 100 件，成功數剛好 100（`RedisStockRepositoryTest`） |
+| **削峰** | 1000 件庫存湧入百萬請求，99.9% 注定失敗 | 四層漏斗由便宜到貴，**熱路徑零 DB**；建單推進 Kafka 讓 DB 壓力與前端流量脫鉤 | 受理 1,471/s vs 落庫 213/s，約 7:1；售罄後比有庫存時更快（1,460 vs 1,244 QPS） |
+| **「不知道」不等於「失敗」** | Kafka 投遞逾時時生產者還在重試；當成失敗去退庫，訊息之後送達就超賣 | `TimeoutException` 與 `RetriableException` 回 `PENDING` 不退庫；只有序列化、訊息過大這類「連 append 都不會發生」的才退 | 把 `send-timeout` 調成 1ms 實機重現：舊碼退庫後訂單照建；新碼庫存 431540→431539、補償 0 次（[ADR-0030](docs/adr/0030-publish-timeout-is-not-failure.md)） |
+| **退款的送達** | 佇列的重試預算只有幾秒，耗盡進死信，而退貨單早已寫成「已退款」——帳上退了、錢沒出去，且**查不出來** | 「已核可」與「已到帳」拆成兩個狀態（`REFUNDING → REFUNDED`），資料庫是工作項、佇列只是快車道；排程不受任何預算限制地推到成功 | 把一張單改回 `REFUNDING` 並把發起時間撥前一小時，下一輪排程即結算（[ADR-0031](docs/adr/0031-refund-settlement-is-a-durable-work-item.md)） |
+| **兩套庫存不能各自認帳** | 同一個 SKU 秒殺與一般通道都在賣，兩個真實來源必然超賣 | 以「劃撥」隔開，先動 MySQL 再寫 Redis；預熱寫的是「總量 − 已售」而不是總量 | 容器重建後對帳報 `OVERSELL_RISK drift +4`，那 4 件正是重啟前賣掉的（[ADR-0008](docs/adr/0008-dual-inventory-model.md)） |
+| **偏差不會自癒** | 最終一致沒有交易兜底，洩漏只會累積，而且沒有東西會告訴你 | 每 10 分鐘核對**三條**恆等式；只修能被證明安全的方向（孤兒扣減），`OVERSELL_RISK` 一律人工 | 第三條（劃撥支撐）是前兩條都帳平時仍漏掉的那種超賣，實作時真的踩到才補上 |
+| **收款成功不可改寫** | 付款回調與逾時關單競態：錢收了但訂單已關 | 如實記 `SUCCEEDED` 再轉 `REFUND_PENDING`，兩個事件都發 | `payment_callback_total{result="refund-required"}` 恆為 0 才健康 |
+| **一個熱門商品讓整條通道陪葬** | 等行鎖的請求握著連線，連線池被佔滿後不相干的請求也開不了交易 | 秒殺不共用同步通道；耗盡回 `503 retryable` 而非 `500` | 集中 vs 分散：29 vs 363 TPS，`Innodb_row_lock_waits` 1,444 vs 31 |
+| **降級路徑把系統推進放大迴圈** | 熔斷打開後每個被擋請求印一份堆疊，日誌 I/O 讓呼叫更慢、熔斷更開 | 降級方法不印堆疊、必須 `public`（Resilience4j 反射呼叫）；ArchUnit 擋下 | 修正前 96 萬行日誌、51% 503；修正後 2,832 行、全部 409 |
+| **分區鍵選錯，六個消費者只有一個在做事** | 秒殺依定義只有一場活動，用 `activityId` 分區等於單分區 | 分區鍵要選「同一個什麼必須有序」——是同一張訂單 | 78,037 則訊息全落 partition 6；改 `orderNo` 後 38 → 213 TPS（[ADR-0020](docs/adr/0020-order-create-partition-key.md)） |
+| **一行 WARN 背後是 310 秒** | `@EntityGraph` 配上分頁時 Hibernate 把符合條件的**全部**載入再切，功能完全正常 | 兩段式：先用覆蓋索引取 ID，再依 ID join fetch；ArchUnit 擋下這個組合 | 逾時關單（庫存止血路徑）310 秒 → 3.5 秒，積壓清完 38 小時 → 4 小時 |
+| **重試預算一體適用** | 消費端重試是阻塞式的，久留擋住同分區後面的人並撞上 `max.poll.interval.ms` | 預算依「失敗了要靠什麼救回來」分檔：有排程兜底的快檔、只能人工重建的慢檔 | 慢檔的錯誤處理器刻意不註冊成 Bean，否則 Boot 的 `getIfUnique()` 會讓預設容器安靜失去死信 |
+| **撤銷令牌被自己的例外回滾** | 偵測到外洩 → 撤銷整條輪替鏈 → 拋例外拒絕，而例外讓外層交易連撤銷一起還原 | 撤銷走 `REQUIRES_NEW` 獨立交易 | mock 測試看到 `revokeFamily` 被呼叫就會過，**只有實機才抓得到** |
+| **預設金鑰在正式環境靜靜跑著** | 三把 HMAC 金鑰的預設值在版控裡，拿到就能偽造身分、付款回調、搶購資格；警告在日誌洪流裡等於不存在 | `SecretGuard` 拒絕啟動，`dev` profile 才放行；方向刻意是「本機起不來很吵、正式漏掉很貴」 | 不帶 profile 啟動，在綁定連接埠之前中止並列出三把金鑰各自的後果 |
+| **Outbox 切斷了追蹤** | 事件先落 DB、排程另外搬，observation 的自動傳播在那裡就斷了 | `outbox_event.trace_context` 存寫入時的 `traceparent`，中繼時還原 | 一張秒殺單在 Tempo 裡是 29 個 span，從 HTTP 入口一路接到事件消費（[ADR-0029](docs/adr/0029-distributed-tracing.md)） |
+
+三個貫穿全部的原則：
+
+1. **降級要看代價，不能一刀切。** 庫存服務故障 fail-closed（放行 = 無上限超賣），
+   限流器故障 fail-open（後面還有庫存這道關），節點編號撞號拒絕啟動（誤判很吵但一改就好）。
+2. **帳目要有一個格子承認「現實可能還沒跟上」。** `REFUND_PENDING`、`REFUNDING`、`PENDING`
+   都是這種格子。先寫上樂觀的結果，之後就查不出哪些是假的。
+3. **不確定時選少賣。** 少賣可以事後補救，超賣不行。
 
 ---
 
@@ -167,8 +251,9 @@ flash-sale-api             HTTP 入站配接器 + 組裝根
   反過來（先扣後發）則會有扣減找不到對應訂單號的空窗
 - **⑤ 回傳「重複」時直接回放既有訂單號**，不再往下走。
   同一個 `requestId` 重送永遠拿到同一張訂單，庫存只扣一次
-- **⑥ 失敗要立刻退庫。** Kafka 投遞不出去代表訂單永遠不會被建立，
-  此時不退庫，那份庫存就永久漏掉了
+- **⑥ 失敗要立刻退庫，但逾時不是失敗。** Kafka 確定投遞不出去代表訂單永遠不會被建立，
+  此時不退庫，那份庫存就永久漏掉了；等待逾時則是「不知道送到沒」，退了會超賣
+  （[ADR-0030](docs/adr/0030-publish-timeout-is-not-failure.md)）
 
 > 熱路徑穩態下是 **3 次 Redis 往返 + 1 次 Kafka**。
 > 其中 `markAccepted` 佔了 2 次（HSET 與 EXPIRE 分開送），
@@ -249,6 +334,10 @@ POST /api/v1/orders  ──▶  OrderPlacementService.place   @Transactional
 
 **每個 group 各自消費整個主題**，彼此不影響——積分掛掉不會拖到出貨。
 
+重試預算分兩檔，依「失敗了要靠什麼救回來」而不是依重要性：快檔（約 7.5 秒）給另有救援管道的
+消費端——建單的積壓本身是服務水準、退款有補送排程；慢檔（約 90 秒）給失敗後只能人工重建的
+搜尋索引與縮圖。兩檔都壓在 `max.poll.interval.ms` 之下，否則消費端會被踢出群組。
+
 新增消費端時要回答兩個問題（CLAUDE.md 鐵則 4）：「重複投遞會怎樣」與
 「**把歷史全部重跑一次會怎樣**」。第二題是因為 `auto-offset-reset: earliest`，
 新的 group 第一次上線會重放整個主題——會員積分那個消費端上線時就這樣
@@ -273,9 +362,14 @@ POST /api/v1/orders  ──▶  OrderPlacementService.place   @Transactional
                    ▲ │
                    └─┴──▶ FAILED（可重送，不是終態）
 
-退貨  REQUESTED ──▶ APPROVED ──▶ RECEIVED ──▶ REFUNDED
-          └──▶ REJECTED    └──▶ CANCELLED
+退貨  REQUESTED ──▶ APPROVED ──▶ RECEIVED ──▶ REFUNDING ──▶ REFUNDED
+          └──▶ REJECTED    └──▶ CANCELLED       （錢還沒出去）
 ```
+
+退貨的 `REFUNDING` 與付款的 `REFUND_PENDING` 是同一個形狀：**當現實與帳目可能不同步時，
+帳目要有一個格子承認這件事**。少了它，閘道故障時帳上說退了、錢沒出去，
+而 `status = 'REFUNDED'` 裡成功與失敗的紀錄長得一模一樣
+（[ADR-0031](docs/adr/0031-refund-settlement-is-a-durable-work-item.md)）。
 
 **`PAID → CANCELLED` 是被禁止的**，而這條線很容易畫錯：取消會發出
 `order.cancelled` 讓補償服務退庫，但錢已經收了——那會製造出
@@ -296,8 +390,10 @@ POST /api/v1/orders  ──▶  OrderPlacementService.place   @Transactional
 
 | 失敗 | 誰接住 | 多久 |
 |---|---|---|
-| Kafka 投遞失敗 | `publishOrCompensate` 當場退庫 | 毫秒 |
+| Kafka **確定**投遞失敗 | `publishOrCompensate` 當場退庫 | 毫秒 |
+| Kafka 投遞**逾時** | 不退庫；訊息最終遺失時由對帳的孤兒偵測撈出 | 寬限期後 |
 | 消費端重試耗盡 | DLQ + `DomainEventDeadLetterConsumer` | 秒 |
+| 退款進了死信 | `RefundSettlementScheduler` 依 `REFUNDING` 狀態補送 | 60 秒一輪 |
 | 使用者沒付款 | `ExpiredOrderScheduler` 關單 → `order.cancelled` → 退庫 | 30 秒一輪 |
 | 以上全部失效 | `StockReconciliationService` 對帳 | 10 分鐘一輪 |
 
@@ -313,7 +409,8 @@ POST /api/v1/orders  ──▶  OrderPlacementService.place   @Transactional
 | `OutboxRelayScheduler` | 1 秒 | 把 PENDING 事件投進 Kafka |
 | `ExpiredOrderScheduler` | 30 秒 | 逾時關單並退庫 |
 | `NotificationDeliveryScheduler` | 30 秒 | 寄出待發通知 |
-| `PaymentRefundScheduler` | 60 秒 | 掃描待退款的付款單 |
+| `PaymentRefundScheduler` | 60 秒 | 掃描待退款的付款單（閘道呼叫在交易之外，一筆一次交易） |
+| `RefundSettlementScheduler` | 60 秒 | 補送已核可但錢還沒出去的退款（[ADR-0031](docs/adr/0031-refund-settlement-is-a-durable-work-item.md)） |
 | `StockWarmupRunner` | 60 秒 | 補上缺失的 Redis 庫存鍵 |
 | `QueueDepthScheduler` | 5 秒 | 取樣建單佇列深度（**不互斥**：每個節點各自要有樣本） |
 | `SnowflakeNodeIdGuard.renew` | 10 秒 | 續自己的節點編號租約（**不互斥**：加鎖反而會讓租約過期） |
@@ -507,15 +604,36 @@ Hikari 連線池（50）被排隊的人佔滿
 落到兜底處理變成「系統異常」。那會讓客戶端不去重試一個重試就會好的錯誤，
 同時把真正的程式錯誤淹沒在尖峰噪音裡。
 
+**⑤ 一行 WARN 背後是 310 秒**
+
+`@EntityGraph` 配上 `Limit` 時 Hibernate 只印一行 `HHH90003004`，然後把符合條件的
+資料**全部**載入再於記憶體裡切出 limit 筆。資料庫裡有 89,100 筆逾期未付款訂單，
+關單排程每輪只要 200 筆，卻要把全部載進 persistence context——而且整段跑在
+`@Transactional` 裡，commit 時還要對那 89,100 個實體做 dirty check。
+
+| | 修正前 | 修正後 |
+|---|---|---|
+| 每輪 200 筆耗時 | **310 秒** | **約 3.5 秒** |
+| 清完 89,100 筆積壓 | 約 38 小時 | 約 4 小時（大半是排程的 30 秒固定延遲） |
+
+這條路徑是庫存的止血動作：訂單沒關，那份秒殺庫存就一直被佔著賣不出去。
+改成兩段式（先用覆蓋索引取 ID，再依 ID join fetch），並加一條 ArchUnit 規則擋住這個組合——
+它是個安靜的陷阱，功能完全正常，只在資料量長大後表現成「排程好像越跑越慢」。
+
 ---
 
 ## 快速開始
 
 ```bash
-docker compose up -d                      # MySQL / Redis / Kafka / ES / MinIO / Prometheus / Grafana
+docker compose up -d                      # MySQL / Redis / Kafka / ES / MinIO / Prometheus / Grafana / Tempo
 mvn spring-boot:run -pl flash-sale-api -Dspring-boot.run.profiles=dev
 cd web && npm install && npm run dev
 ```
+
+> **`dev` profile 不是可選的。** 三把簽章金鑰（JWT、付款回調、搶購資格）的預設值就在版控裡，
+> `SecretGuard` 在沒有覆寫時**拒絕啟動**，只有 `dev` profile 才放行。
+> 方向刻意是這一邊：忘了加 profile 只是本機起不來，一改就好；
+> 反過來讓正式環境靜靜用著預設金鑰，代價是整套認證與風控形同不存在。
 
 | 服務 | 位址 |
 |------|------|
@@ -555,7 +673,7 @@ curl -X POST localhost:8080/api/v1/seckill/orders -H "Content-Type: application/
 
 ```bash
 BOOTSTRAP_ADMIN_EMAIL=ops@example.com BOOTSTRAP_ADMIN_PASSWORD=change-me-please \
-  mvn spring-boot:run -pl flash-sale-api -Dspring-boot.run.profiles=dev -Dspring-boot.run.profiles=dev
+  mvn spring-boot:run -pl flash-sale-api -Dspring-boot.run.profiles=dev
 ```
 
 以這組帳密登入後，導覽列會出現「後台」，即 `/admin`。
@@ -750,6 +868,10 @@ ArchUnit 只管分層，抓不到這種脈絡耦合，只能靠 review。
 | 「深分頁用 offset 就好」 | [ADR-0021](docs/adr/0021-keyset-pagination.md) |
 | 「類目篩選只看直屬」 | [ADR-0022](docs/adr/0022-category-subtree-filter.md) |
 | 「圖片存資料庫 / 即時縮放」 | [ADR-0027](docs/adr/0027-product-media-storage.md) |
+| 「佇列積壓只是效能問題」 | [ADR-0023](docs/adr/0023-queue-depth-as-service-level.md) |
+| 「風控放在熱路徑上做」 | [ADR-0028](docs/adr/0028-seckill-qualification-and-risk-control.md) |
+| 「投遞逾時就退庫比較安全」 | [ADR-0030](docs/adr/0030-publish-timeout-is-not-failure.md) |
+| 「退款重試次數調大就好」 | [ADR-0031](docs/adr/0031-refund-settlement-is-a-durable-work-item.md) |
 
 ---
 
@@ -803,9 +925,13 @@ cd web && npm test                                   # 前端（Vitest，約 2 �
 |------|----------|
 | `RedisStockRepositoryTest` | **1000 執行緒搶 100 件庫存，成功數必須剛好 100** |
 | `RedisStockRepositoryTest$Compensation` | 退庫冪等——重複退只生效一次 |
-| `SeckillApplicationServiceTest` | 投遞失敗必須退庫；補償失敗不可掩蓋原始錯誤 |
+| `SeckillApplicationServiceTest` | 確定投遞失敗必須退庫；**逾時絕不可退庫**；補償失敗不可掩蓋原始錯誤 |
+| `KafkaSeckillMessagePublisherTest` | 哪一種例外算「確定沒送出」——判錯就是超賣，應用層的 mock 測不到它 |
+| `RefundExecutionServiceTest` | 閘道成功才結算；失敗留在 `REFUNDING`；重放整個 topic 不會重複退錢 |
 | `StockReconciliationServiceTest` | 偏差方向判定、孤兒寬限期、「什麼情況絕不自動修」 |
-| `ArchitectureTest` | 8 條分層、依賴與框架約定規則，違規在 CI 就被擋下 |
+| `PaymentRefunderTest` | 閘道回失敗不落庫、例外不逸出——一筆退不掉不該讓其他人的錢也卡著 |
+| `SecretGuardTest` | 預設金鑰拒絕啟動、三把都要列出、`dev` profile 放行 |
+| `ArchitectureTest` | 10 條分層、依賴與框架約定規則（含「join fetch 不可與分頁併用」），違規在 CI 就被擋下 |
 | `SeckillControllerSecurityTest` | 沒帶令牌必須被擋；身分取自令牌而非請求內容 |
 | `ErrorCodeTest` | 錯誤碼不可重複——前端靠它決定要不要重試 |
 
@@ -825,6 +951,9 @@ cd web && npm test                                   # 前端（Vitest，約 2 �
 | `seckill_orphan_binding_total{action}` | 孤兒扣減的偵測與修復結果 |
 | `seckill_queue_depth` | 建單佇列深度，入場控制的依據（[ADR-0023](docs/adr/0023-queue-depth-as-service-level.md)） |
 | `seckill_qualification_total{result}` | 資格預檢結果；被拒比例過高是誤殺、過低是沒擋到（[ADR-0028](docs/adr/0028-seckill-qualification-and-risk-control.md)） |
+| `seckill_publish_total{outcome}` | 投遞結果；`pending` 不是錯誤，但持續偏高代表 `send-timeout` 太緊或 broker 變慢 |
+| `refund_awaiting_settlement_total` | 已核可但錢還沒出去的退款；短暫非 0 正常，**持續非 0 代表閘道卡住** |
+| `outbox_dead_total` | 投遞已放棄的 Outbox 事件；**恆為 0 才健康**，非 0 代表有下游動作永遠不會發生 |
 
 標籤只用 `activityId` 與錯誤碼，**絕不放 `userId`**——那會讓時間序列數量爆炸。
 
@@ -845,6 +974,15 @@ Outbox 是刻意切斷的（事件先落 DB、排程另外搬），observation �
 `outbox_event.trace_context` 存下寫入時的 `traceparent`，中繼時還原——整條鏈仍是同一個 trace id。
 
 每一行 log 都帶 `traceId`，從一行 ERROR 直接貼進 Grafana 就是整條鏈。
+訂單也記下建單當下的 trace id：後台訂單展開就有「在 Tempo 查看整條建單鏈」的連結，
+客服查「這張單為什麼卡住」從翻日誌變成點一下。
+
+### 後台即時監控
+
+`/admin/activities/{id}` 每兩秒取一次快照：Redis 餘量與售罄標記直讀（不經快取，
+監控頁看到的必須是真的）、建單佇列積壓與預估等待、成功／拒絕／錯誤、拒絕碼分布、
+投遞 acked/pending/failed、補償與落庫結果、p95/p99。計數是**本節點**的指標暫存值，
+每秒速率由前端從累計值差分算出；跨節點的總和請看 Grafana。
 
 ---
 
@@ -854,13 +992,14 @@ Nuxt 3 + Vue 3 + TypeScript，詳見 [`web/`](web/)。
 
 | 區塊 | 路徑 |
 |------|------|
-| 首頁入口 | `/`（活動、排行、分類、推薦） |
-| 秒殺 | `/seckill/[id]`（倒數、庫存輪詢、開賣抖動） |
-| 商品 | `/products`、`/products/[id]`、`/search` |
-| 交易 | `/cart`、`/checkout`、`/orders`、`/orders/[orderNo]` |
-| 會員 | `/member`、`/coupons`、`/reviews`、`/addresses`、`/notifications` |
+| 首頁入口 | `/`（輪播、限時搶購、本週熱銷 TOP 5、分類、版位由後台設定） |
+| 排行榜 | `/rankings`（本週／本月，只算已付款的單） |
+| 秒殺 | `/seckill/[id]`（倒數、庫存輪詢、開賣抖動、領資格） |
+| 商品 | `/products`、`/products/[id]`、`/search`（價格區間／星等／有貨／排序，全部住在網址裡） |
+| 交易 | `/cart`、`/checkout`、`/orders`、`/orders/[orderNo]`（再買一次） |
+| 帳戶 | `/account`（總覽：訂單狀態格、券、收藏、通知、最近看過）、`/member`（積分）、`/coupons`、`/reviews`、`/addresses`、`/notifications`、`/history` |
 | 售後 | `/returns`、`/returns/[returnNo]` |
-| 後台 | `/admin/{orders,members,risk,shipments,returns,questions,products,activities,promotions,home,reports,ops}` |
+| 後台 | `/admin/{orders,members,risk,shipments,returns,questions,products,activities,activities/[id],promotions,home,reports,ops}` |
 
 這一頁本身就是**削峰漏斗的第 0 層**：靜態部分走 ISR + Nitro 快取，
 庫存數字走獨立的輕量請求，開賣瞬間加隨機抖動把請求打散。
@@ -905,7 +1044,8 @@ Nuxt 3 + Vue 3 + TypeScript，詳見 [`web/`](web/)。
 **秒殺是特例通道，不是骨幹**——現有設計都建立在「流量極大、庫存極小、
 99.9% 請求注定失敗」這個前提上，而一般電商的流量特徵完全相反。
 
-尚未實作：真實金流串接、電子發票、超商取貨、風控、帳號匿名化。
+尚未實作：真實金流串接、電子發票、超商取貨、帳號匿名化、管理員操作稽核日誌、評價審核、
+後台儀表板（待辦事項與系統健康——那些指標都在 Prometheus 裡，後台卻看不到）。
 
 ---
 
