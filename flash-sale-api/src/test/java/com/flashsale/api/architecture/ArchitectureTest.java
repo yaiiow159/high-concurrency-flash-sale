@@ -1,5 +1,6 @@
 package com.flashsale.api.architecture;
 
+import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.domain.JavaMethod;
 import com.tngtech.archunit.core.domain.JavaModifier;
@@ -11,6 +12,9 @@ import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.domain.Limit;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 
 import java.util.List;
 import java.util.Optional;
@@ -157,5 +161,30 @@ class ArchitectureTest {
         assertThat(offenders)
                 .as("降級方法必須 public，否則熔斷器打開時會回 500 而不是 503")
                 .isEmpty();
+    }
+
+    @Test
+    @DisplayName("join fetch 不可與分頁併用——Hibernate 會改成在記憶體裡切")
+    void collectionFetchMustNotBePaginated() {
+        List<JavaMethod> offenders = classes.stream()
+                .filter(type -> type.getPackageName().endsWith(".persistence.jpa"))
+                .flatMap(type -> type.getMethods().stream())
+                .filter(method -> method.isAnnotatedWith(EntityGraph.class))
+                .filter(ArchitectureTest::takesPagination)
+                .toList();
+
+        // 這條規則擋的是一個安靜的效能陷阱：Hibernate 只會印一行 HHH90003004，
+        // 然後把符合條件的資料全部載入再切出 limit 筆。實測逾期關單那條路徑
+        // 因此要 5 分鐘才關得掉 200 筆訂單，而它是庫存的止血動作
+        assertThat(offenders)
+                .as("改成兩段式：先查 ID（帶 limit），再依 ID join fetch")
+                .isEmpty();
+    }
+
+    private static boolean takesPagination(JavaMethod method) {
+        return method.getRawParameterTypes().stream()
+                .map(JavaClass::getName)
+                .anyMatch(name -> name.equals(Pageable.class.getName())
+                        || name.equals(Limit.class.getName()));
     }
 }

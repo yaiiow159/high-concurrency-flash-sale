@@ -131,7 +131,14 @@ public class JpaOrderRepository implements OrderRepository {
     @Override
     @Transactional(readOnly = true)
     public List<Order> findExpiredPendingOrders(Instant deadline, int limit) {
-        return jpaRepository.findExpiredPending(deadline, Limit.of(limit)).stream()
+        // 兩段式：先用覆蓋索引取 ID（帶 limit），再對那幾筆 join fetch 訂單行。
+        // 併成一句會踩上 HHH90003004——Hibernate 會把符合條件的訂單全部載入
+        // 再切出 limit 筆，而這條路徑正是逾時關單的止血動作
+        List<Long> ids = jpaRepository.findExpiredPendingIds(deadline, Limit.of(limit));
+        if (ids.isEmpty()) {
+            return List.of();
+        }
+        return jpaRepository.findByIdInOrderByCreatedAtAsc(ids).stream()
                 .map(OrderMapper::toDomain)
                 .toList();
     }
