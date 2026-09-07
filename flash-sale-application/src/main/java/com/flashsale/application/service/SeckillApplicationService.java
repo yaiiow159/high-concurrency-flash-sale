@@ -26,6 +26,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.time.Clock;
+import java.util.Locale;
 import java.time.Instant;
 
 /** 搶購主流程。 */
@@ -166,13 +167,23 @@ public class SeckillApplicationService implements SeckillUseCase {
         return result;
     }
 
-    /** 第 4 層漏斗：投遞建單訊息。失敗則立刻補償退庫。 */
+    /**
+     * 第 4 層漏斗：投遞建單訊息。
+     *
+     * <p><b>只有「確定沒送出」才補償退庫。</b>等待逾時的語意是「不知道送到沒」——
+     * 生產者仍在重試，訊息很可能之後才送達；此時退庫會讓那份庫存被別人買走，
+     * 而訂單稍後照樣建立，也就是真實超賣。逾時一律照常受理，讓前端輪詢；
+     * 訊息最終真的沒送達時，那筆扣減會被對帳的孤兒偵測撈出來（ADR-0030）。
+     */
     private SeckillTicket publishOrCompensate(SeckillCommand command, OrderNo orderNo) {
         try {
             requestTracker.markAccepted(orderNo.value(), command.userId());
-            messagePublisher.publish(SeckillOrderMessage.of(orderNo.value(), command, clock.instant()));
+            SeckillMessagePublisher.Outcome outcome = messagePublisher.publish(
+                    SeckillOrderMessage.of(orderNo.value(), command, clock.instant()));
+            metrics.recordPublish(command.activityId(), outcome.name().toLowerCase(Locale.ROOT));
             return SeckillTicket.accepted(orderNo.value());
         } catch (RuntimeException e) {
+            metrics.recordPublish(command.activityId(), "failed");
             compensateStock(command, orderNo, e);
             throw new BusinessException(ErrorCode.MESSAGE_PUBLISH_FAILED,
                     "訂單受理失敗，庫存已退回，請重新嘗試", e);

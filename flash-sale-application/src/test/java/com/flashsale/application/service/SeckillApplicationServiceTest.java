@@ -89,12 +89,14 @@ class SeckillApplicationServiceTest {
         givenPurchasableActivity();
         givenOrderNoGenerated();
         givenDeductionResult(StockDeductionResult.success(ORDER_NO));
+        givenPublishAcked();
 
         SeckillTicket ticket = service.attempt(command());
 
         assertThat(ticket.orderNo()).isEqualTo(ORDER_NO);
         verify(requestTracker).markAccepted(ORDER_NO, USER_ID);
         verify(messagePublisher).publish(any());
+        verify(metrics).recordPublish(ACTIVITY_ID, "acked");
     }
 
     @Test
@@ -142,7 +144,26 @@ class SeckillApplicationServiceTest {
     }
 
     @Test
-    @DisplayName("訊息投遞失敗：必須退回庫存，否則就是永久少賣")
+    @DisplayName("投遞逾時：**絕不可**退庫——訊息可能之後才送達，退了就是超賣")
+    void doesNotCompensateWhenPublishOutcomeIsPending() {
+        givenPurchasableActivity();
+        givenOrderNoGenerated();
+        givenDeductionResult(StockDeductionResult.success(ORDER_NO));
+        // 逾時的語意是「不知道送到沒」：生產者仍在 delivery.timeout 內重試
+        when(messagePublisher.publish(any())).thenReturn(SeckillMessagePublisher.Outcome.PENDING);
+
+        SeckillTicket ticket = service.attempt(command());
+
+        // 照常受理，讓前端輪詢；訊息真的沒送達時由對帳的孤兒偵測撈出來
+        assertThat(ticket.orderNo()).isEqualTo(ORDER_NO);
+        verify(stockRepository, never()).restore(anyLong(), anyLong(), anyInt(), anyString());
+        verify(requestTracker, never()).markFailed(anyString(), anyString());
+        verify(soldOutMarker, never()).clear(anyLong());
+        verify(metrics).recordPublish(ACTIVITY_ID, "pending");
+    }
+
+    @Test
+    @DisplayName("訊息確定投遞失敗：必須退回庫存，否則就是永久少賣")
     void compensatesStockWhenPublishFails() {
         givenPurchasableActivity();
         givenOrderNoGenerated();
@@ -246,6 +267,7 @@ class SeckillApplicationServiceTest {
         givenPurchasableActivity();
         givenOrderNoGenerated();
         givenDeductionResult(StockDeductionResult.success(ORDER_NO));
+        givenPublishAcked();
         when(qualificationCodec.verify("tok")).thenReturn(Optional.of(
                 new QualificationToken(USER_ID, ACTIVITY_ID, NOW.plusSeconds(60), "n")));
 
@@ -261,6 +283,11 @@ class SeckillApplicationServiceTest {
 
     private void givenOrderNoGenerated() {
         when(orderNoGenerator.next()).thenReturn(OrderNo.of(ORDER_NO));
+    }
+
+    /** 沒有特別指定時，投遞視為已被 broker 確認。 */
+    private void givenPublishAcked() {
+        when(messagePublisher.publish(any())).thenReturn(SeckillMessagePublisher.Outcome.ACKED);
     }
 
     private void givenDeductionResult(StockDeductionResult result) {

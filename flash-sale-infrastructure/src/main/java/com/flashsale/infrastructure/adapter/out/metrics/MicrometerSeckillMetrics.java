@@ -22,6 +22,7 @@ public class MicrometerSeckillMetrics implements SeckillMetrics {
     private static final String ATTEMPT_TIMER = "seckill.attempt.duration";
     private static final String REJECTION_COUNTER = "seckill.rejection.total";
     private static final String ERROR_COUNTER = "seckill.error.total";
+    private static final String PUBLISH_COUNTER = "seckill.publish.total";
     private static final String COMPENSATION_COUNTER = "seckill.compensation.total";
     private static final String ORDER_PERSIST_COUNTER = "seckill.order.persist.total";
     private static final String RECONCILIATION_COUNTER = "seckill.reconciliation.total";
@@ -73,6 +74,16 @@ public class MicrometerSeckillMetrics implements SeckillMetrics {
         Counter.builder("seckill.qualification.total")
                 .tag("result", result)
                 .description("搶購資格預檢結果")
+                .register(registry)
+                .increment();
+    }
+
+    @Override
+    public void recordPublish(Long activityId, String outcome) {
+        Counter.builder(PUBLISH_COUNTER)
+                .tag("activity", String.valueOf(activityId))
+                .tag("outcome", outcome)
+                .description("建單訊息投遞結果；pending 代表等待逾時但生產者仍在重試")
                 .register(registry)
                 .increment();
     }

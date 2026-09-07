@@ -53,6 +53,10 @@ api → infrastructure → application → domain
   對照組：限流器 Redis 故障時**應該**放行（fail-open），因為後面還有庫存這道關卡。
   降級策略要看「這道防線失守會付出什麼代價」，不能一刀切
 - 退庫**必須冪等**。補償排程、DLQ 消費端、同步補償三個路徑可能同時對同一筆訂單發起退庫
+- **「不知道」不可以當成「失敗」**。訊息投遞等待逾時的語意是「不知道送到沒」——
+  生產者仍在 `delivery.timeout.ms` 內重試。據此退庫的話，庫存會被別人買走
+  而訂單稍後照樣建立，那是真實超賣（[ADR-0030](docs/adr/0030-publish-timeout-is-not-failure.md)）。
+  只有「確定沒送出」才退。不確定時一律選少賣，讓對帳的孤兒偵測接手
 
 ### 3-1. 雙模型：劃撥出去的量，兩邊都不可各自認帳
 
@@ -329,6 +333,7 @@ cd web && npx nuxt typecheck                          # 前端型別檢查
 |------------|------|
 | 「庫存應該放資料庫才對」 | [ADR-0002](docs/adr/0002-stock-in-redis-not-database.md) |
 | 「這裡應該加分散式鎖」 | [ADR-0003](docs/adr/0003-lua-atomicity-over-distributed-lock.md) |
+| 「投遞逾時就退庫比較安全」 | [ADR-0030](docs/adr/0030-publish-timeout-is-not-failure.md) |
 | 「應該用 Seata 做分散式交易」 | [ADR-0004](docs/adr/0004-outbox-saga-over-seata.md) |
 | 「應該拆成微服務」 | [ADR-0001](docs/adr/0001-modular-monolith-hexagonal.md) |
 | 「認證改用 Session 比較簡單」 | [ADR-0005](docs/adr/0005-jwt-resource-server-over-custom-filter.md) |

@@ -20,6 +20,14 @@ public interface SeckillMetrics {
     /** 資格預檢結果：granted 或被拒的錯誤碼名稱。被拒的比例一高就是有人在刷。 */
     void recordQualification(String result);
 
+    /**
+     * 建單訊息的投遞結果：acked / pending / failed。
+     *
+     * <p>pending 是「等待逾時但仍在重試」，它不算失敗但值得盯——比例一高就代表
+     * send-timeout 訂得太緊，或 broker 正在變慢。
+     */
+    void recordPublish(Long activityId, String outcome);
+
     /** 庫存補償結果；{@code success=false} 代表退庫失敗，需要人工或對帳排程介入。 */
     void recordCompensation(Long activityId, String trigger, boolean success);
 

@@ -88,6 +88,13 @@ spring:
         enable.idempotence: true
         max.in.flight.requests.per.connection: 5
       retries: 3
+      # 生產者放棄前的總時間。**明訂而不是靠預設值**：
+      # 熱路徑只等 flash-sale.mq.send-timeout(500ms)，逾時後不退庫
+      # （逾時 = 不知道送到沒，退庫會超賣，見 ADR-0030），
+      # 而「最終到底送出去了沒」由這個值決定。
+      # 它同時是對帳孤兒寬限期的下界：寬限期必須明顯長於它，
+      # 否則會把還在重試的請求誤判成孤兒而退庫——那就從少賣變成超賣。
+      properties.delivery.timeout.ms: 120000
       # 攢批投遞：5ms 的延遲換取顯著的吞吐提升，對非同步建單完全無感
       batch-size: 32768
       properties.linger.ms: 5
@@ -148,8 +155,10 @@ flash-sale:
     interval-ms: 600000
     # 啟動後先等 2 分鐘：此時預熱未完成、MQ 積壓未消化，太早對帳只會報出假偏差
     initial-delay-ms: 120000
-    # 必須明顯長於 order.payment-window(15m) 與 MQ 重試總時長，
-    # 否則會把還在佇列中排隊的請求誤判為孤兒而退庫 —— 那就是超賣
+    # 必須明顯長於三者：order.payment-window(15m)、MQ 重試總時長、
+    # 以及生產者的 delivery.timeout.ms(2m)——投遞逾時的請求在那段時間內
+    # 仍可能送達並建單（ADR-0030）。
+    # 訂得太短會把還在路上的請求誤判為孤兒而退庫，那就從少賣變成超賣。
     orphan-grace-period: 30m
     scan-batch-size: 500
     # 預設關閉：有 bug 的自動修復，破壞力大於它要修的問題。
