@@ -4,6 +4,7 @@ import com.flashsale.infrastructure.adapter.out.mq.KafkaTopics;
 import com.flashsale.infrastructure.adapter.out.persistence.entity.OutboxEventEntity;
 import com.flashsale.infrastructure.adapter.out.persistence.jpa.OutboxEventJpaRepository;
 import com.flashsale.infrastructure.config.FlashSaleProperties;
+import com.flashsale.infrastructure.tracing.TraceContexts;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,15 +41,18 @@ public class OutboxRelayer {
     private final OutboxEventJpaRepository outboxRepository;
     private final KafkaTemplate<String, String> kafkaTemplate;
     private final FlashSaleProperties properties;
+    private final TraceContexts traceContexts;
     private final Clock clock;
 
     public OutboxRelayer(OutboxEventJpaRepository outboxRepository,
                          KafkaTemplate<String, String> kafkaTemplate,
                          FlashSaleProperties properties,
+                         TraceContexts traceContexts,
                          Clock clock) {
         this.outboxRepository = outboxRepository;
         this.kafkaTemplate = kafkaTemplate;
         this.properties = properties;
+        this.traceContexts = traceContexts;
         this.clock = clock;
     }
 
@@ -85,7 +89,11 @@ public class OutboxRelayer {
             // 事件型別放在標頭，消費端不必反序列化 payload 就能決定要不要處理。
             record.headers().add(KafkaTopics.HEADER_EVENT_TYPE,
                     event.getEventType().getBytes(StandardCharsets.UTF_8));
-            return Optional.of(new InFlight(event, kafkaTemplate.send(record)));
+            // 在寫入時存下的 trace 底下送：KafkaTemplate 的 observation 會把它當父節點，
+            // 消費端從 header 接續的就是同一條 trace（ADR-0029）
+            CompletableFuture<SendResult<String, String>> future = traceContexts.runUnder(
+                    event.getTraceContext(), "outbox.relay", () -> kafkaTemplate.send(record));
+            return Optional.of(new InFlight(event, future));
         } catch (RuntimeException e) {
             markFailed(event, e);
             return Optional.empty();

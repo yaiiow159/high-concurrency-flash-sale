@@ -59,12 +59,22 @@ public class OutboxEventEntity {
     @Column(name = "published_at")
     private Instant publishedAt;
 
+    /** 寫入時的 W3C traceparent；中繼時還原（ADR-0029）。沒有上游 trace 時為 null */
+    @Column(name = "trace_context", length = 128, updatable = false)
+    private String traceContext;
+
     protected OutboxEventEntity() {
         // JPA 專用
     }
 
     public OutboxEventEntity(String eventId, String eventType, String aggregateId,
                              String payload, Instant createdAt) {
+        this(eventId, eventType, aggregateId, payload, createdAt, null);
+    }
+
+    public OutboxEventEntity(String eventId, String eventType, String aggregateId,
+                             String payload, Instant createdAt, String traceContext) {
+        this.traceContext = traceContext;
         this.eventId = eventId;
         this.eventType = eventType;
         this.aggregateId = aggregateId;
@@ -98,6 +108,10 @@ public class OutboxEventEntity {
 
     public Long getId() {
         return id;
+    }
+
+    public String getTraceContext() {
+        return traceContext;
     }
 
     public String getEventId() {

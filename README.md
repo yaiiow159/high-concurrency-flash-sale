@@ -823,12 +823,27 @@ cd web && npm test                                   # 前端（Vitest，約 2 �
 | `seckill_stock_drift{activity}` | **對帳偏差，恆為 0 才健康**；> 0 代表超賣風險 |
 | `seckill_orphan_binding_total{action}` | 孤兒扣減的偵測與修復結果 |
 | `seckill_queue_depth` | 建單佇列深度，入場控制的依據（[ADR-0023](docs/adr/0023-queue-depth-as-service-level.md)） |
+| `seckill_qualification_total{result}` | 資格預檢結果；被拒比例過高是誤殺、過低是沒擋到（[ADR-0028](docs/adr/0028-seckill-qualification-and-risk-control.md)） |
 
 標籤只用 `activityId` 與錯誤碼，**絕不放 `userId`**——那會讓時間序列數量爆炸。
 
 告警規則見 [`deploy/prometheus/alert-rules.yml`](deploy/prometheus/alert-rules.yml)。
 每一條都對應一個「有人要在半夜起床處理」的狀況；
 會響但沒人需要行動的告警，只會訓練團隊忽略所有告警。
+
+### 分散式追蹤
+
+指標回答「整體有多慢」，追蹤回答「**這一筆**為什麼慢」。
+Micrometer Tracing + OpenTelemetry bridge，OTLP 送到 Tempo，在 Grafana 的 Explore 查
+（[ADR-0029](docs/adr/0029-distributed-tracing.md)）。
+
+一筆秒殺的 trace 長這樣：`POST /seckill/orders` → `redis`（Lua 扣減）→ `seckill.order.create send`
+→ `seckill.order.create receive`（消費端）→ `jdbc`（建單）→ `outbox.relay` → 通知／積分／出貨的消費端。
+
+Outbox 是刻意切斷的（事件先落 DB、排程另外搬），observation 的自動傳播在那裡會斷。
+`outbox_event.trace_context` 存下寫入時的 `traceparent`，中繼時還原——整條鏈仍是同一個 trace id。
+
+每一行 log 都帶 `traceId`，從一行 ERROR 直接貼進 Grafana 就是整條鏈。
 
 ---
 
@@ -844,7 +859,7 @@ Nuxt 3 + Vue 3 + TypeScript，詳見 [`web/`](web/)。
 | 交易 | `/cart`、`/checkout`、`/orders`、`/orders/[orderNo]` |
 | 會員 | `/member`、`/coupons`、`/reviews`、`/addresses`、`/notifications` |
 | 售後 | `/returns`、`/returns/[returnNo]` |
-| 後台 | `/admin/{products,activities,shipments,returns,ops}` |
+| 後台 | `/admin/{orders,members,risk,shipments,returns,questions,products,activities,promotions,home,reports,ops}` |
 
 這一頁本身就是**削峰漏斗的第 0 層**：靜態部分走 ISR + Nitro 快取，
 庫存數字走獨立的輕量請求，開賣瞬間加隨機抖動把請求打散。
