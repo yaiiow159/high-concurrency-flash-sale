@@ -26,11 +26,21 @@ public interface ReturnRequestJpaRepository extends JpaRepository<ReturnRequestE
     @EntityGraph(attributePaths = "lines")
     Optional<ReturnRequestEntity> findByRequestId(String requestId);
 
-    @EntityGraph(attributePaths = "lines")
-    List<ReturnRequestEntity> findByUserIdOrderByCreatedAtDesc(Long userId, Pageable pageable);
+    /** 買家的退貨列表。兩段式，理由見 {@link #findStuckRefundNos}。 */
+    @Query("""
+            select r.returnNo from ReturnRequestEntity r
+            where r.userId = :userId
+            order by r.createdAt desc
+            """)
+    List<String> findReturnNosByUser(@Param("userId") Long userId, Pageable pageable);
 
-    @EntityGraph(attributePaths = "lines")
-    List<ReturnRequestEntity> findByStatusOrderByCreatedAtAsc(String status, Limit limit);
+    /** 客服後台的待審清單。同樣兩段式。 */
+    @Query("""
+            select r.returnNo from ReturnRequestEntity r
+            where r.status = :status
+            order by r.createdAt asc
+            """)
+    List<String> findReturnNosByStatus(@Param("status") String status, Limit limit);
 
     /**
      * 卡住的退款單號。**刻意只取單號、不帶 {@code @EntityGraph}**——
@@ -47,6 +57,12 @@ public interface ReturnRequestJpaRepository extends JpaRepository<ReturnRequestE
 
     @EntityGraph(attributePaths = "lines")
     List<ReturnRequestEntity> findByReturnNoInOrderByRefundStartedAtAsc(Collection<String> returnNos);
+
+    @EntityGraph(attributePaths = "lines")
+    List<ReturnRequestEntity> findByReturnNoInOrderByCreatedAtDesc(Collection<String> returnNos);
+
+    @EntityGraph(attributePaths = "lines")
+    List<ReturnRequestEntity> findByReturnNoInOrderByCreatedAtAsc(Collection<String> returnNos);
 
     long countByStatus(String status);
 }

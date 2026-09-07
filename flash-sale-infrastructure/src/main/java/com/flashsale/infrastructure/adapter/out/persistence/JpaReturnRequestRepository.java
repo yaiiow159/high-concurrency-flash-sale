@@ -92,8 +92,12 @@ public class JpaReturnRequestRepository implements ReturnRequestRepository {
     @Override
     @Transactional(readOnly = true)
     public List<ReturnRequest> findByUserId(Long userId, int limit, int offset) {
-        return jpaRepository.findByUserIdOrderByCreatedAtDesc(
-                        userId, Pageables.of(limit, offset)).stream()
+        List<String> returnNos = jpaRepository.findReturnNosByUser(
+                userId, Pageables.of(limit, offset));
+        if (returnNos.isEmpty()) {
+            return List.of();
+        }
+        return jpaRepository.findByReturnNoInOrderByCreatedAtDesc(returnNos).stream()
                 .map(JpaReturnRequestRepository::toDomain)
                 .toList();
     }
@@ -101,7 +105,11 @@ public class JpaReturnRequestRepository implements ReturnRequestRepository {
     @Override
     @Transactional(readOnly = true)
     public List<ReturnRequest> findByStatus(ReturnStatus status, int limit) {
-        return jpaRepository.findByStatusOrderByCreatedAtAsc(status.name(), Limit.of(limit)).stream()
+        List<String> returnNos = jpaRepository.findReturnNosByStatus(status.name(), Limit.of(limit));
+        if (returnNos.isEmpty()) {
+            return List.of();
+        }
+        return jpaRepository.findByReturnNoInOrderByCreatedAtAsc(returnNos).stream()
                 .map(JpaReturnRequestRepository::toDomain)
                 .toList();
     }

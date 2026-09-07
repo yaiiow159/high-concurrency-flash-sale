@@ -32,14 +32,22 @@ public interface OrderJpaRepository extends JpaRepository<OrderEntity, Long> {
 
     boolean existsByRequestId(String requestId);
 
-    /** 撈取逾期未付款訂單。 */
-    @EntityGraph(attributePaths = "lines")
+    /**
+     * 逾期未付款訂單的 ID。**刻意不帶 {@code @EntityGraph}**——
+     * collection fetch 配上 limit 會讓 Hibernate 撈完符合條件的全部再於記憶體裡切
+     * （HHH90003004）。這個查詢走 {@code idx_status_created} 的覆蓋索引，
+     * 排序與索引同向，因此取滿 limit 就停。
+     */
     @Query("""
-            select o from OrderEntity o
+            select o.id from OrderEntity o
             where o.status = 'PENDING_PAYMENT' and o.createdAt < :deadline
             order by o.createdAt asc
             """)
-    List<OrderEntity> findExpiredPending(@Param("deadline") Instant deadline, Limit limit);
+    List<Long> findExpiredPendingIds(@Param("deadline") Instant deadline, Limit limit);
+
+    /** 第二段：只對上一步取到的那幾筆做 join fetch。 */
+    @EntityGraph(attributePaths = "lines")
+    List<OrderEntity> findByIdInOrderByCreatedAtAsc(Collection<Long> ids);
 
     /** 統計某活動仍被佔用的數量。 */
     @Query("""
@@ -49,10 +57,6 @@ public interface OrderJpaRepository extends JpaRepository<OrderEntity, Long> {
               and o.status in ('PENDING_PAYMENT', 'PAID', 'SHIPPED', 'COMPLETED', 'REFUNDED')
             """)
     long sumActiveQuantityByActivity(@Param("activityId") Long activityId);
-
-    /** 某使用者的訂單，新到舊。 */
-    @EntityGraph(attributePaths = "lines")
-    List<OrderEntity> findByUserIdOrderByCreatedAtDesc(Long userId, Pageable pageable);
 
     /** 我的訂單，可依狀態篩選。 */
     @Query("""
