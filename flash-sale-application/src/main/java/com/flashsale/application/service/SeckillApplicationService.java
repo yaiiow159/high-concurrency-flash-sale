@@ -84,8 +84,8 @@ public class SeckillApplicationService implements SeckillUseCase {
 
     private SeckillTicket execute(SeckillCommand command) {
         rejectIfSoldOutLocally(command.activityId());
-        verifyQualification(command);
         rejectIfQueueOverloaded();
+        verifyQualification(command);
 
         SeckillActivity activity = loadPurchasableActivity(command);
         OrderNo candidateOrderNo = orderNoGenerator.next();

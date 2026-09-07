@@ -6,6 +6,7 @@ import com.flashsale.application.port.in.SeckillQualificationUseCase.QualifyComm
 import com.flashsale.application.port.out.ActivityRepository;
 import com.flashsale.application.port.out.BlacklistRepository;
 import com.flashsale.application.port.out.ChallengeCodec;
+import com.flashsale.application.port.out.ChallengeReplayGuard;
 import com.flashsale.application.port.out.QualificationTokenCodec;
 import com.flashsale.application.port.out.RiskSignalStore;
 import com.flashsale.application.port.out.UserRepository;
@@ -58,6 +59,7 @@ class SeckillQualificationServiceTest {
     private BlacklistRepository blacklistRepository;
     private RiskSignalStore riskSignalStore;
     private ChallengeCodec challengeCodec;
+    private ChallengeReplayGuard replayGuard;
     private QualificationTokenCodec tokenCodec;
     private SeckillMetrics metrics;
     private SeckillQualificationService service;
@@ -69,6 +71,8 @@ class SeckillQualificationServiceTest {
         blacklistRepository = mock(BlacklistRepository.class);
         riskSignalStore = mock(RiskSignalStore.class);
         challengeCodec = mock(ChallengeCodec.class);
+        replayGuard = mock(ChallengeReplayGuard.class);
+        when(replayGuard.firstUse(anyString(), any())).thenReturn(true);
         tokenCodec = mock(QualificationTokenCodec.class);
         metrics = mock(SeckillMetrics.class);
 
@@ -81,7 +85,7 @@ class SeckillQualificationServiceTest {
         when(tokenCodec.issue(any())).thenReturn("signed");
 
         service = new SeckillQualificationService(userRepository, activityRepository, blacklistRepository,
-                riskSignalStore, challengeCodec, tokenCodec, RiskPolicy.defaults(), SETTINGS, metrics,
+                riskSignalStore, challengeCodec, replayGuard, tokenCodec, RiskPolicy.defaults(), SETTINGS, metrics,
                 Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
@@ -139,6 +143,23 @@ class SeckillQualificationServiceTest {
     }
 
     @Test
+    @DisplayName("同一道題用第二次：拒絕——不然解一次題就能無限次領資格")
+    void replayedChallengeRejected() {
+        when(replayGuard.firstUse(anyString(), any())).thenReturn(false);
+
+        assertRejected(ErrorCode.CHALLENGE_FAILED);
+        verify(userRepository, never()).findById(anyLong());
+    }
+
+    @Test
+    @DisplayName("風險拒絕用同 IP 也要同裝置才會過線")
+    void riskyRejectedNeedsStackedSignals() {
+        when(riskSignalStore.observe(any())).thenReturn(new RiskSignals(86_400, 500, 50, 1));
+
+        assertRejected(ErrorCode.RISK_REJECTED);
+    }
+
+    @Test
     @DisplayName("停權者拿不到資格")
     void suspendedUserRejected() {
         when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user(UserStatus.SUSPENDED, NOW.minusSeconds(86_400))));
@@ -174,7 +195,7 @@ class SeckillQualificationServiceTest {
     @Test
     @DisplayName("風險分數過線：拒絕，指標記下原因碼")
     void riskyRejected() {
-        when(riskSignalStore.observe(any())).thenReturn(new RiskSignals(10, 50, 1, 1));
+        when(riskSignalStore.observe(any())).thenReturn(new RiskSignals(10, 1, 50, 1));
 
         assertRejected(ErrorCode.RISK_REJECTED);
         verify(metrics).recordQualification("risk_rejected");

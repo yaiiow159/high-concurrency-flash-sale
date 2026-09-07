@@ -40,18 +40,19 @@ public class HmacQualificationTokenCodec implements QualificationTokenCodec {
         if (parts.length != PARTS) {
             return Optional.empty();
         }
-        try {
-            long userId = Long.parseLong(parts[0]);
-            long activityId = Long.parseLong(parts[1]);
-            long expiresAt = Long.parseLong(parts[2]);
-            String nonce = parts[3];
-            if (nonce.isEmpty() || !signer.matches(payload(userId, activityId, expiresAt, nonce), parts[4])) {
-                return Optional.empty();
-            }
-            return Optional.of(new QualificationToken(userId, activityId, Instant.ofEpochSecond(expiresAt), nonce));
-        } catch (NumberFormatException e) {
+        // 先檢查是不是數字再解析：NumberFormatException 會填堆疊，
+        // 一個垃圾 token 的拒絕成本會變成合法憑證的 8 倍——漏斗不該愈是垃圾愈貴
+        if (!Digits.isUnsignedLong(parts[0]) || !Digits.isUnsignedLong(parts[1]) || !Digits.isUnsignedLong(parts[2])) {
             return Optional.empty();
         }
+        long userId = Long.parseLong(parts[0]);
+        long activityId = Long.parseLong(parts[1]);
+        long expiresAt = Long.parseLong(parts[2]);
+        String nonce = parts[3];
+        if (nonce.isEmpty() || !signer.matches(payload(userId, activityId, expiresAt, nonce), parts[4])) {
+            return Optional.empty();
+        }
+        return Optional.of(new QualificationToken(userId, activityId, Instant.ofEpochSecond(expiresAt), nonce));
     }
 
     private static String payload(long userId, long activityId, long expiresAt, String nonce) {

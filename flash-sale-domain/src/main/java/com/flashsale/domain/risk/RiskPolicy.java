@@ -16,6 +16,6 @@ public record RiskPolicy(
     }
 
     public static RiskPolicy defaults() {
-        return new RiskPolicy(600, 5, 3, 5, 60);
+        return new RiskPolicy(600, 20, 3, 5, 60);
     }
 }

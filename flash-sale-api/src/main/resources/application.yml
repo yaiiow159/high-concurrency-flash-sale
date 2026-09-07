@@ -212,7 +212,8 @@ flash-sale:
     # 風險訊號（同 IP／同裝置的帳號數）只看這個窗口
     signal-window: 10m
     young-account-seconds: 600
-    max-users-per-ip: 5
+    # 20 而不是 5：行動網路的 CGNAT 出口後面是成千上萬個真人
+    max-users-per-ip: 20
     max-users-per-device: 3
     max-qualifications-per-user: 5
     reject-score: 60

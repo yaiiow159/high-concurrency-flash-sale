@@ -5,6 +5,7 @@ import com.flashsale.application.port.in.SeckillQualificationUseCase;
 import com.flashsale.application.port.out.ActivityRepository;
 import com.flashsale.application.port.out.BlacklistRepository;
 import com.flashsale.application.port.out.ChallengeCodec;
+import com.flashsale.application.port.out.ChallengeReplayGuard;
 import com.flashsale.application.port.out.QualificationTokenCodec;
 import com.flashsale.application.port.out.RiskSignalStore;
 import com.flashsale.application.port.out.UserRepository;
@@ -19,15 +20,19 @@ import com.flashsale.domain.shared.ErrorCode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.util.Locale;
 import java.util.UUID;
 
 /**
  * 資格預檢：削峰漏斗最上面那一層。這裡可以讀資料庫、可以慢——
  * 它在開賣前跑，把熱路徑上做不起的檢查全部搬到這裡做完。
+ *
+ * 刻意沒有 {@code @Transactional}：兩次主鍵讀各自獨立，而中間有好幾次 Redis 往返，
+ * 包進交易等於把 Redis 的延遲換算成 MySQL 連線的佔用時間——Redis 一慢，連線池就被抽乾，
+ * 拖垮的是全站所有需要 MySQL 的端點。
  */
 @Service
 public class SeckillQualificationService implements SeckillQualificationUseCase {
@@ -39,6 +44,7 @@ public class SeckillQualificationService implements SeckillQualificationUseCase 
     private final BlacklistRepository blacklistRepository;
     private final RiskSignalStore riskSignalStore;
     private final ChallengeCodec challengeCodec;
+    private final ChallengeReplayGuard replayGuard;
     private final QualificationTokenCodec tokenCodec;
     private final RiskPolicy riskPolicy;
     private final QualificationSettings settings;
@@ -50,6 +56,7 @@ public class SeckillQualificationService implements SeckillQualificationUseCase 
                                        BlacklistRepository blacklistRepository,
                                        RiskSignalStore riskSignalStore,
                                        ChallengeCodec challengeCodec,
+                                       ChallengeReplayGuard replayGuard,
                                        QualificationTokenCodec tokenCodec,
                                        RiskPolicy riskPolicy,
                                        QualificationSettings settings,
@@ -60,6 +67,7 @@ public class SeckillQualificationService implements SeckillQualificationUseCase 
         this.blacklistRepository = blacklistRepository;
         this.riskSignalStore = riskSignalStore;
         this.challengeCodec = challengeCodec;
+        this.replayGuard = replayGuard;
         this.tokenCodec = tokenCodec;
         this.riskPolicy = riskPolicy;
         this.settings = settings;
@@ -74,7 +82,6 @@ public class SeckillQualificationService implements SeckillQualificationUseCase 
     }
 
     @Override
-    @Transactional(readOnly = true)
     public Qualification qualify(QualifyCommand command) {
         Instant now = clock.instant();
         try {
@@ -82,15 +89,19 @@ public class SeckillQualificationService implements SeckillQualificationUseCase 
             metrics.recordQualification("granted");
             return qualification;
         } catch (BusinessException e) {
-            metrics.recordQualification(e.errorCode().name().toLowerCase());
+            metrics.recordQualification(e.errorCode().name().toLowerCase(Locale.ROOT));
             throw e;
         }
     }
 
     private Qualification evaluate(QualifyCommand command, Instant now) {
-        // 驗證題最先核對：答錯的人連資料庫都不用碰
+        // 驗證題最先核對：答錯的人連資料庫都不用碰。答對的才記一次性——
+        // 反過來的話，答錯一次就把題目作廢，使用者手滑得重領
         if (!challengeCodec.verify(command.challengeToken(), command.answer(), now)) {
             throw new BusinessException(ErrorCode.CHALLENGE_FAILED);
+        }
+        if (!replayGuard.firstUse(command.challengeToken(), settings.challengeTtl())) {
+            throw new BusinessException(ErrorCode.CHALLENGE_FAILED, "這道題已經用過了，請重新領題");
         }
         User user = userRepository.findById(command.userId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));

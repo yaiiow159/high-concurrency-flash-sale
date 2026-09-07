@@ -35,17 +35,26 @@ class RiskAssessmentTest {
     }
 
     @Test
-    @DisplayName("新帳號 + 同 IP 多帳號：疊起來才像機器人，拒絕並說明原因")
+    @DisplayName("新帳號 + 同裝置多帳號：疊起來才像機器人，拒絕並說明原因")
     void stackedSignalsReject() {
-        RiskAssessment result = RiskAssessment.evaluate(new RiskSignals(10, 50, 1, 1), POLICY);
+        RiskAssessment result = RiskAssessment.evaluate(new RiskSignals(10, 1, 50, 1), POLICY);
 
         assertThat(result.score()).isEqualTo(70);
         assertThat(result.rejected()).isTrue();
-        assertThat(result.reasons()).containsExactly("新註冊帳號", "同一 IP 多個帳號");
+        assertThat(result.reasons()).containsExactly("新註冊帳號", "同一裝置多個帳號");
     }
 
     @Test
-    @DisplayName("門檻是「超過」不是「達到」：剛好 5 個帳號共用 IP 仍放行")
+    @DisplayName("新帳號 + 同 IP：不拒絕——IP 可被自填也可能是 CGNAT，只能當旁證")
+    void ipIsOnlyCorroborating() {
+        RiskAssessment result = RiskAssessment.evaluate(new RiskSignals(10, 500, 1, 1), POLICY);
+
+        assertThat(result.score()).isEqualTo(50);
+        assertThat(result.rejected()).isFalse();
+    }
+
+    @Test
+    @DisplayName("門檻是「超過」不是「達到」：剛好達到上限的帳號數仍放行")
     void thresholdIsExclusive() {
         assertThat(RiskAssessment.evaluate(new RiskSignals(10, POLICY.maxUsersPerIp(), 1, 1), POLICY).rejected())
                 .isFalse();

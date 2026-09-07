@@ -17,8 +17,10 @@ public record RiskAssessment(int score, List<String> reasons, boolean rejected) 
             score += 30;
             reasons.add("新註冊帳號");
         }
+        // IP 只給 20：反向代理之外的 X-Forwarded-For 可以自填，而 CGNAT 後面是成千上萬個真人。
+        // 它只能當旁證，不能單獨、也不能與「新帳號」合起來就定罪
         if (signals.usersOnSameIp() > policy.maxUsersPerIp()) {
-            score += 40;
+            score += 20;
             reasons.add("同一 IP 多個帳號");
         }
         if (signals.usersOnSameDevice() > policy.maxUsersPerDevice()) {

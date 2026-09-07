@@ -15,7 +15,7 @@ public record RiskProperties(
         @DefaultValue("3m") Duration challengeTtl,
         @DefaultValue("10m") Duration signalWindow,
         @DefaultValue("600") long youngAccountSeconds,
-        @DefaultValue("5") int maxUsersPerIp,
+        @DefaultValue("20") int maxUsersPerIp,
         @DefaultValue("3") int maxUsersPerDevice,
         @DefaultValue("5") int maxQualificationsPerUser,
         @DefaultValue("60") int rejectScore

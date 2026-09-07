@@ -25,7 +25,10 @@ public class WebMvcConfig implements WebMvcConfigurer {
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(userRateLimitInterceptor)
-                .addPathPatterns("/api/v1/seckill/orders")
+                // 領題與領資格也要限：每次 qualify 是 2 次 MySQL + 6 次 Redis，比搶購本身貴得多
+                .addPathPatterns("/api/v1/seckill/orders",
+                        "/api/v1/seckill/challenge",
+                        "/api/v1/seckill/activities/*/qualify")
                 .order(0);
     }
 

@@ -51,7 +51,7 @@ public class SeckillMetrics {
 
     /** 資格預檢結果：granted 或被拒的錯誤碼名稱。被拒的比例一高就是有人在刷。 */
     public void recordQualification(String result) {
-        Counter.builder("seckill_qualification_total")
+        Counter.builder("seckill.qualification.total")
                 .tag("result", result)
                 .description("搶購資格預檢結果")
                 .register(registry)
