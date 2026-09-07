@@ -7,6 +7,8 @@ import com.flashsale.application.port.in.dto.ReviewableView;
 import com.flashsale.application.port.out.OrderRepository;
 import com.flashsale.application.port.out.ProductRepository;
 import com.flashsale.application.port.out.ReviewRepository;
+import com.flashsale.domain.catalog.event.ProductIndexChangedEvent;
+import com.flashsale.application.port.out.EventOutbox;
 import com.flashsale.application.port.out.UserRepository;
 import com.flashsale.domain.catalog.Product;
 import com.flashsale.domain.order.Order;
@@ -44,17 +46,20 @@ public class ReviewService implements ReviewUseCase {
     private final OrderRepository orderRepository;
     private final ProductRepository productRepository;
     private final UserRepository userRepository;
+    private final EventOutbox eventOutbox;
     private final Clock clock;
 
     public ReviewService(ReviewRepository reviewRepository,
                          OrderRepository orderRepository,
                          ProductRepository productRepository,
                          UserRepository userRepository,
+                         EventOutbox eventOutbox,
                          Clock clock) {
         this.reviewRepository = reviewRepository;
         this.orderRepository = orderRepository;
         this.productRepository = productRepository;
         this.userRepository = userRepository;
+        this.eventOutbox = eventOutbox;
         this.clock = clock;
     }
 
@@ -85,6 +90,8 @@ public class ReviewService implements ReviewUseCase {
 
         // 聚合走增量 UPDATE，不是讀出來加完寫回去——後者在兩個人同時評價時會吃掉一則
         reviewRepository.addRating(product.id(), saved.rating());
+        // 搜尋索引存了評分快照，「4 星以上」的篩選靠它。同一個交易裡寫進 outbox
+        eventOutbox.append(List.of(ProductIndexChangedEvent.of(product.id(), now)));
 
         log.info("評價建立 productId={}, orderNo={}, skuId={}, 星等={}",
                 product.id(), command.orderNo(), command.skuId(), command.stars());
@@ -106,6 +113,7 @@ public class ReviewService implements ReviewUseCase {
 
         // 筆數不變，只動總和與兩個分佈桶
         reviewRepository.replaceRating(existing.productId(), existing.rating(), newRating);
+        eventOutbox.append(List.of(ProductIndexChangedEvent.of(existing.productId(), now)));
 
         log.info("評價更新 reviewId={}, {} → {} 星",
                 command.reviewId(), existing.rating().stars(), command.stars());

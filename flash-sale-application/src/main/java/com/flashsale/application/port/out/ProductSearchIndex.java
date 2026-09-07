@@ -1,5 +1,6 @@
 package com.flashsale.application.port.out;
 
+import java.math.BigDecimal;
 import java.util.List;
 import com.flashsale.application.port.in.dto.ProductSearchResult;
 import com.flashsale.domain.catalog.Product;
@@ -32,6 +33,15 @@ public interface ProductSearchIndex {
     /** 搜尋建議：依前綴比對商品名與品牌，回傳去重後的候選字。 */
     List<String> suggest(String prefix, int limit);
 
-    record SearchQuery(String keyword, Long categoryId, String brand, int page, int size) {
+    /**
+     * @param minRating   最低平均星等（含），{@code null} 為不限
+     * @param inStockOnly 只列有貨的
+     */
+    record SearchQuery(String keyword, Long categoryId, String brand,
+                       BigDecimal minPrice, BigDecimal maxPrice, Integer minRating,
+                       boolean inStockOnly, SearchSort sort, int page, int size) {
     }
+
+    /** 排序。關鍵字為空時 RELEVANCE 退化為 NEWEST——沒有關鍵字就沒有相關性可言。 */
+    enum SearchSort { RELEVANCE, PRICE_ASC, PRICE_DESC, RATING, NEWEST }
 }

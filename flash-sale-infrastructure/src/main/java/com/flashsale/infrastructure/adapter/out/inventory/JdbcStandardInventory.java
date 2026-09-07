@@ -1,6 +1,10 @@
 package com.flashsale.infrastructure.adapter.out.inventory;
 
+import com.flashsale.application.port.out.EventOutbox;
 import com.flashsale.application.port.out.InventoryRepository;
+import com.flashsale.application.port.out.ProductRepository;
+import com.flashsale.domain.catalog.Product;
+import com.flashsale.domain.catalog.event.ProductIndexChangedEvent;
 import com.flashsale.application.port.out.InventoryService;
 import com.flashsale.domain.inventory.InventoryMovement;
 import com.flashsale.domain.inventory.InventoryMovementType;
@@ -14,6 +18,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
+import java.util.List;
 
 /** 一般商品的庫存機制：MySQL 行 + 條件式 UPDATE。 */
 @Component
@@ -24,15 +29,21 @@ public class JdbcStandardInventory implements InventoryService {
     private final InventoryJpaRepository inventoryJpaRepository;
     private final InventoryMovementJpaRepository movementJpaRepository;
     private final InventoryRepository inventoryRepository;
+    private final ProductRepository productRepository;
+    private final EventOutbox eventOutbox;
     private final Clock clock;
 
     public JdbcStandardInventory(InventoryJpaRepository inventoryJpaRepository,
                                  InventoryMovementJpaRepository movementJpaRepository,
                                  InventoryRepository inventoryRepository,
+                                ProductRepository productRepository,
+                                EventOutbox eventOutbox,
                                  Clock clock) {
         this.inventoryJpaRepository = inventoryJpaRepository;
         this.movementJpaRepository = movementJpaRepository;
         this.inventoryRepository = inventoryRepository;
+        this.productRepository = productRepository;
+        this.eventOutbox = eventOutbox;
         this.clock = clock;
     }
 
@@ -52,6 +63,11 @@ public class JdbcStandardInventory implements InventoryService {
             return StockDeductionResult.rejected(StockDeductionOutcome.SOLD_OUT);
         }
 
+        // 剛好賣完才重建搜尋文件：「有貨」篩選靠的是索引裡的快照。
+        // 每一單都重建太重，跨越零只發生在 SKU 生命週期的兩端
+        if (Integer.valueOf(0).equals(inventoryJpaRepository.findAvailable(command.skuId()))) {
+            publishIndexChange(command.skuId());
+        }
         if (!inventoryRepository.recordMovement(InventoryMovement.deduct(
                 command.skuId(), command.quantity(), command.orderNo(), clock.instant()))) {
             // 走到這裡代表另一個節點在步驟 1 與 3 之間插了同一筆流水，
@@ -80,8 +96,13 @@ public class JdbcStandardInventory implements InventoryService {
             log.debug("{} 的庫存已退回過，略過", movement.refNo());
             return false;
         }
+        boolean wasSoldOut = Integer.valueOf(0).equals(
+                inventoryJpaRepository.findAvailable(command.skuId()));
         int updated = inventoryJpaRepository.restoreAvailable(
                 command.skuId(), command.quantity(), clock.instant());
+        if (updated > 0 && wasSoldOut) {
+            publishIndexChange(command.skuId());
+        }
         if (updated == 0) {
             // 與 deduct 不同：扣不動是正常的業務結果（賣完了），
             // 退不動則一定是資料異常——SKU 沒有庫存列。
@@ -92,5 +113,12 @@ public class JdbcStandardInventory implements InventoryService {
                             .formatted(command.skuId()));
         }
         return true;
+    }
+
+    /** 與庫存變更同一個交易寫進 outbox——搜尋文件的有貨旗標不該與庫存分岔。 */
+    private void publishIndexChange(Long skuId) {
+        for (Product product : productRepository.findBySkuIds(List.of(skuId))) {
+            eventOutbox.append(List.of(ProductIndexChangedEvent.of(product.id(), clock.instant())));
+        }
     }
 }

@@ -83,7 +83,12 @@ public class ProductIndexAdmin {
                                     .fields("keyword", f -> f.keyword(k -> k))))
                             .properties("description", p -> p.text(t -> t.analyzer("cjk")))
                             .properties("categoryId", p -> p.long_(l -> l))
-                            .properties("lowestPrice", p -> p.double_(d -> d))));
+                            .properties("lowestPrice", p -> p.double_(d -> d))
+                            // 篩選與排序用的快照欄位
+                            .properties("ratingAverage", p -> p.double_(d -> d))
+                            .properties("ratingCount", p -> p.integer(i -> i))
+                            .properties("inStock", p -> p.boolean_(b -> b))
+                            .properties("createdAt", p -> p.date(d -> d))));
             log.info("已建立搜尋索引 {}", name);
             return name;
         } catch (IOException | RuntimeException e) {

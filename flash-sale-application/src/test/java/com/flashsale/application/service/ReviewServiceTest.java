@@ -4,6 +4,7 @@ import com.flashsale.application.port.in.ReviewUseCase.EditReviewCommand;
 import com.flashsale.application.port.in.ReviewUseCase.WriteReviewCommand;
 import com.flashsale.application.port.out.OrderRepository;
 import com.flashsale.application.port.out.ProductRepository;
+import com.flashsale.application.port.out.EventOutbox;
 import com.flashsale.application.port.out.ReviewRepository;
 import com.flashsale.application.port.out.UserRepository;
 import com.flashsale.domain.catalog.Product;
@@ -68,10 +69,12 @@ class ReviewServiceTest {
     @Mock private OrderRepository orderRepository;
     @Mock private ProductRepository productRepository;
     @Mock private UserRepository userRepository;
+    @Mock
+    private EventOutbox eventOutbox;
 
     private ReviewService service() {
         return new ReviewService(reviewRepository, orderRepository,
-                productRepository, userRepository, CLOCK);
+                productRepository, userRepository, eventOutbox, CLOCK);
     }
 
     @Nested

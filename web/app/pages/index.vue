@@ -3,7 +3,7 @@ import { errorMessage } from '~/composables/useApi'
 import { useAuthStore } from '~/stores/auth'
 import type {
   ActivityView, ApiResponse, CategoryView, HomeLayoutView, HomeSectionView,
-  ProductImageView, ProductRatingView, ProductView,
+  ProductImageView, ProductRatingView, ProductView, RankedProductView,
 } from '~/types/api'
 
 /**
@@ -15,6 +15,13 @@ const { data: layoutData } = await useFetch<ApiResponse<HomeLayoutView>>('/api/v
 const { data: activityData } = await useFetch<ApiResponse<ActivityView[]>>('/api/v1/activities')
 const { data: categoryData } = await useFetch<ApiResponse<CategoryView[]>>(
   '/api/v1/catalog/categories')
+// 排行榜與版位一起在伺服器端取：它跟首頁本體一樣進 ISR 快取
+const { data: rankingData } = await useFetch<ApiResponse<RankedProductView[]>>(
+  '/api/v1/catalog/rankings?days=7&limit=5')
+const rankings = computed(() => rankingData.value?.data ?? [])
+/** 排行榜跟在限時搶購後面；沒有那個版位就排在最後。 */
+const rankingAnchor = computed(() =>
+  sections.value.find((section) => section.type === 'FLASH_SALE')?.sectionId ?? null)
 
 const sections = computed(() => layoutData.value?.data?.sections ?? [])
 const activities = computed(() => activityData.value?.data ?? [])
@@ -40,8 +47,10 @@ const ratings = ref<Record<number, ProductRatingView>>({})
 const images = ref<Record<number, ProductImageView>>({})
 
 async function loadDecorations() {
-  const ids = sections.value.flatMap((section) =>
-    section.products.map((product) => product.productId))
+  const ids = [
+    ...sections.value.flatMap((section) => section.products.map((product) => product.productId)),
+    ...rankings.value.map((entry) => entry.product.productId),
+  ]
   if (ids.length === 0) {
     return
   }
@@ -249,7 +258,19 @@ seo({
         :ranked="section.title === '熱門商品'"
         :more-to="moreLink(section)"
       />
+      <RankingBoard
+        v-if="section.sectionId === rankingAnchor && rankings.length > 0"
+        :items="rankings" :ratings="ratings" :images="images" compact
+        :title="`本週熱銷 TOP ${rankings.length}`"
+        description="最近七天已付款訂單的銷量"
+      />
     </template>
+    <RankingBoard
+      v-if="rankingAnchor === null && rankings.length > 0"
+      :items="rankings" :ratings="ratings" :images="images" compact
+      :title="`本週熱銷 TOP ${rankings.length}`"
+      description="最近七天已付款訂單的銷量"
+    />
 
     <!-- 最近看過放在版位之後：它是「回來繼續看」的入口，不是首頁的主張 -->
     <ProductRail

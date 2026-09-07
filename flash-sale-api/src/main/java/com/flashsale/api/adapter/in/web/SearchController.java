@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
@@ -50,9 +51,15 @@ public class SearchController {
             @RequestParam(required = false, defaultValue = "") String q,
             @RequestParam(required = false) Long categoryId,
             @RequestParam(required = false) String brand,
+            @RequestParam(required = false) BigDecimal minPrice,
+            @RequestParam(required = false) BigDecimal maxPrice,
+            @RequestParam(required = false) Integer minRating,
+            @RequestParam(defaultValue = "false") boolean inStock,
+            @RequestParam(required = false) String sort,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        return ApiResponse.ok(productSearchUseCase.search(q, categoryId, brand, page, size));
+        return ApiResponse.ok(productSearchUseCase.search(new ProductSearchUseCase.SearchRequest(
+                q, categoryId, brand, minPrice, maxPrice, minRating, inStock, sort, page, size)));
     }
 
     @GetMapping("/api/v1/search/suggestions")

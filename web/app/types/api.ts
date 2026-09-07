@@ -523,6 +523,20 @@ export interface ProductSearchHit {
   brand: string | null
   categoryId: number | null
   lowestPrice: number
+  /** 索引當下的快照，允許落後幾秒；count 為 0 時 average 是 0，畫面不該顯示「0 分」 */
+  ratingAverage: number
+  ratingCount: number
+  inStock: boolean
+}
+
+/** 搜尋排序。RELEVANCE 在沒有關鍵字時由後端退化成 NEWEST */
+export type ProductSearchSort = 'RELEVANCE' | 'PRICE_ASC' | 'PRICE_DESC' | 'RATING' | 'NEWEST'
+
+/** 排行榜的一列。名次由後端算，前端不自己數——已下架的商品被跳過時名次仍要連號 */
+export interface RankedProductView {
+  rank: number
+  product: ProductView
+  soldQuantity: number
 }
 
 export interface ProductSearchResult {
