@@ -513,7 +513,7 @@ Hikari 連線池（50）被排隊的人佔滿
 
 ```bash
 docker compose up -d                      # MySQL / Redis / Kafka / ES / MinIO / Prometheus / Grafana
-mvn spring-boot:run -pl flash-sale-api
+mvn spring-boot:run -pl flash-sale-api -Dspring-boot.run.profiles=dev
 cd web && npm install && npm run dev
 ```
 
@@ -554,7 +554,8 @@ curl -X POST localhost:8080/api/v1/seckill/orders -H "Content-Type: application/
 第一個管理員因此由設定注入，啟動時建立：
 
 ```bash
-BOOTSTRAP_ADMIN_EMAIL=ops@example.com BOOTSTRAP_ADMIN_PASSWORD=change-me-please mvn spring-boot:run -pl flash-sale-api
+BOOTSTRAP_ADMIN_EMAIL=ops@example.com BOOTSTRAP_ADMIN_PASSWORD=change-me-please \
+  mvn spring-boot:run -pl flash-sale-api -Dspring-boot.run.profiles=dev -Dspring-boot.run.profiles=dev
 ```
 
 以這組帳密登入後，導覽列會出現「後台」，即 `/admin`。

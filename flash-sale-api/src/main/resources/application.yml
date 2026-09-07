@@ -49,6 +49,10 @@ spring:
         jdbc:
           batch_size: 50
         order_inserts: true
+        # 惰性關聯改成批次載入。訂單的 discounts 不在任何 @EntityGraph 裡
+        # （lines 已經佔了唯一一個 collection fetch 名額，再加一個是笛卡兒積），
+        # 因此列出 N 筆訂單就是 N 次額外查詢。設了這個之後變成 ceil(N/50) 次。
+        default_batch_fetch_size: 50
 
   flyway:
     enabled: true
@@ -200,7 +204,8 @@ flash-sale:
     # 而且因為系統「就這樣跑起來了」，沒有人會發現它存在。
     #
     # 啟用方式（密碼務必用環境變數，不要寫進版控）：
-    #   BOOTSTRAP_ADMIN_EMAIL=ops@example.com BOOTSTRAP_ADMIN_PASSWORD=... mvn spring-boot:run -pl flash-sale-api
+    #   BOOTSTRAP_ADMIN_EMAIL=ops@example.com BOOTSTRAP_ADMIN_PASSWORD=... \
+    #     mvn spring-boot:run -pl flash-sale-api -Dspring-boot.run.profiles=dev
     bootstrap-admin:
       email: ${BOOTSTRAP_ADMIN_EMAIL:}
       password: ${BOOTSTRAP_ADMIN_PASSWORD:}

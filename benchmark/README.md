@@ -23,7 +23,7 @@
 
 ```bash
 docker compose up -d
-mvn spring-boot:run -pl flash-sale-api
+mvn spring-boot:run -pl flash-sale-api -Dspring-boot.run.profiles=dev
 
 cd benchmark && npm install
 
@@ -67,7 +67,7 @@ docker compose exec -T mysql mysql -uroot -proot flash_sale -e "UPDATE inventory
 **量到的會是限流器而不是系統**：
 
 ```bash
-mvn spring-boot:run -pl flash-sale-api \
+mvn spring-boot:run -pl flash-sale-api -Dspring-boot.run.profiles=dev \
   -Dspring-boot.run.jvmArguments="-Dflash-sale.rate-limit.capacity=100000 -Dflash-sale.rate-limit.refill-per-second=100000"
 ```
 
