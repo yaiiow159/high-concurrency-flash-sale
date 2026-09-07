@@ -20,6 +20,8 @@ public record ReturnRequestView(
         Instant createdAt,
         Instant reviewedAt,
         Instant receivedAt,
+        /** 退款發起時間。有值而 refundedAt 沒有，代表錢還在路上 */
+        Instant refundStartedAt,
         Instant refundedAt
 ) {
 
@@ -49,6 +51,7 @@ public record ReturnRequestView(
                 request.createdAt(),
                 request.reviewedAt(),
                 request.receivedAt(),
+                request.refundStartedAt(),
                 request.refundedAt());
     }
 }

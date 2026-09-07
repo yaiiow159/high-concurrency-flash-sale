@@ -20,6 +20,9 @@ const LABELS: Record<string, string> = {
   REQUESTED: '待審核',
   APPROVED: '已核准',
   RECEIVED: '已收到退貨',
+  // 錢還在路上。買家看到「已退款」卻查不到款項會直接進客服，
+  // 所以這一段要誠實說出來
+  REFUNDING: '退款處理中',
   REJECTED: '已駁回',
 }
 

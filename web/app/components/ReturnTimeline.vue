@@ -46,6 +46,14 @@ const steps = computed<Step[]>(() => {
     })
   }
 
+  // 發起與到帳分成兩步。併成一步的話，閘道卡住時使用者看到的是
+  // 一個永遠不亮的步驟，而畫面上沒有任何東西說明它為什麼不亮
+  list.push({
+    label: '退款已發起',
+    hint: '正在向金流發動退款',
+    at: r.refundStartedAt,
+    done: r.refundStartedAt != null,
+  })
   list.push({
     label: '退款已送出',
     hint: '款項將依原付款方式退回',

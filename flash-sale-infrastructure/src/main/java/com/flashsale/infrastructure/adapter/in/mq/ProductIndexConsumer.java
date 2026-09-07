@@ -28,7 +28,9 @@ public class ProductIndexConsumer {
     @KafkaListener(
             topics = KafkaTopics.ORDER_EVENT,
             groupId = "${flash-sale.mq.search-index-group:catalog-search-indexer}",
-            concurrency = "1")
+            concurrency = "1",
+            // 進了死信只能靠人工重建，因此用慢檔的重試預算
+            containerFactory = "resilientKafkaListenerContainerFactory")
     public void onDomainEvent(@Payload String payload,
                               @Header(name = KafkaTopics.HEADER_EVENT_TYPE, required = false)
                               String eventType) throws Exception {

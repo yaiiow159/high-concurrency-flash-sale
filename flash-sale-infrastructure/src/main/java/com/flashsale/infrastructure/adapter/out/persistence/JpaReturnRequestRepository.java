@@ -14,6 +14,7 @@ import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -61,8 +62,8 @@ public class JpaReturnRequestRepository implements ReturnRequestRepository {
             restockableBySku.put(line.skuId(), line.restockable());
         }
         entity.applyStateChange(request.status().name(), request.reviewNote(),
-                request.reviewedAt(), request.receivedAt(), request.refundedAt(),
-                restockableBySku);
+                request.reviewedAt(), request.receivedAt(),
+                request.refundStartedAt(), request.refundedAt(), restockableBySku);
         return toDomain(entity);
     }
 
@@ -105,6 +106,27 @@ public class JpaReturnRequestRepository implements ReturnRequestRepository {
                 .toList();
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<ReturnRequest> findStuckRefunds(Instant startedBefore, int limit) {
+        // 兩段式：先用索引取單號（帶 limit），再依單號把退貨行 join fetch 回來。
+        // 併成一句會踩上 HHH90003004 的記憶體分頁
+        List<String> returnNos = jpaRepository.findStuckRefundNos(
+                ReturnStatus.REFUNDING.name(), startedBefore, Limit.of(limit));
+        if (returnNos.isEmpty()) {
+            return List.of();
+        }
+        return jpaRepository.findByReturnNoInOrderByRefundStartedAtAsc(returnNos).stream()
+                .map(JpaReturnRequestRepository::toDomain)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public long countAwaitingSettlement() {
+        return jpaRepository.countByStatus(ReturnStatus.REFUNDING.name());
+    }
+
     private static ReturnRequest toDomain(ReturnRequestEntity entity) {
         List<ReturnLine> lines = entity.getLines().stream()
                 .map(line -> new ReturnLine(line.getSkuId(), line.getSkuSnapshot(),
@@ -126,6 +148,7 @@ public class JpaReturnRequestRepository implements ReturnRequestRepository {
                 entity.getCreatedAt(),
                 entity.getReviewedAt(),
                 entity.getReceivedAt(),
+                entity.getRefundStartedAt(),
                 entity.getRefundedAt(),
                 entity.getVersion());
     }

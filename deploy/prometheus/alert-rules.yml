@@ -148,6 +148,17 @@ groups:
           summary: "有 {{ $value }} 筆 Outbox 事件投遞已放棄"
           description: "重試已耗盡，下游動作（退庫／通知／積分）不會發生，需人工重送或補償"
 
+      # 退款已核可但錢還沒出去。短暫非 0 是正常的（閘道呼叫需要時間），
+      # 持續 10 分鐘代表補送排程推不動它——閘道那一步真的卡住了（ADR-0031）。
+      - alert: RefundSettlementStuck
+        expr: refund_awaiting_settlement_total > 0
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "有 {{ $value }} 筆退款已核可但錢還沒出去"
+          description: "補送排程推不動；檢查金流閘道與 return_request 中 status=REFUNDING 的紀錄"
+
       # 鐵則 8-1：收款成功絕不可被改寫成失敗。這個計數應恆為 0——
       # 非 0 代表發生了「錢收了但訂單已關閉」的競態，每一筆都對應一筆要退的錢。
       - alert: PaymentRefundRequired

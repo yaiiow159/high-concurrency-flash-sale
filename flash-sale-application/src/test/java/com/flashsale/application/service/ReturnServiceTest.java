@@ -106,7 +106,7 @@ class ReturnServiceTest {
         return ReturnRequest.restore(1L, ReturnNo.of("RMA-220956648921890111"),
                 OrderNo.of(ORDER_NO), USER, "req-existing", ReturnReason.CHANGED_MIND, null, true,
                 List.of(ReturnLine.of(skuId, "商品一", new BigDecimal("990"), quantity)),
-                status, null, NOW, null, null, null, 0L);
+                status, null, NOW, null, null, null, null, 0L);
     }
 
     private static OpenReturnCommand openCommand(long skuId, int quantity) {
@@ -311,7 +311,7 @@ class ReturnServiceTest {
             ReturnRequest request = ReturnRequest.restore(1L, ReturnNo.of(RETURN_NO),
                     OrderNo.of(ORDER_NO), USER, "req-approved", ReturnReason.CHANGED_MIND, null, false,
                     List.of(ReturnLine.of(1L, "商品一", new BigDecimal("990"), quantity)),
-                    ReturnStatus.APPROVED, null, NOW, NOW, null, null, 0L);
+                    ReturnStatus.APPROVED, null, NOW, NOW, null, null, null, 0L);
             when(returnRepository.findByReturnNo(any())).thenReturn(Optional.of(request));
             return request;
         }
@@ -339,6 +339,20 @@ class ReturnServiceTest {
         }
 
         @Test
+        @DisplayName("核可退款只落到 REFUNDING——錢還沒出去，寫成已退款就沒人記得要補送")
+        void refundApprovalStopsAtRefunding() {
+            ReturnRequest request = approvedReturn(1);
+            paidPayment();
+            when(orderRepository.findByOrderNoForUpdate(any())).thenReturn(Optional.of(order(OrderStatus.COMPLETED)));
+            when(orderRepository.findByOrderNo(any())).thenReturn(Optional.of(order(OrderStatus.COMPLETED)));
+
+            service.refund(RETURN_NO);
+
+            assertThat(request.status()).isEqualTo(ReturnStatus.REFUNDING);
+            assertThat(request.refundedAt()).isNull();
+        }
+
+        @Test
         @DisplayName("全額退完才把訂單轉為 REFUNDED，且判斷來自付款聚合根而非重算一次")
         void fullRefundClosesTheOrder() {
             // 2 件 × 990 + 1 件 × 500 = 2480，剛好是訂單總額
@@ -346,7 +360,7 @@ class ReturnServiceTest {
                     OrderNo.of(ORDER_NO), USER, "req-approved", ReturnReason.CHANGED_MIND, null, false,
                     List.of(ReturnLine.of(1L, "商品一", new BigDecimal("990"), 2),
                             ReturnLine.of(2L, "商品二", new BigDecimal("500"), 1)),
-                    ReturnStatus.APPROVED, null, NOW, NOW, null, null, 0L);
+                    ReturnStatus.APPROVED, null, NOW, NOW, null, null, null, 0L);
             when(returnRepository.findByReturnNo(any())).thenReturn(Optional.of(request));
             paidPayment();
             Order order = order(OrderStatus.COMPLETED);

@@ -55,7 +55,7 @@ describe('退貨進度條', () => {
     const wrapper = mount(ReturnTimeline, { props: { request: request() } })
 
     const done = steps(wrapper).map((s) => s.done)
-    expect(done).toEqual([true, false, false])
+    expect(done).toEqual([true, false, false, false])
   })
 
   it('核准後第二步才完成', () => {
@@ -63,7 +63,7 @@ describe('退貨進度條', () => {
       props: { request: request({ status: 'APPROVED', reviewedAt: '2026-09-04T11:00:00Z' }) },
     })
 
-    expect(steps(wrapper).map((s) => s.done)).toEqual([true, true, false])
+    expect(steps(wrapper).map((s) => s.done)).toEqual([true, true, false, false])
   })
 
   it('免寄回時不畫「寄回商品」那一步——畫一個永遠不會亮的步驟會讓人一直在等', () => {
@@ -72,7 +72,7 @@ describe('退貨進度條', () => {
     })
 
     const labels = steps(wrapper).map((s) => s.label)
-    expect(labels).toHaveLength(3)
+    expect(labels).toHaveLength(4)
     expect(labels).not.toContain('已收到退回商品')
   })
 
@@ -96,6 +96,22 @@ describe('退貨進度條', () => {
       },
     })
 
+    expect(steps(wrapper).map((s) => s.done)).toEqual([true, true, true, false, false])
+  })
+
+  it('退款已發起但還沒到帳：發起亮、送出不亮——這正是閘道卡住時的畫面', () => {
+    const wrapper = mount(ReturnTimeline, {
+      props: {
+        request: request({
+          status: 'REFUNDING',
+          reviewedAt: '2026-09-04T11:00:00Z',
+          refundStartedAt: '2026-09-05T09:00:00Z',
+        }),
+      },
+    })
+
+    // 併成一步的話這裡只會看到一個永遠不亮的「退款已送出」，
+    // 而畫面上沒有任何東西說明它為什麼不亮
     expect(steps(wrapper).map((s) => s.done)).toEqual([true, true, true, false])
   })
 

@@ -83,6 +83,19 @@ Redis 沒有開持久化（見 `docker-compose.yml`），依據是「庫存可�
 `force=true` 也走同一條路——維運覆寫的意思是「拉回與資料庫一致」，
 不是「重設成滿的」。
 
+### 3-3. 「已核可」不等於「錢已出去」
+
+退貨單核可後落 `REFUNDING`，閘道回覆成功才 `REFUNDED`（[ADR-0031](docs/adr/0031-refund-settlement-is-a-durable-work-item.md)）。
+直接寫 `REFUNDED` 的話，閘道故障時帳上說退了而錢沒送出，
+且 `status = 'REFUNDED'` 裡成功與失敗的紀錄長得一模一樣——**查不出來**。
+
+**任何「必須最終成功」又依賴外部系統的動作，都不可以只靠佇列重試撐著。**
+消費端的重試是阻塞式的，久留會擋住同分區後面的人並撞上 `max.poll.interval.ms`。
+持久化的工作項（這裡是 `REFUNDING` 這個狀態）才是保證，佇列只是快車道。
+
+補送的寬限期必須明顯長於消費端的重試預算，否則排程會與還在重試的消費端
+同時對閘道發起同一筆退款。
+
 ### 4. 冪等是三層，不是一層
 
 | 層級 | 機制 | 位置 |
@@ -334,6 +347,7 @@ cd web && npx nuxt typecheck                          # 前端型別檢查
 | 「庫存應該放資料庫才對」 | [ADR-0002](docs/adr/0002-stock-in-redis-not-database.md) |
 | 「這裡應該加分散式鎖」 | [ADR-0003](docs/adr/0003-lua-atomicity-over-distributed-lock.md) |
 | 「投遞逾時就退庫比較安全」 | [ADR-0030](docs/adr/0030-publish-timeout-is-not-failure.md) |
+| 「退款重試次數調大就好」 | [ADR-0031](docs/adr/0031-refund-settlement-is-a-durable-work-item.md) |
 | 「應該用 Seata 做分散式交易」 | [ADR-0004](docs/adr/0004-outbox-saga-over-seata.md) |
 | 「應該拆成微服務」 | [ADR-0001](docs/adr/0001-modular-monolith-hexagonal.md) |
 | 「認證改用 Session 比較簡單」 | [ADR-0005](docs/adr/0005-jwt-resource-server-over-custom-filter.md) |

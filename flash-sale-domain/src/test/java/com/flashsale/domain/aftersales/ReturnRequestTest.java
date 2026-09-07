@@ -45,8 +45,9 @@ class ReturnRequestTest {
             ReturnRequest request = open(false, line(1L, "990", 1));
             request.approve(null, NOW);
 
-            assertThatCode(() -> request.markRefunded(LATER)).doesNotThrowAnyException();
-            assertThat(request.status()).isEqualTo(ReturnStatus.REFUNDED);
+            assertThatCode(() -> request.startRefund(LATER)).doesNotThrowAnyException();
+            // 發起完錢還沒出去：REFUNDED 要等閘道回覆
+            assertThat(request.status()).isEqualTo(ReturnStatus.REFUNDING);
         }
 
         @Test
@@ -55,7 +56,7 @@ class ReturnRequestTest {
             ReturnRequest request = open(true, line(1L, "990", 1));
             request.approve(null, NOW);
 
-            assertThatThrownBy(() -> request.markRefunded(LATER))
+            assertThatThrownBy(() -> request.startRefund(LATER))
                     .isInstanceOf(BusinessException.class)
                     .hasFieldOrPropertyWithValue("errorCode",
                             ErrorCode.ILLEGAL_RETURN_STATE_TRANSITION);
@@ -153,9 +154,10 @@ class ReturnRequestTest {
         void refundIsTerminal() {
             ReturnRequest request = open(false, line(1L, "990", 1));
             request.approve(null, NOW);
-            request.markRefunded(LATER);
+            request.startRefund(LATER);
+            request.settleRefund(LATER);
 
-            assertThatThrownBy(() -> request.markRefunded(LATER))
+            assertThatThrownBy(() -> request.startRefund(LATER))
                     .isInstanceOf(BusinessException.class)
                     .hasFieldOrPropertyWithValue("errorCode",
                             ErrorCode.ILLEGAL_RETURN_STATE_TRANSITION);
@@ -174,7 +176,26 @@ class ReturnRequestTest {
             assertThat(ReturnStatus.REQUESTED.holdsReturnQuota()).isTrue();
             assertThat(ReturnStatus.APPROVED.holdsReturnQuota()).isTrue();
             assertThat(ReturnStatus.RECEIVED.holdsReturnQuota()).isTrue();
+            // 錢還在路上的單同樣佔額度，否則這段空窗期可以再開一張單重複退
+            assertThat(ReturnStatus.REFUNDING.holdsReturnQuota()).isTrue();
             assertThat(ReturnStatus.REFUNDED.holdsReturnQuota()).isTrue();
+        }
+
+        @Test
+        @DisplayName("錢沒出去不可以回頭當作沒發生——REFUNDING 只有往前一條路")
+        void refundingCanOnlyMoveForward() {
+            ReturnRequest request = open(false, line(1L, "990", 1));
+            request.approve(null, NOW);
+            request.startRefund(LATER);
+
+            // 已核可的退款回不到 CANCELLED：買家的貨已經退了，撤回等於他拿不到錢
+            assertThatThrownBy(() -> request.cancel(LATER))
+                    .isInstanceOf(BusinessException.class);
+            assertThat(request.awaitingSettlement()).isTrue();
+
+            request.settleRefund(LATER);
+            assertThat(request.awaitingSettlement()).isFalse();
+            assertThat(request.refundedAt()).isEqualTo(LATER);
         }
     }
 
@@ -196,7 +217,7 @@ class ReturnRequestTest {
             ReturnRequest request = open(true, line(1L, "990", 2), line(2L, "500", 1));
             request.approve(null, NOW);
             request.receive(Map.of(1L, true, 2L, false), LATER);
-            request.markRefunded(LATER);
+            request.startRefund(LATER);
 
             assertThat(request.pullDomainEvents())
                     .singleElement()
@@ -216,7 +237,7 @@ class ReturnRequestTest {
         void eventsArePulledOnce() {
             ReturnRequest request = open(false, line(1L, "990", 1));
             request.approve(null, NOW);
-            request.markRefunded(LATER);
+            request.startRefund(LATER);
 
             assertThat(request.pullDomainEvents()).hasSize(1);
             assertThat(request.pullDomainEvents()).isEmpty();
