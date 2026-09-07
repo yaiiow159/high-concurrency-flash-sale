@@ -20,7 +20,8 @@ const loading = ref(true)
 async function load() {
   loading.value = true
   const [ship, ret, recon] = await Promise.all([
-    shipments('PENDING').then((list) => list.length).catch(() => null),
+    // 出貨單的「待出貨」是 READY，不是 PENDING——寫錯後端回 400，這一格就永遠是破折號
+    shipments('READY').then((list) => list.length).catch(() => null),
     returns('REQUESTED').then((list) => list.length).catch(() => null),
     searchReconciliation(false).catch(() => null),
   ])

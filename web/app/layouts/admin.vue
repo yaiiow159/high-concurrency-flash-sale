@@ -2,7 +2,8 @@
 import { useAuthStore } from '~/stores/auth'
 
 /**
- * 營運後台的版型。 **側邊欄而不是頂部導覽**，這是後台與商店最大的視覺差異，也是刻意的： 商店的導覽只有五、六項且使用者是逛的；後台的功能會一直長， 而使用者是「帶著任務來」的——他知道自己要去哪一頁， 側邊欄讓每一項永遠在同一個位置，不必先掃過一列橫向文字。 深色的側欄配淺色的內容區是後台的通用語彙（Shopify、Stripe、Vercel 都這樣）， 而它同時解決一個實際問題：一眼就知道「我現在在後台，不是在商店」。 拿商店的殼直接套後台，維運人員會在改到正式資料時才發現自己走錯地方。
+ * 營運後台的版型：深色側欄 + 淺色內容區。
+ * 與商店長得不一樣是刻意的——後台改的是正式資料，走錯地方的成本是真實資料。
  */
 const auth = useAuthStore()
 const route = useRoute()
@@ -10,6 +11,7 @@ const route = useRoute()
 interface NavItem {
   to: string
   label: string
+  icon: string
   /** 只在路徑完全相同時算作用中。`/admin` 需要它——否則每一頁都會把總覽點亮 */
   exact?: boolean
 }
@@ -18,25 +20,25 @@ const SECTIONS: Array<{ title: string, items: NavItem[] }> = [
   {
     title: '營運',
     items: [
-      { to: '/admin', label: '總覽', exact: true },
-      { to: '/admin/shipments', label: '出貨處理' },
-      { to: '/admin/returns', label: '退貨審核' },
-      { to: '/admin/questions', label: '問答管理' },
+      { to: '/admin', label: '總覽', exact: true, icon: 'M4 5h7v7H4zM13 5h7v4h-7zM13 11h7v8h-7zM4 14h7v5H4z' },
+      { to: '/admin/shipments', label: '出貨處理', icon: 'M3 7h11v9H3zM14 10h4l3 3v3h-7zM7 19a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3zM17 19a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3z' },
+      { to: '/admin/returns', label: '退貨審核', icon: 'M9 14 4 9l5-5M4 9h10a6 6 0 0 1 0 12h-3' },
+      { to: '/admin/questions', label: '問答管理', icon: 'M4 5h16v11H9l-5 4zM12 8v3M12 13h.01' },
     ],
   },
   {
     title: '商品',
     items: [
-      { to: '/admin/products', label: '商品管理' },
-      { to: '/admin/activities', label: '秒殺活動' },
-      { to: '/admin/home', label: '首頁版型' },
+      { to: '/admin/products', label: '商品管理', icon: 'M12 3 4 7v10l8 4 8-4V7zM4 7l8 4 8-4M12 11v10' },
+      { to: '/admin/activities', label: '秒殺活動', icon: 'M13 2 4 14h6l-1 8 9-12h-6z' },
+      { to: '/admin/home', label: '首頁版型', icon: 'M4 5h16v5H4zM4 13h7v6H4zM13 13h7v6h-7z' },
     ],
   },
   {
     title: '系統',
     items: [
-      { to: '/admin/reports', label: '銷售報表' },
-      { to: '/admin/ops', label: '維運工具' },
+      { to: '/admin/reports', label: '銷售報表', icon: 'M4 19h16M7 16V9M12 16V5M17 16v-6' },
+      { to: '/admin/ops', label: '維運工具', icon: 'M14.5 4.5a4 4 0 0 0-5 5L4 15v5h5l5.5-5.5a4 4 0 0 0 5-5l-3 3-2.5-2.5z' },
     ],
   },
 ]
@@ -44,104 +46,145 @@ const SECTIONS: Array<{ title: string, items: NavItem[] }> = [
 function isActive(to: string, exact = false): boolean {
   return exact ? route.path === to : route.path.startsWith(to)
 }
+
+/** 頂列顯示目前頁名：從導覽項目反查，找不到就退回「後台」。 */
+const currentLabel = computed(() =>
+  SECTIONS.flatMap((section) => section.items)
+    .find((item) => isActive(item.to, item.exact))?.label ?? '後台')
 </script>
 
 <template>
-  <div class="admin-shell flex min-h-screen">
-    <!--
-      side nav。lg 以下收成頂部橫列——後台雖然以桌機為主，
-      但「出貨」這件事有人會拿著手機在倉庫裡做
-    -->
+  <div class="admin-shell flex min-h-screen bg-ground">
+    <!-- lg 以下收成頂部橫列：「出貨」這件事有人會拿著手機在倉庫裡做 -->
     <aside
-      class="admin-side flex shrink-0 flex-col gap-6 border-line px-3 py-4
-             max-lg:w-full max-lg:flex-row max-lg:items-center max-lg:gap-4
-             max-lg:overflow-x-auto max-lg:border-b
-             lg:sticky lg:top-0 lg:h-screen lg:w-56 lg:border-r lg:px-4 lg:py-6"
+      class="admin-side flex shrink-0 flex-col
+             max-lg:w-full max-lg:flex-row max-lg:items-center max-lg:gap-3 max-lg:overflow-x-auto
+             max-lg:px-3 max-lg:py-2
+             lg:sticky lg:top-0 lg:h-screen lg:w-60 lg:px-3 lg:py-5"
     >
-      <NuxtLink to="/admin" class="flex shrink-0 items-baseline gap-2 px-2">
-        <span class="font-semibold tracking-tight">閃購</span>
-        <span class="text-[11px] font-medium uppercase tracking-wider opacity-60">Console</span>
+      <NuxtLink to="/admin" class="flex shrink-0 items-center gap-2.5 px-2 lg:mb-6">
+        <span
+          class="grid h-8 w-8 place-items-center rounded-sm bg-accent text-sm font-extrabold
+                 text-white"
+        >
+          閃
+        </span>
+        <span class="flex flex-col leading-none">
+          <span class="text-sm font-extrabold tracking-tight text-white">閃購後台</span>
+          <span class="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-white/45">
+            Console
+          </span>
+        </span>
       </NuxtLink>
 
-      <nav class="flex gap-4 max-lg:items-center lg:flex-1 lg:flex-col lg:gap-5" aria-label="後台導覽">
+      <nav
+        class="scroll-hide flex gap-3 max-lg:items-center max-lg:overflow-x-auto lg:flex-1 lg:flex-col lg:gap-5"
+        aria-label="後台導覽"
+      >
         <div
           v-for="section in SECTIONS"
           :key="section.title"
-          class="flex gap-1 max-lg:items-center lg:flex-col"
+          class="flex gap-0.5 max-lg:items-center lg:flex-col"
         >
-          <p class="eyebrow px-2 max-lg:hidden">{{ section.title }}</p>
+          <p class="eyebrow mb-1 px-3 max-lg:hidden">{{ section.title }}</p>
           <NuxtLink
             v-for="item in section.items"
             :key="item.to"
             :to="item.to"
-            class="admin-link whitespace-nowrap rounded-sm px-2.5 py-1.5 text-sm transition-colors"
+            class="admin-link flex items-center gap-2.5 whitespace-nowrap rounded-sm px-3 py-2
+                   text-sm transition-colors"
             :class="isActive(item.to, item.exact) ? 'is-active' : ''"
           >
+            <svg
+              viewBox="0 0 24 24" class="h-4 w-4 shrink-0 max-lg:hidden" fill="none"
+              stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path :d="item.icon" />
+            </svg>
             {{ item.label }}
           </NuxtLink>
         </div>
       </nav>
 
-      <div class="flex shrink-0 items-center gap-1 max-lg:ml-auto lg:flex-col lg:items-stretch">
+      <div class="flex shrink-0 items-center gap-1 max-lg:ml-auto lg:mt-4 lg:flex-col lg:items-stretch lg:border-t lg:border-white/10 lg:pt-4">
         <!-- 回商店必須顯眼：後台與商店是同一個應用，走錯地方的成本是真實資料 -->
         <NuxtLink
           to="/"
-          class="admin-link whitespace-nowrap rounded-sm px-2.5 py-1.5 text-sm transition-colors"
+          class="admin-link flex items-center gap-2 whitespace-nowrap rounded-sm px-3 py-2 text-sm
+                 transition-colors"
         >
-          ← 回商店
+          <svg viewBox="0 0 24 24" class="h-4 w-4 max-lg:hidden" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3 10 12 3l9 7v10H3zM10 20v-6h4v6" />
+          </svg>
+          回商店
         </NuxtLink>
         <button
           type="button"
-          class="admin-link whitespace-nowrap rounded-sm px-2.5 py-1.5 text-left text-sm
-                 transition-colors"
+          class="admin-link flex items-center gap-2 whitespace-nowrap rounded-sm px-3 py-2
+                 text-left text-sm transition-colors"
           @click="auth.logout()"
         >
+          <svg viewBox="0 0 24 24" class="h-4 w-4 max-lg:hidden" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M10 4H5v16h5M14 8l4 4-4 4M18 12H9" />
+          </svg>
           登出
         </button>
       </div>
     </aside>
 
-    <main class="min-w-0 flex-1 px-5 py-8 sm:px-8 sm:py-10">
-      <div class="mx-auto max-w-5xl">
-        <slot />
+    <div class="flex min-w-0 flex-1 flex-col">
+      <!-- 頂列：目前位置與身分。後台沒有搜尋列，這裡只放路標 -->
+      <div class="flex h-12 items-center justify-between border-b border-line bg-surface px-5 sm:px-8">
+        <p class="text-sm text-ink-muted">
+          <span class="text-ink-faint">後台</span>
+          <span class="mx-1.5 text-ink-faint">/</span>
+          <span class="font-semibold text-ink">{{ currentLabel }}</span>
+        </p>
+        <p class="hidden items-center gap-2 text-xs text-ink-muted sm:flex">
+          <span class="rounded-full bg-accent-soft px-2 py-0.5 font-semibold text-accent">
+            管理員
+          </span>
+          {{ auth.userEmail }}
+        </p>
       </div>
-    </main>
+
+      <main class="flex-1 px-5 py-6 sm:px-8 sm:py-8">
+        <div class="mx-auto max-w-6xl">
+          <slot />
+        </div>
+      </main>
+    </div>
   </div>
 </template>
 
 <style scoped>
 /*
- * 後台自己的一組顏色，不套商店的 token。
- *
- * 理由不是美觀而是「走錯地方」這件事的成本：後台改的是正式資料，
- * 而它與商店在同一個網域、同一個應用裡。讓兩者長得像只會讓人
+ * 後台自己的一組顏色，不套商店的 token：讓兩者長得像只會讓人
  * 在按下「釋放庫存」之後才發現自己以為還在逛商店。
- *
- * 側欄固定用深色——不跟著主題切換。這是刻意的不一致：
- * 它是一個「你在後台」的恆定訊號，而恆定的訊號不該在淺色模式下消失。
+ * 側欄固定深色，是一個「你在後台」的恆定訊號。
  */
 .admin-side {
-  background: #10181c;
-  color: #c9d6da;
-  border-color: #1e2b31;
+  background: #171a24;
+  color: #c7cbd6;
 }
 
 .admin-link {
-  color: #93a5ac;
+  color: #9aa0b0;
 }
 
 .admin-link:hover {
-  background: #17232830;
-  color: #e7eef0;
+  background: rgb(255 255 255 / 6%);
+  color: #f3f4f8;
 }
 
 .admin-side .eyebrow {
-  color: #5d7077;
+  color: #5f6577;
 }
 
 .admin-link.is-active {
-  background: #17323a;
-  color: #6ccfda;
-  font-weight: 500;
+  background: rgb(225 29 43 / 16%);
+  color: #ff8a80;
+  font-weight: 600;
 }
 </style>

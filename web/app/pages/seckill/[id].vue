@@ -56,6 +56,8 @@ async function payNow(orderNo: string): Promise<void> {
       authenticated: true,
     })
     paymentUrl.value = intent.paymentUrl
+    // 與訂單頁同一條路：導向模擬金流頁，回來時靠回調而非這個導向
+    window.location.href = intent.paymentUrl
   } catch {
     paymentUrl.value = null
   } finally {

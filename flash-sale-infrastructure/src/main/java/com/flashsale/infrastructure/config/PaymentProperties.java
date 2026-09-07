@@ -18,7 +18,7 @@ import java.time.Duration;
 @ConfigurationProperties(prefix = "flash-sale.payment")
 public record PaymentProperties(
         @DefaultValue("dev-only-payment-secret-change-me-0123456789abcdef") String callbackSecret,
-        @DefaultValue("http://localhost:8080/simulated-checkout") String simulatedCheckoutUrl,
+        @DefaultValue("/pay/simulated") String simulatedCheckoutUrl,
         @DefaultValue("2s") Duration simulateCallbackDelay,
         @DefaultValue("true") boolean autoSucceed
 ) {
