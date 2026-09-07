@@ -2,15 +2,22 @@ package com.flashsale.infrastructure.adapter.out.search;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import co.elastic.clients.elasticsearch._types.FieldValue;
+import co.elastic.clients.elasticsearch._types.SortOptions;
 import co.elastic.clients.elasticsearch._types.SortOrder;
 import co.elastic.clients.elasticsearch._types.query_dsl.Query;
 import co.elastic.clients.elasticsearch.core.SearchResponse;
 import co.elastic.clients.elasticsearch.core.search.Hit;
 import co.elastic.clients.elasticsearch.core.bulk.BulkOperation;
 import com.flashsale.application.port.in.dto.ProductSearchResult;
+import com.flashsale.application.port.out.InventoryRepository;
 import com.flashsale.application.port.out.ProductRepository;
 import com.flashsale.application.port.out.ProductSearchIndex;
+import com.flashsale.application.port.out.ProductSearchIndex.SearchSort;
+import com.flashsale.application.port.out.ReviewRepository;
 import com.flashsale.domain.catalog.Product;
+import com.flashsale.domain.catalog.Sku;
+import com.flashsale.domain.inventory.Inventory;
+import com.flashsale.domain.review.ProductRating;
 import com.flashsale.domain.shared.BusinessException;
 import com.flashsale.domain.shared.ErrorCode;
 import org.slf4j.Logger;
@@ -22,6 +29,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.stream.Stream;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -54,24 +62,54 @@ public class ElasticsearchProductSearchIndex implements ProductSearchIndex {
     private final ElasticsearchClient client;
     private final ProductIndexAdmin indexAdmin;
     private final ProductRepository productRepository;
+    private final ReviewRepository reviewRepository;
+    private final InventoryRepository inventoryRepository;
 
+    // 評分與庫存直接向持久化埠取：搜尋文件是投影，組裝它是這個轉接器自己的事，
+    // 應用層不該為了一份索引去認識「文件長什麼樣」
     public ElasticsearchProductSearchIndex(ElasticsearchClient client,
                                            ProductIndexAdmin indexAdmin,
-                                           ProductRepository productRepository) {
+                                           ProductRepository productRepository,
+                                           ReviewRepository reviewRepository,
+                                           InventoryRepository inventoryRepository) {
         this.client = client;
         this.indexAdmin = indexAdmin;
         this.productRepository = productRepository;
+        this.reviewRepository = reviewRepository;
+        this.inventoryRepository = inventoryRepository;
+    }
+
+    /** 一次替一批商品組文件：兩次批次查詢，不是每件商品各查兩次。 */
+    private List<ProductDocument> assemble(List<Product> products) {
+        List<Long> productIds = products.stream().map(Product::id).toList();
+        List<Long> skuIds = products.stream()
+                .flatMap(product -> product.skus().stream()).map(Sku::id).toList();
+        Map<Long, ProductRating> ratings = reviewRepository.findRatings(productIds);
+        Map<Long, Integer> available = new HashMap<>();
+        for (Inventory inventory : inventoryRepository.findBySkuIds(skuIds)) {
+            available.put(inventory.skuId(), inventory.available());
+        }
+        List<ProductDocument> documents = new ArrayList<>(products.size());
+        for (Product product : products) {
+            // 任一可買的 SKU 還有量就算有貨——使用者問的是「這個商品買不買得到」
+            boolean inStock = product.skus().stream()
+                    .anyMatch(sku -> sku.isPurchasable() && available.getOrDefault(sku.id(), 0) > 0);
+            documents.add(ProductDocument.from(product,
+                    ratings.getOrDefault(product.id(), ProductRating.empty(product.id())), inStock));
+        }
+        return documents;
     }
 
     /** {@inheritDoc} */
     @Override
     public void index(Product product) {
+        ProductDocument document = assemble(List.of(product)).get(0);
         withAliasSelfHeal(() -> client.index(request -> request
                         .index(ALIAS)
                         // 文件 ID 用商品 ID：寫入是覆寫而非新增，天然冪等。
                         // Outbox 是至少一次語意，重複投遞只是再寫一次同樣的內容
                         .id(String.valueOf(product.id()))
-                        .document(ProductDocument.from(product))),
+                        .document(document)),
                 "寫入搜尋索引失敗 productId=" + product.id());
         // 重建進行中時同一份也寫進新索引，否則這筆變更會在切換 alias 時被丟掉
         String target = rebuildTarget.get();
@@ -79,7 +117,7 @@ public class ElasticsearchProductSearchIndex implements ProductSearchIndex {
             withAliasSelfHeal(() -> client.index(request -> request
                             .index(target)
                             .id(String.valueOf(product.id()))
-                            .document(ProductDocument.from(product))),
+                            .document(document)),
                     "寫入重建中的搜尋索引失敗 productId=" + product.id());
         }
     }
@@ -233,6 +271,7 @@ public class ElasticsearchProductSearchIndex implements ProductSearchIndex {
             SearchResponse<ProductDocument> response = client.search(request -> request
                             .index(ALIAS)
                             .query(buildQuery(query))
+                            .sort(sortOf(query))
                             .from(query.page() * query.size())
                             .size(query.size())
                             .aggregations(FACET_BRAND, agg -> agg
@@ -266,8 +305,53 @@ public class ElasticsearchProductSearchIndex implements ProductSearchIndex {
                 bool.filter(filter -> filter.term(term -> term
                         .field("brand.keyword").value(query.brand())));
             }
+            if (query.minPrice() != null || query.maxPrice() != null) {
+                bool.filter(filter -> filter.range(range -> {
+                    range.field("lowestPrice");
+                    if (query.minPrice() != null) {
+                        range.gte(co.elastic.clients.json.JsonData.of(query.minPrice()));
+                    }
+                    if (query.maxPrice() != null) {
+                        range.lte(co.elastic.clients.json.JsonData.of(query.maxPrice()));
+                    }
+                    return range;
+                }));
+            }
+            if (query.minRating() != null) {
+                bool.filter(filter -> filter.range(range -> range
+                        .field("ratingAverage")
+                        .gte(co.elastic.clients.json.JsonData.of(query.minRating()))));
+            }
+            if (query.inStockOnly()) {
+                bool.filter(filter -> filter.term(term -> term.field("inStock").value(true)));
+            }
             return bool;
         }));
+    }
+
+    /**
+     * 排序。沒有關鍵字時「相關性」沒有意義（全部同分），退化成最新上架，
+     * 否則使用者看到的順序等於文件寫入順序——看起來像壞掉。
+     */
+    private static List<SortOptions> sortOf(SearchQuery query) {
+        SearchSort sort = query.sort() == null ? SearchSort.RELEVANCE : query.sort();
+        boolean hasKeyword = query.keyword() != null && !query.keyword().isBlank();
+        if (sort == SearchSort.RELEVANCE && !hasKeyword) {
+            sort = SearchSort.NEWEST;
+        }
+        return switch (sort) {
+            case RELEVANCE -> List.of(SortOptions.of(o -> o.score(sc -> sc.order(SortOrder.Desc))));
+            case PRICE_ASC -> List.of(field("lowestPrice", SortOrder.Asc));
+            case PRICE_DESC -> List.of(field("lowestPrice", SortOrder.Desc));
+            // 同分時筆數多的在前：一則五星不該贏過一百則四點九星
+            case RATING -> List.of(field("ratingAverage", SortOrder.Desc),
+                    field("ratingCount", SortOrder.Desc));
+            case NEWEST -> List.of(field("createdAt", SortOrder.Desc));
+        };
+    }
+
+    private static SortOptions field(String name, SortOrder order) {
+        return SortOptions.of(o -> o.field(f -> f.field(name).order(order)));
     }
 
     private static ProductSearchResult toResult(SearchResponse<ProductDocument> response) {
@@ -299,7 +383,8 @@ public class ElasticsearchProductSearchIndex implements ProductSearchIndex {
                     .stream()
                     .map(product -> new ProductSearchResult.Hit(
                             product.id(), product.name(), product.brand(),
-                            product.categoryId(), product.lowestPrice()))
+                            product.categoryId(), product.lowestPrice(),
+                            java.math.BigDecimal.ZERO, 0, true))
                     .toList();
             return new ProductSearchResult(hits, hits.size(), Map.of(), true);
         } catch (RuntimeException e) {
@@ -335,11 +420,11 @@ public class ElasticsearchProductSearchIndex implements ProductSearchIndex {
                     break;
                 }
                 List<BulkOperation> operations = new ArrayList<>(batch.size());
-                for (Product product : batch) {
+                for (ProductDocument document : assemble(batch)) {
                     operations.add(BulkOperation.of(op -> op.index(idx -> idx
                             .index(target)
-                            .id(String.valueOf(product.id()))
-                            .document(ProductDocument.from(product)))));
+                            .id(String.valueOf(document.productId()))
+                            .document(document))));
                 }
                 client.bulk(request -> request.operations(operations));
                 total += batch.size();

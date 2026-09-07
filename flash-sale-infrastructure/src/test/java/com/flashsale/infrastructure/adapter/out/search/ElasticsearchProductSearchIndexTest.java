@@ -2,7 +2,9 @@ package com.flashsale.infrastructure.adapter.out.search;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import com.flashsale.application.port.in.dto.ProductSearchResult;
+import com.flashsale.application.port.out.InventoryRepository;
 import com.flashsale.application.port.out.ProductRepository;
+import com.flashsale.application.port.out.ReviewRepository;
 import com.flashsale.application.port.out.ProductSearchIndex;
 import com.flashsale.domain.catalog.Product;
 import com.flashsale.domain.catalog.ProductStatus;
@@ -53,12 +55,17 @@ class ElasticsearchProductSearchIndexTest {
     private ProductIndexAdmin indexAdmin;
     @Mock
     private ProductRepository productRepository;
+    @Mock
+    private ReviewRepository reviewRepository;
+    @Mock
+    private InventoryRepository inventoryRepository;
 
     private ElasticsearchProductSearchIndex index;
 
     @BeforeEach
     void setUp() {
-        index = new ElasticsearchProductSearchIndex(client, indexAdmin, productRepository);
+        index = new ElasticsearchProductSearchIndex(client, indexAdmin, productRepository,
+                reviewRepository, inventoryRepository);
         when(indexAdmin.createNextVersion()).thenReturn("products_v1");
     }
 
@@ -185,7 +192,7 @@ class ElasticsearchProductSearchIndexTest {
                     .thenReturn(List.of(product(1L)));
 
             ProductSearchResult result = index.search(
-                    new ProductSearchIndex.SearchQuery("商品", null, null, 0, 20));
+                    new ProductSearchIndex.SearchQuery("商品", null, null, null, null, null, false, null, 0, 20));
 
             assertThat(result.degraded()).isTrue();
             assertThat(result.hits()).hasSize(1);
@@ -203,7 +210,7 @@ class ElasticsearchProductSearchIndexTest {
                     .thenThrow(new RuntimeException("DB 也掛了"));
 
             ProductSearchResult result = index.search(
-                    new ProductSearchIndex.SearchQuery("商品", null, null, 0, 20));
+                    new ProductSearchIndex.SearchQuery("商品", null, null, null, null, null, false, null, 0, 20));
 
             assertThat(result.hits()).isEmpty();
             assertThat(result.degraded()).isTrue();

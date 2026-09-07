@@ -1,15 +1,46 @@
 <script setup lang="ts">
 import { errorMessage, useApi } from '~/composables/useApi'
-import type { ProductSearchResult } from '~/types/api'
+import type { ProductSearchResult, ProductSearchSort } from '~/types/api'
 
 /** 商品搜尋（ADR-0012）。 */
 const route = useRoute()
 const router = useRouter()
 const { request } = useApi()
 
+const SORT_OPTIONS: { value: ProductSearchSort, label: string }[] = [
+  { value: 'RELEVANCE', label: '最相關' },
+  { value: 'PRICE_ASC', label: '價格低到高' },
+  { value: 'PRICE_DESC', label: '價格高到低' },
+  { value: 'RATING', label: '評分最高' },
+  { value: 'NEWEST', label: '最新上架' },
+]
+const RATING_OPTIONS = [4, 3] as const
+
+function readRating(raw: unknown): number | null {
+  const value = Number(raw)
+  return (RATING_OPTIONS as readonly number[]).includes(value) ? value : null
+}
+
+function readSort(raw: unknown): ProductSearchSort {
+  return SORT_OPTIONS.some((option) => option.value === raw) ? raw as ProductSearchSort : 'RELEVANCE'
+}
+
 const keyword = ref((route.query.q as string) ?? '')
 const brand = ref((route.query.brand as string) ?? '')
+/**
+ * 篩選與排序全部住在網址裡：分享、回上一頁、重新整理都要回到同一份結果。
+ * 這裡的 ref 只是輸入框的暫存，送出才寫進 query。
+ */
+const minInput = ref((route.query.minPrice as string) ?? '')
+const maxInput = ref((route.query.maxPrice as string) ?? '')
+const minRating = ref<number | null>(readRating(route.query.minRating))
+const inStock = ref(route.query.inStock === '1')
+const sort = ref<ProductSearchSort>(readSort(route.query.sort))
 const result = ref<ProductSearchResult | null>(null)
+
+/** 有沒有任何篩選在作用。有的話才顯示「清除篩選」，沒有時那顆按鈕只是噪音。 */
+const filtered = computed(() =>
+  minInput.value !== '' || maxInput.value !== '' || minRating.value !== null || inStock.value)
 const loading = ref(false)
 const error = ref<string | null>(null)
 
@@ -20,6 +51,21 @@ async function run() {
     const params = new URLSearchParams({ q: keyword.value })
     if (brand.value) {
       params.set('brand', brand.value)
+    }
+    if (minInput.value.trim() !== '') {
+      params.set('minPrice', minInput.value.trim())
+    }
+    if (maxInput.value.trim() !== '') {
+      params.set('maxPrice', maxInput.value.trim())
+    }
+    if (minRating.value !== null) {
+      params.set('minRating', String(minRating.value))
+    }
+    if (inStock.value) {
+      params.set('inStock', 'true')
+    }
+    if (sort.value !== 'RELEVANCE') {
+      params.set('sort', sort.value)
     }
     result.value = await request<ProductSearchResult>(`/api/v1/search/products?${params}`)
   } catch (cause) {
@@ -35,8 +81,36 @@ async function submit() {
     query: {
       ...(keyword.value ? { q: keyword.value } : {}),
       ...(brand.value ? { brand: brand.value } : {}),
+      ...(minInput.value.trim() ? { minPrice: minInput.value.trim() } : {}),
+      ...(maxInput.value.trim() ? { maxPrice: maxInput.value.trim() } : {}),
+      ...(minRating.value !== null ? { minRating: String(minRating.value) } : {}),
+      ...(inStock.value ? { inStock: '1' } : {}),
+      ...(sort.value !== 'RELEVANCE' ? { sort: sort.value } : {}),
     },
   })
+}
+
+function pickRating(stars: number) {
+  minRating.value = minRating.value === stars ? null : stars
+  submit()
+}
+
+function toggleInStock() {
+  inStock.value = !inStock.value
+  submit()
+}
+
+function changeSort(event: Event) {
+  sort.value = readSort((event.target as HTMLSelectElement).value)
+  submit()
+}
+
+function clearFilters() {
+  minInput.value = ''
+  maxInput.value = ''
+  minRating.value = null
+  inStock.value = false
+  submit()
 }
 
 function pickBrand(name: string) {
@@ -49,6 +123,11 @@ function pickBrand(name: string) {
 watch(() => route.query, () => {
   keyword.value = (route.query.q as string) ?? ''
   brand.value = (route.query.brand as string) ?? ''
+  minInput.value = (route.query.minPrice as string) ?? ''
+  maxInput.value = (route.query.maxPrice as string) ?? ''
+  minRating.value = readRating(route.query.minRating)
+  inStock.value = route.query.inStock === '1'
+  sort.value = readSort(route.query.sort)
   run()
 }, { immediate: true })
 
@@ -184,6 +263,72 @@ watchEffect(() => {
       </button>
     </div>
 
+    <!-- 篩選與排序。降級時後端會忽略評分與有貨，上方的提示已經說了「篩選可能不完整」 -->
+    <div class="mt-4 flex flex-wrap items-center gap-x-4 gap-y-3 rounded-sm border border-line bg-surface px-4 py-3">
+      <div class="flex items-center gap-2">
+        <span class="eyebrow">價格</span>
+        <label class="sr-only" for="search-min-price">最低價</label>
+        <input
+          id="search-min-price" v-model="minInput" type="number" min="0" inputmode="numeric"
+          placeholder="最低" class="field figure w-24 !py-1.5 text-xs" @keyup.enter="submit"
+        >
+        <span class="text-xs text-ink-faint">–</span>
+        <label class="sr-only" for="search-max-price">最高價</label>
+        <input
+          id="search-max-price" v-model="maxInput" type="number" min="0" inputmode="numeric"
+          placeholder="最高" class="field figure w-24 !py-1.5 text-xs" @keyup.enter="submit"
+        >
+        <AppButton variant="secondary" size="sm" @click="submit">套用</AppButton>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <span class="eyebrow">評分</span>
+        <button
+          v-for="stars in RATING_OPTIONS"
+          :key="stars"
+          type="button"
+          :aria-pressed="minRating === stars"
+          class="h-8 rounded-sm border px-3 text-xs transition-colors"
+          :class="minRating === stars
+            ? 'border-cta bg-accent-soft font-medium text-accent'
+            : 'border-line hover:border-line-strong'"
+          @click="pickRating(stars)"
+        >
+          {{ stars }} 星以上
+        </button>
+      </div>
+
+      <button
+        type="button"
+        :aria-pressed="inStock"
+        class="h-8 rounded-sm border px-3 text-xs transition-colors"
+        :class="inStock
+          ? 'border-cta bg-accent-soft font-medium text-accent'
+          : 'border-line hover:border-line-strong'"
+        @click="toggleInStock"
+      >
+        只看有貨
+      </button>
+
+      <label class="ml-auto flex items-center gap-2 text-xs text-ink-muted">
+        排序
+        <select :value="sort" class="field !w-auto !py-1.5 text-xs" @change="changeSort">
+          <option v-for="option in SORT_OPTIONS" :key="option.value" :value="option.value">
+            {{ option.label }}
+          </option>
+        </select>
+      </label>
+
+      <button
+        v-if="filtered"
+        type="button"
+        class="text-xs text-ink-muted underline-offset-4 hover:text-ink hover:underline"
+        @click="clearFilters"
+      >
+        清除篩選
+      </button>
+    </div>
+
     <div v-if="loading" class="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       <SkeletonCard v-for="n in 6" :key="n" />
     </div>
@@ -201,6 +346,14 @@ watchEffect(() => {
               <div class="p-4">
                 <p v-if="hit.brand" class="eyebrow">{{ hit.brand }}</p>
                 <p class="mt-1 truncate font-medium">{{ hit.name }}</p>
+                <div class="mt-1 flex items-center gap-2 text-[11px] text-ink-faint">
+                  <template v-if="hit.ratingCount > 0">
+                    <StarRating :value="hit.ratingAverage" size="sm" />
+                    <span class="figure">({{ hit.ratingCount }})</span>
+                  </template>
+                  <span v-else>尚無評價</span>
+                  <span v-if="!hit.inStock && !result.degraded" class="ml-auto text-danger">缺貨中</span>
+                </div>
                 <!--
                   價格是索引當下的快照，允許落後數秒。
                   點進商品頁會重新從 Catalog 讀，結帳完全不碰這份索引。

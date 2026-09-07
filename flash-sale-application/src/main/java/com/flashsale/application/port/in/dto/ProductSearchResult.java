@@ -13,12 +13,16 @@ public record ProductSearchResult(
 ) {
 
     /** 一筆命中。 */
+    /** 評分與有貨是索引當下的快照，允許落後；結帳完全不碰這份索引。 */
     public record Hit(
             Long productId,
             String name,
             String brand,
             Long categoryId,
-            BigDecimal lowestPrice
+            BigDecimal lowestPrice,
+            BigDecimal ratingAverage,
+            int ratingCount,
+            boolean inStock
     ) {
     }
 

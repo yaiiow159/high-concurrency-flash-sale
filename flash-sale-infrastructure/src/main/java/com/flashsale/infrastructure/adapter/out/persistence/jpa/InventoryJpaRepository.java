@@ -38,6 +38,10 @@ public interface InventoryJpaRepository extends JpaRepository<InventoryEntity, L
                          @Param("quantity") int quantity,
                          @Param("now") Instant now);
 
+    /** 可售量。跨越零的判斷用，只讀一個欄位。 */
+    @Query("select i.available from InventoryEntity i where i.skuId = :skuId")
+    Integer findAvailable(@Param("skuId") Long skuId);
+
     @Query("select i.skuId from InventoryEntity i order by i.skuId")
     List<Long> findAllSkuIds(org.springframework.data.domain.Pageable pageable);
 }

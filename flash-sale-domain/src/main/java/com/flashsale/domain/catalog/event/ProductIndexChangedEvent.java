@@ -16,7 +16,12 @@ public record ProductIndexChangedEvent(
     public static final String TYPE = "product.index-changed";
 
     public static ProductIndexChangedEvent of(Product product, Instant now) {
-        return new ProductIndexChangedEvent(UUID.randomUUID().toString(), product.id(), now);
+        return of(product.id(), now);
+    }
+
+    /** 評分或庫存變了：手上只有商品 ID，沒有聚合根。 */
+    public static ProductIndexChangedEvent of(Long productId, Instant now) {
+        return new ProductIndexChangedEvent(UUID.randomUUID().toString(), productId, now);
     }
 
     @Override

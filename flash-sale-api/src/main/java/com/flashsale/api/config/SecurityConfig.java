@@ -104,6 +104,8 @@ public class SecurityConfig {
                                 "/api/v1/catalog/sitemap",
                                 // 「看了又看」不含身分，而它出現在可快取的商品頁上
                                 "/api/v1/catalog/products/*/also-viewed",
+                                // 排行榜同理：首頁與 /rankings 都是 ISR 快取的
+                                "/api/v1/catalog/rankings",
                                 // 搜尋不帶身分也不改狀態，而且是使用者進站的第一個動作。
                                 // 要求登入才能搜尋等於把人擋在門外
                                 "/api/v1/search/products",

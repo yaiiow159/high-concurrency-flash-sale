@@ -1,5 +1,6 @@
 package com.flashsale.application.port.in;
 
+import java.math.BigDecimal;
 import java.util.List;
 import com.flashsale.application.port.in.dto.ProductSearchResult;
 import com.flashsale.domain.catalog.event.ProductIndexChangedEvent;
@@ -10,6 +11,14 @@ import com.flashsale.domain.catalog.event.ProductIndexChangedEvent;
 public interface ProductSearchUseCase {
 
     ProductSearchResult search(String keyword, Long categoryId, String brand, int page, int size);
+
+    /** 帶篩選與排序的搜尋。 */
+    ProductSearchResult search(SearchRequest request);
+
+    record SearchRequest(String keyword, Long categoryId, String brand,
+                         BigDecimal minPrice, BigDecimal maxPrice, Integer minRating,
+                         boolean inStockOnly, String sort, int page, int size) {
+    }
 
     /** 消費 {@code product.index-changed} 事件更新索引。 */
     void applyIndexChange(ProductIndexChangedEvent event);

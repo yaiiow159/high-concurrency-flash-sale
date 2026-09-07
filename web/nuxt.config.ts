@@ -40,6 +40,8 @@ export default defineNuxtConfig({
     // 商品頁同樣可快取：回應不含庫存也不含身分（庫存另外請求）。
     // 已驗證匿名與已登入的 SSR 輸出逐位元組相同，因此共用快取不會外洩個資
     '/products': { isr: 300, cache: { maxAge: 300 } },
+    // 排行榜與首頁一樣不含身分；銷量每五分鐘變一次名次沒有人會發現
+    '/rankings': { isr: 300, cache: { maxAge: 300 } },
     '/products/**': { isr: 300, cache: { maxAge: 300 } },
 
     // 訂單頁絕不快取——那是安全邊界而非效能取捨：被 CDN 快取等於把某個人的訂單發給下一個訪客

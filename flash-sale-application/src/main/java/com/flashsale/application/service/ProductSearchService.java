@@ -12,6 +12,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 
 /** 商品搜尋。 */
@@ -34,10 +35,31 @@ public class ProductSearchService implements ProductSearchUseCase {
     @Override
     public ProductSearchResult search(String keyword, Long categoryId, String brand,
                                       int page, int size) {
-        Page paging = Page.of(page, size, MAX_PAGE_SIZE);
+        return search(new SearchRequest(keyword, categoryId, brand,
+                null, null, null, false, null, page, size));
+    }
+
+    @Override
+    public ProductSearchResult search(SearchRequest request) {
+        Page paging = Page.of(request.page(), request.size(), MAX_PAGE_SIZE);
         return searchIndex.search(new ProductSearchIndex.SearchQuery(
-                keyword == null ? "" : keyword.trim(),
-                categoryId, brand, paging.number(), paging.size()));
+                request.keyword() == null ? "" : request.keyword().trim(),
+                request.categoryId(), request.brand(),
+                request.minPrice(), request.maxPrice(), request.minRating(),
+                request.inStockOnly(), parseSort(request.sort()),
+                paging.number(), paging.size()));
+    }
+
+    /** 不認得的排序名回退成相關性，而不是 400——那是使用者改網址就會撞到的事。 */
+    private static ProductSearchIndex.SearchSort parseSort(String sort) {
+        if (sort == null || sort.isBlank()) {
+            return ProductSearchIndex.SearchSort.RELEVANCE;
+        }
+        try {
+            return ProductSearchIndex.SearchSort.valueOf(sort.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            return ProductSearchIndex.SearchSort.RELEVANCE;
+        }
     }
 
     /** {@inheritDoc} */
