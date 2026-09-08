@@ -3,3 +3,5 @@ probe-*.json
 sample-*.json
 metrics-*.txt
 tokens.json
+read-result.md
+read-progress.log
