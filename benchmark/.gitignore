@@ -1,0 +1,7 @@
+# 每次跑出來的原始量測，內容依機器而異，結論寫在 docs/performance.md
+probe-*.json
+sample-*.json
+metrics-*.txt
+tokens.json
+read-result.md
+read-progress.log

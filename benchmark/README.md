@@ -106,3 +106,57 @@ curl -X POST localhost:8080/api/v1/admin/search/reindex -H "Authorization: Beare
 
 **索引一定要跟著重建。** 只清資料庫的話，搜尋還會回傳那 5 萬筆已經不存在的商品，
 而那個症狀（搜得到、點進去 404）看起來會像搜尋壞了，不像沒清乾淨。
+
+---
+
+## 產能歸因（2026-09-08）
+
+原始報告只量到「吞吐打平在 1.1k–1.5k」，沒有回答為什麼。這組腳本回答它。
+
+```bash
+bash run-capacity-probe.sh      # A–C：背景負載、JIT
+bash run-bottleneck-probe.sh    # D–E：執行緒、acks
+bash run-latency-breakdown.sh   # F：應用內部 vs 應用外排隊
+bash run-soldout-probe.sh       # I–J：有庫存 vs 已售罄
+node summarise-probes.mjs       # 收成一張對照表
+```
+
+結論寫在 [`docs/performance.md`](../docs/performance.md) 的〈上限從哪裡來〉。
+
+### 跑之前必須知道的三件事
+
+這三個坑會系統性壓低數字，腳本裡都已經處理，但手動重跑時要自己注意：
+
+**用 `java -jar`，不要用 `mvn spring-boot:run`。** 後者預設帶
+`-XX:TieredStopAtLevel=1`（`optimizedLaunch` 預設為 true），關掉 C2 編譯器，
+量到的吞吐低 13%。
+
+**開跑前把 Kafka 積壓排空。** 一輪 500 併發會產生近三萬筆訊息，
+消費端要 2–3 分鐘才追得完；期間 11 個消費端的 21 條執行緒與 HTTP 請求
+搶同一個 50 條的 Hikari 連線池，下一輪量到的是「壓測 + 追積壓」的混合。
+
+```bash
+docker compose exec -T kafka /opt/kafka/bin/kafka-consumer-groups.sh \
+  --bootstrap-server localhost:9092 --describe --group seckill-order-creator
+```
+
+**每輪重新登入。** access token 只有 15 分鐘，過期後整輪量到的是 401 的拒絕成本
+（會看到漂亮的五千多 TPS，那是假的）。`capacity-probe.mjs` 會在非預期狀態碼
+超過 5% 時標記該輪無效。
+
+### 兩個限流器都要解除
+
+不解除的話量到的是限流器：
+
+| 設定 | 預設 | 作用 |
+|---|---|---|
+| `flash-sale.rate-limit.capacity` / `refill-per-second` | 5 / 1 | 單使用者令牌桶（在 Redis 上） |
+| `resilience4j.ratelimiter.instances.seckill.limit-for-period` | 2000 | 單機整體 |
+
+注意第二個是 2,000/s——**任何宣稱超過這個數字的量測，都必須先確認它被解除了**。
+
+### acks 不能單獨降
+
+`enable.idempotence: true` 要求 `acks=all`。只改 acks 會讓生產者建立失敗
+（`ConfigException`），整輪回 503。要做這個對照必須同時關掉冪等，
+而那會改變 ADR-0030 的正確性前提。
