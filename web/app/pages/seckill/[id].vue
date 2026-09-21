@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useAuthStore } from '~/stores/auth'
 import { useApi } from '~/composables/useApi'
+import { describeQueue } from '~/utils/describeQueue'
 import type { ActivityView, PaymentIntentView } from '~/types/api'
 
 /**
@@ -19,7 +20,7 @@ const { data: initialActivity } = await useFetch<{ data: ActivityView }>(
 
 const {
   activity, outcome, submitting, serverNow,
-  seedFromServerRender, loadActivity, startStockPolling, attempt, reset,
+  seedFromServerRender, loadActivity, startStockPolling, attempt, resumePending, reset,
   qualification, qualified, challenge, qualifying, qualificationError,
   restoreQualification, loadChallenge, qualify,
 } = useSeckill(activityId)
@@ -52,14 +53,22 @@ onMounted(async () => {
   await loadActivity().catch(() => undefined)
   startStockPolling()
   restoreQualification()
-  if (auth.isAuthenticated && !qualified.value) {
-    loadChallenge().catch(() => undefined)
+  if (auth.isAuthenticated) {
+    void resumePending()
+    if (!qualified.value) {
+      loadChallenge().catch(() => undefined)
+    }
   }
 })
 
-// 登入之後才需要題目；沒登入時領也沒用
+// 登入之後才需要題目；沒登入時領也沒用。
+// 重整後令牌是非同步續期回來的，接回未完成的搶購也要等這一刻
 watch(() => auth.isAuthenticated, (loggedIn) => {
-  if (loggedIn && !qualified.value) {
+  if (!loggedIn) {
+    return
+  }
+  void resumePending()
+  if (!qualified.value) {
     loadChallenge().catch(() => undefined)
   }
 })
@@ -92,24 +101,8 @@ async function payNow(orderNo: string): Promise<void> {
   }
 }
 
-/** 排隊提示。 等待秒數為 -1 代表**算不出來**（速率還沒量到），此時只說「排隊中」—— 顯示「約 0 秒」然後讓人等四十分鐘，比誠實承認不知道更糟。 */
-const queueHint = computed(() => {
-  if (outcome.value.kind !== 'processing') {
-    return null
-  }
-  const queue = outcome.value.queue
-  if (!queue) {
-    return null
-  }
-  const ahead = `前面約 ${queue.ahead.toLocaleString()} 筆`
-  if (queue.estimatedWaitSeconds < 0) {
-    return `${ahead}，時間待估`
-  }
-  const minutes = Math.ceil(queue.estimatedWaitSeconds / 60)
-  return queue.estimatedWaitSeconds < 60
-    ? `${ahead}，約 ${queue.estimatedWaitSeconds} 秒`
-    : `${ahead}，約 ${minutes} 分鐘`
-})
+const queueHint = computed(() =>
+  outcome.value.kind === 'processing' ? describeQueue(outcome.value.queue) : null)
 
 const { seo } = useSeo()
 watchEffect(() => {
