@@ -3,6 +3,7 @@ package com.flashsale.infrastructure.adapter.out.persistence;
 import com.flashsale.application.port.out.PaymentRepository;
 import com.flashsale.domain.order.OrderNo;
 import com.flashsale.domain.payment.Payment;
+import com.flashsale.domain.payment.PaymentMethod;
 import com.flashsale.domain.payment.PaymentNo;
 import com.flashsale.domain.payment.PaymentStatus;
 import com.flashsale.infrastructure.adapter.out.persistence.entity.PaymentEntity;
@@ -30,7 +31,7 @@ public class JpaPaymentRepository implements PaymentRepository {
         PaymentEntity entity = payment.id() == null
                 ? new PaymentEntity(payment.paymentNo().value(), payment.orderNo().value(),
                         payment.userId(), payment.amount(), payment.status().name(),
-                        payment.gatewayTransactionId(), payment.createdAt(),
+                        payment.method().name(), payment.gatewayTransactionId(), payment.createdAt(),
                         payment.paidAt(), payment.failureReason())
                 : loadAndApply(payment);
         return toDomain(jpaRepository.save(entity));
@@ -40,8 +41,9 @@ public class JpaPaymentRepository implements PaymentRepository {
         PaymentEntity entity = jpaRepository.findById(payment.id())
                 .orElseThrow(() -> new IllegalStateException(
                         "更新付款單時找不到紀錄 id=" + payment.id()));
-        entity.applyStateChange(payment.status().name(), payment.gatewayTransactionId(),
-                payment.paidAt(), payment.failureReason(), payment.refundedAmount());
+        entity.applyStateChange(payment.status().name(), payment.method().name(),
+                payment.gatewayTransactionId(), payment.paidAt(), payment.failureReason(),
+                payment.refundedAmount());
         return entity;
     }
 
@@ -73,6 +75,7 @@ public class JpaPaymentRepository implements PaymentRepository {
                 entity.getUserId(),
                 entity.getAmount(),
                 PaymentStatus.valueOf(entity.getStatus()),
+                PaymentMethod.parse(entity.getMethod()),
                 entity.getGatewayTransactionId(),
                 entity.getCreatedAt(),
                 entity.getPaidAt(),

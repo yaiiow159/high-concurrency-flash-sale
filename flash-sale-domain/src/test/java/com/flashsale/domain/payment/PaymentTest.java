@@ -172,6 +172,61 @@ class PaymentTest {
         }
     }
 
+    @Nested
+    @DisplayName("付款方式")
+    class Method {
+
+        @Test
+        @DisplayName("沒指定時走預設——秒殺頁搶到後一鍵付款，不帶任何選擇")
+        void defaultsWhenUnspecified() {
+            assertThat(pending().method()).isEqualTo(PaymentMethod.DEFAULT);
+            assertThat(PaymentMethod.parse(null)).isEqualTo(PaymentMethod.DEFAULT);
+            assertThat(PaymentMethod.parse("  ")).isEqualTo(PaymentMethod.DEFAULT);
+        }
+
+        @Test
+        @DisplayName("認不得的值要拒絕，不可安靜地當成預設——那會讓人以為選的方式生效了")
+        void rejectsUnknownMethod() {
+            assertThatThrownBy(() -> PaymentMethod.parse("BITCOIN"))
+                    .isInstanceOf(BusinessException.class)
+                    .extracting(e -> ((BusinessException) e).errorCode())
+                    .isEqualTo(ErrorCode.INVALID_PARAMETER);
+        }
+
+        @Test
+        @DisplayName("還沒有結果時可以換")
+        void changeableWhilePending() {
+            Payment payment = pending();
+
+            payment.chooseMethod(PaymentMethod.ATM_TRANSFER);
+
+            assertThat(payment.method()).isEqualTo(PaymentMethod.ATM_TRANSFER);
+        }
+
+        @Test
+        @DisplayName("錢進來之後不可改——「當初怎麼付的」是對帳依據")
+        void frozenAfterSuccess() {
+            Payment payment = pending();
+            payment.markSucceeded(TXN, NOW);
+
+            assertThatThrownBy(() -> payment.chooseMethod(PaymentMethod.LINE_PAY))
+                    .isInstanceOf(BusinessException.class);
+            assertThat(payment.method()).isEqualTo(PaymentMethod.DEFAULT);
+        }
+
+        @Test
+        @DisplayName("失敗後重試可以換一種方式付")
+        void changeableAfterRetry() {
+            Payment payment = pending();
+            payment.markFailed("餘額不足", NOW);
+            payment.retry(NOW);
+
+            payment.chooseMethod(PaymentMethod.LINE_PAY);
+
+            assertThat(payment.method()).isEqualTo(PaymentMethod.LINE_PAY);
+        }
+    }
+
     private static Payment pending() {
         return Payment.initiate(PaymentNo.of("PAY-220349960435007499"),
                 OrderNo.of("220349960435007488"), 42L, AMOUNT, NOW);

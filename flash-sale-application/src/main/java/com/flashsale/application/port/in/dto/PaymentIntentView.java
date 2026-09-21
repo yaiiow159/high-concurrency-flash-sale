@@ -5,6 +5,7 @@ public record PaymentIntentView(
         String paymentNo,
         String orderNo,
         String paymentUrl,
-        String status
+        String status,
+        String method
 ) {
 }

@@ -24,6 +24,7 @@ public final class Payment {
     private final Instant createdAt;
 
     private PaymentStatus status;
+    private PaymentMethod method;
     private String gatewayTransactionId;
     private Instant paidAt;
     private String failureReason;
@@ -34,7 +35,7 @@ public final class Payment {
     private final List<DomainEvent> domainEvents = new ArrayList<>();
 
     private Payment(Long id, PaymentNo paymentNo, OrderNo orderNo, Long userId, BigDecimal amount,
-                    PaymentStatus status, String gatewayTransactionId, Instant createdAt,
+                    PaymentStatus status, PaymentMethod method, String gatewayTransactionId, Instant createdAt,
                     Instant paidAt, String failureReason, BigDecimal refundedAmount, long version) {
         this.id = id;
         this.paymentNo = Objects.requireNonNull(paymentNo, "paymentNo 不可為 null");
@@ -42,6 +43,7 @@ public final class Payment {
         this.userId = Objects.requireNonNull(userId, "userId 不可為 null");
         this.amount = requirePositive(amount);
         this.status = Objects.requireNonNull(status, "status 不可為 null");
+        this.method = method == null ? PaymentMethod.DEFAULT : method;
         this.gatewayTransactionId = gatewayTransactionId;
         this.createdAt = Objects.requireNonNull(createdAt, "createdAt 不可為 null");
         this.paidAt = paidAt;
@@ -53,16 +55,45 @@ public final class Payment {
     /** 發起付款。金額由訂單決定，不接受呼叫端傳入——否則前端就能自己決定要付多少。 */
     public static Payment initiate(PaymentNo paymentNo, OrderNo orderNo, Long userId,
                                    BigDecimal amount, Instant now) {
+        return initiate(paymentNo, orderNo, userId, amount, PaymentMethod.DEFAULT, now);
+    }
+
+    public static Payment initiate(PaymentNo paymentNo, OrderNo orderNo, Long userId,
+                                   BigDecimal amount, PaymentMethod method, Instant now) {
         return new Payment(null, paymentNo, orderNo, userId, amount,
-                PaymentStatus.PENDING, null, now, null, null, BigDecimal.ZERO, 0L);
+                PaymentStatus.PENDING, method, null, now, null, null, BigDecimal.ZERO, 0L);
     }
 
     public static Payment restore(Long id, PaymentNo paymentNo, OrderNo orderNo, Long userId,
                                   BigDecimal amount, PaymentStatus status, String gatewayTransactionId,
                                   Instant createdAt, Instant paidAt, String failureReason,
                                   BigDecimal refundedAmount, long version) {
-        return new Payment(id, paymentNo, orderNo, userId, amount, status,
+        return restore(id, paymentNo, orderNo, userId, amount, status, PaymentMethod.DEFAULT,
                 gatewayTransactionId, createdAt, paidAt, failureReason, refundedAmount, version);
+    }
+
+    public static Payment restore(Long id, PaymentNo paymentNo, OrderNo orderNo, Long userId,
+                                  BigDecimal amount, PaymentStatus status, PaymentMethod method,
+                                  String gatewayTransactionId, Instant createdAt, Instant paidAt,
+                                  String failureReason, BigDecimal refundedAmount, long version) {
+        return new Payment(id, paymentNo, orderNo, userId, amount, status, method,
+                gatewayTransactionId, createdAt, paidAt, failureReason, refundedAmount, version);
+    }
+
+    /**
+     * 改付款方式。只在還沒有結果時允許——錢已經進來之後，
+     * 「當初怎麼付的」是對帳依據，不可以被後來的操作改寫。
+     */
+    public void chooseMethod(PaymentMethod chosen) {
+        if (status != PaymentStatus.PENDING) {
+            throw new BusinessException(ErrorCode.ORDER_NOT_PAYABLE,
+                    "付款 %s 目前為 %s，不可再變更付款方式".formatted(paymentNo, status));
+        }
+        this.method = Objects.requireNonNull(chosen, "付款方式不可為 null");
+    }
+
+    public PaymentMethod method() {
+        return method;
     }
 
     /** 標記收款成功。 */

@@ -7,6 +7,7 @@ import com.flashsale.domain.order.Order;
 import com.flashsale.domain.order.OrderNo;
 import com.flashsale.domain.order.OrderStatus;
 import com.flashsale.domain.payment.Payment;
+import com.flashsale.domain.payment.PaymentMethod;
 import com.flashsale.domain.payment.PaymentStatus;
 import com.flashsale.domain.shared.BusinessException;
 import com.flashsale.domain.shared.ErrorCode;
@@ -42,30 +43,37 @@ public class PaymentPreparer {
     }
 
     @Transactional
-    public Payment prepare(String orderNo, Long userId) {
+    public Payment prepare(String orderNo, Long userId, PaymentMethod method) {
+        PaymentMethod chosen = method == null ? PaymentMethod.DEFAULT : method;
         Order order = requireOwnedOrder(OrderNo.of(orderNo), userId);
         if (order.status() != OrderStatus.PENDING_PAYMENT) {
             throw new BusinessException(ErrorCode.ORDER_NOT_PAYABLE,
                     "訂單目前為 %s，無法付款".formatted(order.status()));
         }
         return paymentRepository.findByOrderNo(order.orderNo())
-                .map(this::reuseOrRetry)
-                .orElseGet(() -> createPayment(order));
+                .map(existing -> reuseOrRetry(existing, chosen))
+                .orElseGet(() -> createPayment(order, chosen));
     }
 
     /** 重複發起時沿用既有付款單。 */
-    private Payment reuseOrRetry(Payment existing) {
-        if (existing.status() == PaymentStatus.FAILED) {
-            existing.retry(clock.instant());
-            return paymentRepository.save(existing);
-        }
+    private Payment reuseOrRetry(Payment existing, PaymentMethod chosen) {
         if (existing.status().moneyReceived()) {
             throw new BusinessException(ErrorCode.ORDER_NOT_PAYABLE, "此訂單已完成付款");
         }
-        return existing;
+        boolean changed = false;
+        if (existing.status() == PaymentStatus.FAILED) {
+            existing.retry(clock.instant());
+            changed = true;
+        }
+        // 使用者回頭換了付款方式：沿用同一張付款單，只改方式
+        if (existing.status() == PaymentStatus.PENDING && existing.method() != chosen) {
+            existing.chooseMethod(chosen);
+            changed = true;
+        }
+        return changed ? paymentRepository.save(existing) : existing;
     }
 
-    private Payment createPayment(Order order) {
+    private Payment createPayment(Order order, PaymentMethod method) {
         // 金額取自訂單，不接受呼叫端傳入——否則前端就能自己決定要付多少。
         //
         // **用 payableAmount() 而不是 totalAmount()**：後者不含運費（ADR-0019 決策 2）。
@@ -75,7 +83,7 @@ public class PaymentPreparer {
         // 退款上限跟著這個金額走，因此這一行同時決定了「運費退不退得出來」。
         return paymentRepository.save(Payment.initiate(
                 paymentNoGenerator.next(), order.orderNo(), order.userId(),
-                order.payableAmount(), clock.instant()));
+                order.payableAmount(), method, clock.instant()));
     }
 
     /** 查不到與不是本人一律回「不存在」：區分開來等於提供一支訂單號枚舉的 API。 */

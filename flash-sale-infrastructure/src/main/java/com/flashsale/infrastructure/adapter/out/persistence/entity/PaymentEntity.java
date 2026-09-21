@@ -47,6 +47,10 @@ public class PaymentEntity {
     @Column(name = "status", nullable = false, length = 24)
     private String status;
 
+    /** 付款還沒有結果時使用者可以回頭換，因此不是 updatable = false。 */
+    @Column(name = "method", nullable = false, length = 24)
+    private String method;
+
     /** 閘道交易編號，對帳時的唯一憑據。 */
     @Column(name = "gateway_transaction_id", length = 64)
     private String gatewayTransactionId;
@@ -73,13 +77,14 @@ public class PaymentEntity {
     }
 
     public PaymentEntity(String paymentNo, String orderNo, Long userId, BigDecimal amount,
-                         String status, String gatewayTransactionId, Instant createdAt,
+                         String status, String method, String gatewayTransactionId, Instant createdAt,
                          Instant paidAt, String failureReason) {
         this.paymentNo = paymentNo;
         this.orderNo = orderNo;
         this.userId = userId;
         this.amount = amount;
         this.status = status;
+        this.method = method;
         this.gatewayTransactionId = gatewayTransactionId;
         this.createdAt = createdAt;
         this.paidAt = paidAt;
@@ -87,9 +92,10 @@ public class PaymentEntity {
         this.refundedAmount = BigDecimal.ZERO;
     }
 
-    public void applyStateChange(String status, String gatewayTransactionId, Instant paidAt,
-                                 String failureReason, BigDecimal refundedAmount) {
+    public void applyStateChange(String status, String method, String gatewayTransactionId,
+                                 Instant paidAt, String failureReason, BigDecimal refundedAmount) {
         this.status = status;
+        this.method = method;
         this.gatewayTransactionId = gatewayTransactionId;
         this.paidAt = paidAt;
         this.failureReason = failureReason;
@@ -118,6 +124,10 @@ public class PaymentEntity {
 
     public BigDecimal getAmount() {
         return amount;
+    }
+
+    public String getMethod() {
+        return method;
     }
 
     public String getStatus() {
