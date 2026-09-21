@@ -12,17 +12,17 @@ const auth = useAuthStore()
 const cart = useCartStore()
 const route = useRoute()
 
-const { unreadCount, refreshUnreadCount } = useNotifications()
+const { unreadCount, refreshUnreadCount, watchUnreadCount } = useNotifications()
+watchUnreadCount()
 
 onMounted(() => {
   if (auth.isAuthenticated) {
     refreshUnreadCount()
   }
 })
-watch(() => auth.isAuthenticated, (loggedIn) => {
-  if (loggedIn) {
-    refreshUnreadCount()
-  }
+// 登出也要跑一次：它會把紅點歸零，否則下一個登入的人會先看到上一個人的未讀數
+watch(() => auth.isAuthenticated, () => {
+  refreshUnreadCount()
 })
 
 /** 分類列只取第二層的前幾個；根類目只有一個，第三層太多。 */

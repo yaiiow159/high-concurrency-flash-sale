@@ -246,6 +246,13 @@ const selectedSku = computed<SkuView | null>(
 )
 
 const quantity = ref(1)
+/** 後端只在庫存偏低時才給確切數字；那正是需要擋的時候——「僅剩 3 件」旁邊不該選得到 10 件。 */
+const maxQuantity = computed(() => Math.max(1, selectedStock.value?.available ?? 999))
+watch(maxQuantity, (max) => {
+  if (quantity.value > max) {
+    quantity.value = max
+  }
+})
 const submitting = computed(() => state.value.kind === 'submitting')
 const canBuy = computed(
   () => auth.isAuthenticated
@@ -423,7 +430,7 @@ watchEffect(() => {
 
           <section class="mt-5 flex flex-wrap items-center gap-4">
             <h2 class="text-sm font-semibold">數量</h2>
-            <QuantityStepper v-model="quantity" :max="999" />
+            <QuantityStepper v-model="quantity" :max="maxQuantity" :disabled="soldOut" />
             <p
               v-if="stockHint"
               class="text-sm"
