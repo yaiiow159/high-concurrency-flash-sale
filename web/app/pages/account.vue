@@ -36,6 +36,15 @@ const ORDER_TILES = [
   { status: 'COMPLETED', label: '已完成', hint: '可評價、可退貨' },
 ] as const
 
+/** 次要入口。用得少但一定要找得到——找不到的下場是打客服。 */
+const SERVICE_LINKS = [
+  { to: '/restock-alerts', label: '到貨通知', hint: '我在等哪些商品' },
+  { to: '/questions', label: '我的提問', hint: '商家回覆了沒' },
+  { to: '/reviews', label: '我的評價', hint: '寫過的與待評價的' },
+  { to: '/returns', label: '退貨紀錄', hint: '進度與退款' },
+  { to: '/addresses', label: '收貨地址', hint: '新增或修改' },
+] as const
+
 const authed = { authenticated: true } as const
 
 /**
@@ -238,6 +247,26 @@ seo({ title: '我的帳戶', noindex: true })
             </NuxtLink>
           </li>
         </ul>
+      </section>
+
+      <section aria-labelledby="services-heading">
+        <h2 id="services-heading" class="eyebrow mb-3">更多服務</h2>
+        <AppCard class="overflow-hidden">
+          <ul class="grid grid-cols-2 divide-line sm:grid-cols-3 lg:grid-cols-5 lg:divide-x">
+            <li v-for="link in SERVICE_LINKS" :key="link.to">
+              <NuxtLink
+                :to="link.to"
+                class="group flex h-full flex-col gap-0.5 px-4 py-3.5 transition-colors hover:bg-sunken"
+              >
+                <span class="flex items-center justify-between text-sm font-medium group-hover:text-accent">
+                  {{ link.label }}
+                  <span class="text-ink-faint transition-transform group-hover:translate-x-0.5" aria-hidden="true">›</span>
+                </span>
+                <span class="text-[11px] text-ink-faint">{{ link.hint }}</span>
+              </NuxtLink>
+            </li>
+          </ul>
+        </AppCard>
       </section>
 
       <!-- 最近訂單：三筆就夠。要看更多的人會去訂單頁，這裡只是提醒「上次買的東西到了沒」 -->
