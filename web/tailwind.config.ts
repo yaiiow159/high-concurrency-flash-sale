@@ -1,6 +1,14 @@
 import type { Config } from 'tailwindcss'
 
 /**
+ * 純 `var(--x)` 的顏色吃不到 `/40` 這種透明度修飾——Tailwind 不知道怎麼替它加 alpha，
+ * 整個 class 會安靜地不產生。用 color-mix 把 alpha 接進去，`border-danger/40` 才會真的出現。
+ */
+function token(variable: string): string {
+  return `color-mix(in srgb, var(${variable}) calc(<alpha-value> * 100%), transparent)`
+}
+
+/**
  * 設計 token 一律從 CSS 變數取，而不是在這裡寫死色碼。
  * 主題只需要在 main.css 覆寫一組變數，元件不必各自處理。
  */
@@ -9,27 +17,27 @@ export default <Partial<Config>>{
   theme: {
     extend: {
       colors: {
-        ground: 'var(--ground)',
-        surface: 'var(--surface)',
-        sunken: 'var(--surface-sunken)',
-        line: 'var(--line)',
-        'line-strong': 'var(--line-strong)',
-        ink: 'var(--ink)',
-        'ink-muted': 'var(--ink-muted)',
-        'ink-faint': 'var(--ink-faint)',
-        'ink-inverse': 'var(--ink-inverse)',
-        accent: 'var(--accent)',
-        'accent-hover': 'var(--accent-hover)',
-        'accent-soft': 'var(--accent-soft)',
-        'on-accent': 'var(--on-accent)',
-        cta: 'var(--cta)',
-        'cta-hover': 'var(--cta-hover)',
-        'cta-active': 'var(--cta-active)',
-        danger: 'var(--danger)',
-        'danger-soft': 'var(--danger-soft)',
-        ok: 'var(--ok)',
-        'ok-soft': 'var(--ok-soft)',
-        star: 'var(--star)',
+        ground: token('--ground'),
+        surface: token('--surface'),
+        sunken: token('--surface-sunken'),
+        line: token('--line'),
+        'line-strong': token('--line-strong'),
+        ink: token('--ink'),
+        'ink-muted': token('--ink-muted'),
+        'ink-faint': token('--ink-faint'),
+        'ink-inverse': token('--ink-inverse'),
+        accent: token('--accent'),
+        'accent-hover': token('--accent-hover'),
+        'accent-soft': token('--accent-soft'),
+        'on-accent': token('--on-accent'),
+        cta: token('--cta'),
+        'cta-hover': token('--cta-hover'),
+        'cta-active': token('--cta-active'),
+        danger: token('--danger'),
+        'danger-soft': token('--danger-soft'),
+        ok: token('--ok'),
+        'ok-soft': token('--ok-soft'),
+        star: token('--star'),
       },
       borderRadius: {
         DEFAULT: 'var(--radius)',
