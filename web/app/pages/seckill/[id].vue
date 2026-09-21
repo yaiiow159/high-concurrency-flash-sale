@@ -2,6 +2,7 @@
 import { useAuthStore } from '~/stores/auth'
 import { useApi } from '~/composables/useApi'
 import { describeQueue } from '~/utils/describeQueue'
+import { buildSeckillIcs } from '~/utils/seckillCalendar'
 import type { ActivityView, PaymentIntentView } from '~/types/api'
 
 /**
@@ -30,6 +31,9 @@ if (initialActivity.value?.data) {
 }
 
 const started = ref(false)
+/** 進頁面時活動還沒開始。用來決定要不要給「提醒我」——已結束的活動不該出現這顆按鈕 */
+const upcoming = ref(false)
+const toast = useToast()
 const paymentUrl = ref<string | null>(null)
 const paying = ref(false)
 
@@ -51,6 +55,8 @@ onMounted(async () => {
   // 客戶端掛載後立刻重取：SSR 的那份可能來自 CDN 快取，
   // 且時鐘校正需要一次「真實往返」才能算出偏移
   await loadActivity().catch(() => undefined)
+  upcoming.value = activity.value !== null
+    && serverNow() < new Date(activity.value.startAt).getTime()
   startStockPolling()
   restoreQualification()
   if (auth.isAuthenticated) {
@@ -75,12 +81,45 @@ watch(() => auth.isAuthenticated, (loggedIn) => {
 
 const soldOut = computed(() => (activity.value?.availableStock ?? 0) <= 0)
 
+const quantity = ref(1)
+/** 上限取限購與餘量的較小者：選得到 3 件卻只剩 2 件，按下去就是一次注定失敗的請求。 */
+const maxQuantity = computed(() => Math.max(1, Math.min(
+  activity.value?.perUserLimit ?? 1, activity.value?.availableStock ?? 1)))
+watch(maxQuantity, (max) => {
+  if (quantity.value > max) {
+    quantity.value = max
+  }
+})
+
+/** 開賣提醒走行事曆檔：不需要後端排程，提醒也會出現在使用者本來就在看的地方。 */
+function downloadReminder(): void {
+  const current = activity.value
+  if (!current) {
+    return
+  }
+  const ics = buildSeckillIcs({
+    activityId: current.activityId,
+    productName: current.productName,
+    seckillPrice: current.seckillPrice,
+    startAt: current.startAt,
+    endAt: current.endAt,
+    url: window.location.href,
+  }, Date.now())
+  const href = URL.createObjectURL(new Blob([ics], { type: 'text/calendar;charset=utf-8' }))
+  const link = document.createElement('a')
+  link.href = href
+  link.download = `flash-sale-${current.activityId}.ics`
+  link.click()
+  URL.revokeObjectURL(href)
+  toast.success('提醒已下載，打開它就會加進行事曆')
+}
+
 async function onAttempt(): Promise<void> {
   if (!auth.isAuthenticated) {
     document.getElementById('auth-panel')?.scrollIntoView({ behavior: 'smooth' })
     return
   }
-  await attempt(1)
+  await attempt(quantity.value)
 }
 
 /** 搶到之後直接發起付款，讓整條流程在同一頁走完。 */
@@ -213,6 +252,32 @@ watchEffect(() => {
                 </p>
               </template>
             </div>
+
+            <!-- 開賣前的人多半會關掉分頁然後忘記回來 -->
+            <button
+              v-if="upcoming && !started"
+              type="button"
+              class="mt-4 inline-flex items-center gap-2 rounded-full border border-line-strong bg-surface
+                     px-4 py-2 text-sm font-medium text-ink transition-colors hover:border-accent hover:text-accent"
+              @click="downloadReminder"
+            >
+              <svg viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                <rect x="4" y="5" width="16" height="15" rx="2" />
+                <path d="M8 3v4M16 3v4M4 10h16" stroke-linecap="round" />
+              </svg>
+              開賣前 10 分鐘提醒我
+            </button>
+
+            <section
+              v-if="activity.perUserLimit > 1 && !soldOut"
+              class="mt-5 flex flex-wrap items-center gap-4"
+            >
+              <h2 class="text-sm font-semibold">數量</h2>
+              <QuantityStepper v-model="quantity" :max="maxQuantity" :disabled="submitting" />
+              <p class="text-xs text-ink-muted">
+                每人限購 <span class="figure">{{ activity.perUserLimit }}</span> 件
+              </p>
+            </section>
 
             <div class="mt-6 hidden lg:block">
               <SeckillButton
