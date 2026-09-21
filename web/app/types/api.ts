@@ -107,6 +107,10 @@ export interface OrderView {
   closeReason: string | null
   createdAt: string | null
   paidAt: string | null
+  /** 付款期限；只有待付款的訂單才有 */
+  paymentDeadline?: string | null
+  /** 伺服器算好的剩餘秒數。倒數以它為起點，不要拿期限減本機時間——客戶端時鐘不可信 */
+  paymentRemainingSeconds?: number | null
   /** true 代表庫存已扣、訂單仍在非同步建立中，前端應繼續輪詢 */
   processing: boolean
   /** 仍在佇列中時的排隊資訊（ADR-0023）；訂單已建立時為 null */
@@ -164,11 +168,15 @@ export interface ProductPage {
   hasMore: boolean
 }
 
+/** 與後端 `PaymentMethod` 列舉一致；第一個是預設 */
+export type PaymentMethod = 'CREDIT_CARD' | 'LINE_PAY' | 'ATM_TRANSFER'
+
 export interface PaymentIntentView {
   paymentNo: string
   orderNo: string
   paymentUrl: string
   status: string
+  method: PaymentMethod
 }
 
 export interface PaymentView {
@@ -176,6 +184,7 @@ export interface PaymentView {
   orderNo: string
   amount: number
   status: string
+  method: PaymentMethod
   createdAt: string
   paidAt: string | null
   failureReason: string | null

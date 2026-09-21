@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { errorMessage, useApi } from '~/composables/useApi'
 import { useAuthStore } from '~/stores/auth'
+import { paymentMethodLabel } from '~/utils/paymentMethods'
 import type { PaymentView } from '~/types/api'
 
 /**
@@ -16,6 +17,7 @@ const { request } = useApi()
 
 const paymentNo = computed(() => String(route.query.paymentNo ?? ''))
 const orderNo = computed(() => String(route.query.orderNo ?? ''))
+const method = computed(() => paymentMethodLabel(String(route.query.method ?? '')))
 const amount = computed(() => {
   const raw = Number(route.query.amount)
   return Number.isFinite(raw) ? raw : null
@@ -100,6 +102,10 @@ useHead({ title: '模擬付款' })
             <dd class="figure text-ink">{{ orderNo }}</dd>
             <dt>付款單號</dt>
             <dd class="figure text-ink">{{ paymentNo }}</dd>
+            <template v-if="method">
+              <dt>付款方式</dt>
+              <dd class="text-ink">{{ method }}</dd>
+            </template>
           </dl>
         </div>
 
