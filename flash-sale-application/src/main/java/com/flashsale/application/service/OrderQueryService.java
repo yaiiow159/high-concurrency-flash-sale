@@ -1,5 +1,8 @@
 package com.flashsale.application.service;
 
+import java.time.Instant;
+import java.time.Clock;
+import com.flashsale.application.config.SeckillPolicy;
 import com.flashsale.application.port.in.OrderQueryUseCase;
 import com.flashsale.application.port.in.dto.OrderView;
 
@@ -27,12 +30,22 @@ public class OrderQueryService implements OrderQueryUseCase {
     private final OrderRepository orderRepository;
     private final SeckillRequestTracker requestTracker;
     private final OrderQueueDepth queueDepth;
+    private final SeckillPolicy policy;
+    private final Clock clock;
 
     public OrderQueryService(OrderRepository orderRepository, SeckillRequestTracker requestTracker,
-                             OrderQueueDepth queueDepth) {
+                             OrderQueueDepth queueDepth, SeckillPolicy policy, Clock clock) {
         this.orderRepository = orderRepository;
         this.requestTracker = requestTracker;
         this.queueDepth = queueDepth;
+        this.policy = policy;
+        this.clock = clock;
+    }
+
+    /** 期限與逾時排程用同一個 paymentWindow，畫面上的倒數歸零時排程才真的會關單。 */
+    private OrderView view(Order order, Instant now) {
+        return OrderView.from(order)
+                .withPaymentDeadline(order.paymentDeadline(policy.paymentWindow()).orElse(null), now);
     }
 
     @Override
@@ -42,7 +55,7 @@ public class OrderQueryService implements OrderQueryUseCase {
         if (persisted.isPresent()) {
             Order order = persisted.get();
             ensureOwnedBy(order.userId(), userId, orderNo);
-            return OrderView.from(order);
+            return view(order, clock.instant());
         }
         return resolveFromTracker(orderNo, userId);
     }
@@ -73,8 +86,9 @@ public class OrderQueryService implements OrderQueryUseCase {
     @Transactional(readOnly = true)
     public List<OrderView> listForUser(Long userId, String status, int page, int size) {
         Page paging = Page.of(page, size, MAX_PAGE_SIZE);
+        Instant now = clock.instant();
         return orderRepository.findByUserId(userId, status, paging.size(), paging.offset()).stream()
-                .map(OrderView::from)
+                .map(order -> view(order, now))
                 .toList();
     }
 

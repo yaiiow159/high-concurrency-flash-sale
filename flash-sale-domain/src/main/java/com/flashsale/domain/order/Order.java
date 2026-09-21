@@ -17,6 +17,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * 訂單聚合根。
@@ -285,6 +286,13 @@ public final class Order {
     }
 
     /** 是否已逾付款期限。 */
+    /** 付款期限。非待付款時為空——已付或已關的訂單沒有「還剩多久」這回事。 */
+    public Optional<Instant> paymentDeadline(Duration paymentWindow) {
+        return status == OrderStatus.PENDING_PAYMENT
+                ? Optional.of(createdAt.plus(paymentWindow))
+                : Optional.empty();
+    }
+
     public boolean isPaymentExpiredAt(Instant now, Duration paymentWindow) {
         return status == OrderStatus.PENDING_PAYMENT && now.isAfter(createdAt.plus(paymentWindow));
     }

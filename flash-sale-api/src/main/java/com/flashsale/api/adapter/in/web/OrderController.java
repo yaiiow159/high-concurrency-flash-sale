@@ -7,6 +7,7 @@ import com.flashsale.api.adapter.in.web.dto.PlaceOrderRequest;
 import com.flashsale.api.adapter.in.web.dto.PreviewOrderRequest;
 import com.flashsale.api.adapter.in.web.security.CurrentUser;
 import com.flashsale.application.port.in.CheckoutUseCase;
+import com.flashsale.application.port.in.CancelOrderUseCase;
 import com.flashsale.application.port.in.OrderQueryUseCase;
 import com.flashsale.application.port.in.PlaceOrderUseCase;
 import com.flashsale.application.port.in.dto.CheckoutPreview;
@@ -36,13 +37,23 @@ public class OrderController {
     private final PlaceOrderUseCase placeOrderUseCase;
     private final CheckoutUseCase checkoutUseCase;
     private final OrderQueryUseCase orderQueryUseCase;
+    private final CancelOrderUseCase cancelOrderUseCase;
 
     public OrderController(PlaceOrderUseCase placeOrderUseCase,
                            CheckoutUseCase checkoutUseCase,
-                           OrderQueryUseCase orderQueryUseCase) {
+                           OrderQueryUseCase orderQueryUseCase,
+                           CancelOrderUseCase cancelOrderUseCase) {
         this.placeOrderUseCase = placeOrderUseCase;
         this.checkoutUseCase = checkoutUseCase;
         this.orderQueryUseCase = orderQueryUseCase;
+        this.cancelOrderUseCase = cancelOrderUseCase;
+    }
+
+    @PostMapping("/{orderNo}/cancel")
+    @Operation(summary = "取消訂單",
+            description = "只接受待付款且沒有付款在途的訂單；庫存走與逾時關單相同的路徑退回")
+    public ApiResponse<OrderView> cancel(@PathVariable String orderNo, @CurrentUser Long userId) {
+        return ApiResponse.ok(cancelOrderUseCase.cancel(orderNo, userId));
     }
 
     /** 下單。 */

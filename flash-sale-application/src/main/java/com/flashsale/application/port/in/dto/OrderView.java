@@ -5,6 +5,7 @@ import com.flashsale.domain.order.OrderLine;
 import com.flashsale.domain.order.ShippingInfo;
 
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 
@@ -32,6 +33,13 @@ public record OrderView(
         String closeReason,
         Instant createdAt,
         Instant paidAt,
+        /** 付款期限；非待付款時為 {@code null}。 */
+        Instant paymentDeadline,
+        /**
+         * 距離付款期限還有幾秒，由伺服器在回應當下算好。倒數要用這個而不是自己拿期限去減：
+         * 期限只有十幾分鐘，客戶端時鐘差個幾分鐘，顯示出來的倒數就是錯的。
+         */
+        Long paymentRemainingSeconds,
         boolean processing,
 
         /** 仍在佇列中時的排隊資訊；訂單已建立時為 {@code null}。 */
@@ -97,17 +105,31 @@ public record OrderView(
                 order.closeReason(),
                 order.createdAt(),
                 order.paidAt(),
+                null,
+                null,
                 false,
                 null);
+    }
+
+    /** 補上付款期限。分開一步是因為期限取決於策略參數與當下時間，兩者都不屬於訂單本身。 */
+    public OrderView withPaymentDeadline(Instant deadline, Instant now) {
+        if (deadline == null) {
+            return this;
+        }
+        long remaining = Math.max(0, Duration.between(now, deadline).getSeconds());
+        return new OrderView(orderNo, userId, channel, lines, subtotal, discounts, totalAmount,
+                shippingFee, payableAmount, shippingMethod, buyerNote, shipping, status,
+                closeReason, createdAt, paidAt, deadline, remaining, processing, queue);
     }
 
     /** 庫存已扣減、訂單仍在非同步建立中。 */
     public static OrderView processing(String orderNo, Queue queue) {
         // 依序：orderNo, userId, channel, lines, subtotal, discounts, totalAmount,
         // shippingFee, payableAmount, shippingMethod, buyerNote, shipping,
-        // status, closeReason, createdAt, paidAt, processing, queue
+        // status, closeReason, createdAt, paidAt, paymentDeadline, paymentRemainingSeconds,
+        // processing, queue
         return new OrderView(orderNo, null, null, List.of(), null, List.of(), null,
                 null, null, null, null, null,
-                "PROCESSING", null, null, null, true, queue);
+                "PROCESSING", null, null, null, null, null, true, queue);
     }
 }

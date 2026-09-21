@@ -40,20 +40,21 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-@DisplayName("後台訂單管理")
-class OrderAdminServiceTest {
+@DisplayName("買家取消訂單")
+class OrderCancellationServiceTest {
 
     private static final String ORDER_NO = "222633466569687040";
     private static final Instant NOW = Instant.parse("2026-09-07T10:00:00Z");
     private static final BigDecimal AMOUNT = new BigDecimal("5990.00");
     private static final long ACTIVITY_ID = 1001L;
+    private static final Long OWNER = 7L;
 
     private OrderRepository orderRepository;
     private PaymentRepository paymentRepository;
     private ActivityRepository activityRepository;
     private InventoryService inventoryService;
     private EventOutbox eventOutbox;
-    private OrderAdminService service;
+    private OrderCancellationService service;
 
     @BeforeEach
     void setUp() {
@@ -65,7 +66,7 @@ class OrderAdminServiceTest {
         when(orderRepository.update(any())).thenAnswer(invocation -> invocation.getArgument(0));
         when(paymentRepository.findByOrderNo(any())).thenReturn(Optional.empty());
         when(activityRepository.findById(ACTIVITY_ID)).thenReturn(Optional.of(activityEndedAt(NOW.minusSeconds(60))));
-        service = new OrderAdminService(orderRepository,
+        service = new OrderCancellationService(orderRepository,
                 new ManualCloseGuard(paymentRepository, activityRepository, SeckillPolicy.defaults()),
                 new OrderCloser(orderRepository, inventoryService, eventOutbox),
                 Clock.fixed(NOW, ZoneOffset.UTC));
@@ -91,9 +92,9 @@ class OrderAdminServiceTest {
                 null, NOW.minusSeconds(60), null, null, BigDecimal.ZERO, 0L);
     }
 
-    private void givenPendingOrder() {
+    private void givenOrder(OrderStatus status) {
         when(orderRepository.findByOrderNoForUpdate(OrderNo.of(ORDER_NO)))
-                .thenReturn(Optional.of(order(OrderStatus.PENDING_PAYMENT)));
+                .thenReturn(Optional.of(order(status)));
     }
 
     private void assertNothingChanged() {
@@ -103,36 +104,85 @@ class OrderAdminServiceTest {
     }
 
     @Test
-    @DisplayName("待付款且沒有付款在途：關單、退一般庫存、寫入退庫事件，三件事一起發生")
-    void closesPendingOrder() {
-        givenPendingOrder();
+    @DisplayName("待付款：關單、退一般庫存、寫入秒殺退庫事件——與逾時關單是同一條路")
+    void cancelsPendingOrder() {
+        givenOrder(OrderStatus.PENDING_PAYMENT);
 
-        OrderView view = service.close(ORDER_NO, "客戶來電取消");
+        OrderView view = service.cancel(ORDER_NO, OWNER);
 
         assertThat(view.status()).isEqualTo("CANCELLED");
-        assertThat(view.closeReason()).isEqualTo("客服關單：客戶來電取消");
+        assertThat(view.closeReason()).isEqualTo("買家取消訂單");
         verify(orderRepository).update(any());
-        // 只有一般那一行直接退；秒殺那行靠事件，不可在這裡動 Redis
+        // 只有一般那一行直接退；秒殺那行靠事件，不可在交易裡動 Redis
         verify(inventoryService).restore(any());
         verify(eventOutbox).append(anyList());
     }
 
     @Test
-    @DisplayName("付款失敗過：可以關——那張付款單已經是終態")
-    void closesWhenPreviousPaymentFailed() {
-        givenPendingOrder();
-        when(paymentRepository.findByOrderNo(OrderNo.of(ORDER_NO))).thenReturn(Optional.of(payment(PaymentStatus.FAILED)));
+    @DisplayName("以行鎖取得訂單——連點兩下時第二個請求要排在第一個後面，而不是退兩次庫")
+    void locksTheOrderRow() {
+        givenOrder(OrderStatus.PENDING_PAYMENT);
 
-        assertThat(service.close(ORDER_NO, "test").status()).isEqualTo("CANCELLED");
+        service.cancel(ORDER_NO, OWNER);
+
+        verify(orderRepository).findByOrderNoForUpdate(OrderNo.of(ORDER_NO));
+        verify(orderRepository, never()).findByOrderNo(any());
     }
 
     @Test
-    @DisplayName("付款在途：拒絕——回調用非鎖定讀，我們 commit 之後它才撞版本衝突，連「錢已收到」都會一起回滾")
-    void refusesWhenPaymentInFlight() {
-        givenPendingOrder();
-        when(paymentRepository.findByOrderNo(OrderNo.of(ORDER_NO))).thenReturn(Optional.of(payment(PaymentStatus.PENDING)));
+    @DisplayName("已經取消過：拒絕且不再退庫——重複退庫就是憑空多出庫存")
+    void secondCancelDoesNotRestoreAgain() {
+        givenOrder(OrderStatus.CANCELLED);
 
-        assertThatThrownBy(() -> service.close(ORDER_NO, "test"))
+        assertThatThrownBy(() -> service.cancel(ORDER_NO, OWNER))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.ILLEGAL_ORDER_STATE_TRANSITION);
+
+        assertNothingChanged();
+    }
+
+    @Test
+    @DisplayName("別人的訂單：回「訂單不存在」，什麼都不動——區分開來等於提供一支訂單號枚舉的 API")
+    void refusesOthersOrder() {
+        givenOrder(OrderStatus.PENDING_PAYMENT);
+
+        assertThatThrownBy(() -> service.cancel(ORDER_NO, 999L))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.ORDER_NOT_FOUND);
+
+        assertNothingChanged();
+    }
+
+    @Test
+    @DisplayName("付款在途：拒絕——閘道隨後回報成功會撞上版本衝突，連「錢已收到」都一起回滾")
+    void refusesWhenPaymentInFlight() {
+        givenOrder(OrderStatus.PENDING_PAYMENT);
+        when(paymentRepository.findByOrderNo(OrderNo.of(ORDER_NO)))
+                .thenReturn(Optional.of(payment(PaymentStatus.PENDING)));
+
+        assertThatThrownBy(() -> service.cancel(ORDER_NO, OWNER))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.ILLEGAL_ORDER_STATE_TRANSITION);
+
+        assertNothingChanged();
+    }
+
+    @Test
+    @DisplayName("付款失敗過：可以取消——那張付款單已經是終態")
+    void cancelsWhenPreviousPaymentFailed() {
+        givenOrder(OrderStatus.PENDING_PAYMENT);
+        when(paymentRepository.findByOrderNo(OrderNo.of(ORDER_NO)))
+                .thenReturn(Optional.of(payment(PaymentStatus.FAILED)));
+
+        assertThat(service.cancel(ORDER_NO, OWNER).status()).isEqualTo("CANCELLED");
+    }
+
+    @Test
+    @DisplayName("已付款：拒絕——取消會退庫存卻不退錢，那要走退貨")
+    void refusesPaidOrder() {
+        givenOrder(OrderStatus.PAID);
+
+        assertThatThrownBy(() -> service.cancel(ORDER_NO, OWNER))
                 .isInstanceOf(BusinessException.class)
                 .extracting("errorCode").isEqualTo(ErrorCode.ILLEGAL_ORDER_STATE_TRANSITION);
 
@@ -142,68 +192,13 @@ class OrderAdminServiceTest {
     @Test
     @DisplayName("活動已結算：拒絕——退回的秒殺庫存不會再被算進去，等於永久少賣一件")
     void refusesWhenActivitySettled() {
-        givenPendingOrder();
+        givenOrder(OrderStatus.PENDING_PAYMENT);
         Instant settledLongAgo = NOW.minus(SeckillPolicy.defaults().stockKeyTtlBuffer()).minusSeconds(1);
         when(activityRepository.findById(ACTIVITY_ID)).thenReturn(Optional.of(activityEndedAt(settledLongAgo)));
 
-        assertThatThrownBy(() -> service.close(ORDER_NO, "test"))
-                .isInstanceOf(BusinessException.class)
-                .extracting("errorCode").isEqualTo(ErrorCode.ILLEGAL_ORDER_STATE_TRANSITION);
+        assertThatThrownBy(() -> service.cancel(ORDER_NO, OWNER))
+                .isInstanceOf(BusinessException.class);
 
         assertNothingChanged();
-    }
-
-    @Test
-    @DisplayName("已付款：拒絕，什麼都不動——關單會退庫存卻不退錢")
-    void refusesPaidOrder() {
-        when(orderRepository.findByOrderNoForUpdate(OrderNo.of(ORDER_NO)))
-                .thenReturn(Optional.of(order(OrderStatus.PAID)));
-
-        assertThatThrownBy(() -> service.close(ORDER_NO, "誤按"))
-                .isInstanceOf(BusinessException.class)
-                .extracting("errorCode").isEqualTo(ErrorCode.ILLEGAL_ORDER_STATE_TRANSITION);
-
-        assertNothingChanged();
-    }
-
-    @Test
-    @DisplayName("原因必填：沒有原因的關單事後沒人說得出為什麼")
-    void requiresReason() {
-        assertThatThrownBy(() -> service.close(ORDER_NO, "  "))
-                .isInstanceOf(BusinessException.class)
-                .extracting("errorCode").isEqualTo(ErrorCode.INVALID_PARAMETER);
-
-        verify(orderRepository, never()).findByOrderNoForUpdate(any());
-    }
-
-    @Test
-    @DisplayName("不存在：ORDER_NOT_FOUND")
-    void notFound() {
-        when(orderRepository.findByOrderNoForUpdate(any())).thenReturn(Optional.empty());
-
-        assertThatThrownBy(() -> service.close(ORDER_NO, "test"))
-                .isInstanceOf(BusinessException.class)
-                .extracting("errorCode").isEqualTo(ErrorCode.ORDER_NOT_FOUND);
-    }
-
-    @Test
-    @DisplayName("搜尋：空白條件視為沒有條件，總筆數一起回")
-    void searchNormalizesBlankFilters() {
-        when(orderRepository.search(any(), anyInt(), anyInt())).thenReturn(List.of(order(OrderStatus.PAID)));
-        when(orderRepository.countSearch(any())).thenReturn(42L);
-
-        var page = service.search("  ", null, "", 0, 20);
-
-        assertThat(page.items()).hasSize(1);
-        assertThat(page.total()).isEqualTo(42L);
-        verify(orderRepository).search(new OrderRepository.SearchCriteria(null, null, null), 20, 0);
-    }
-
-    @Test
-    @DisplayName("搜尋：打錯的狀態是參數錯誤，不是一頁空的")
-    void searchRejectsUnknownStatus() {
-        assertThatThrownBy(() -> service.search(null, null, "PAYED", 0, 20))
-                .isInstanceOf(BusinessException.class)
-                .extracting("errorCode").isEqualTo(ErrorCode.INVALID_PARAMETER);
     }
 }

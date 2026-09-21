@@ -109,6 +109,31 @@ class OrderTest {
         assertThat(order.isPaymentExpiredAt(NOW.plus(Duration.ofDays(1)), Duration.ofMinutes(15))).isFalse();
     }
 
+    @Test
+    @DisplayName("付款期限與逾期判定是同一條線——畫面倒數歸零的那一刻，排程才真的會關單")
+    void deadlineMatchesExpiryBoundary() {
+        Order order = newOrder();
+        Duration window = Duration.ofMinutes(15);
+
+        Instant deadline = order.paymentDeadline(window).orElseThrow();
+
+        assertThat(deadline).isEqualTo(NOW.plus(window));
+        assertThat(order.isPaymentExpiredAt(deadline, window)).isFalse();
+        assertThat(order.isPaymentExpiredAt(deadline.plusMillis(1), window)).isTrue();
+    }
+
+    @Test
+    @DisplayName("已付款或已關閉的訂單沒有付款期限")
+    void settledOrderHasNoDeadline() {
+        Order paid = newOrder();
+        paid.pay(NOW.plusSeconds(60));
+        Order cancelled = newOrder();
+        cancelled.cancel("買家取消訂單", NOW.plusSeconds(60));
+
+        assertThat(paid.paymentDeadline(Duration.ofMinutes(15))).isEmpty();
+        assertThat(cancelled.paymentDeadline(Duration.ofMinutes(15))).isEmpty();
+    }
+
     private static Order newOrder() {
         return Order.forSeckill(OrderNo.of("20250601000001"), activity(), 88L, "req-001", 2, NOW);
     }
