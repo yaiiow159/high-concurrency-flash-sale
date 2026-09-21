@@ -13,6 +13,7 @@ import com.flashsale.domain.order.OrderNo;
 import com.flashsale.domain.order.OrderStatus;
 import com.flashsale.domain.order.Order;
 import com.flashsale.domain.payment.Payment;
+import com.flashsale.domain.payment.PaymentMethod;
 import com.flashsale.domain.payment.PaymentNo;
 import com.flashsale.domain.payment.PaymentStatus;
 import com.flashsale.domain.payment.event.PaymentInitiatedSignal;
@@ -85,8 +86,8 @@ public class PaymentApplicationService implements PaymentUseCase {
      * 目前只有行程內的模擬閘道所以不會咬人，但這個埠的形狀就是為真實金流設計的。
      */
     @Override
-    public PaymentIntentView initiate(String orderNo, Long userId) {
-        Payment payment = paymentPreparer.prepare(orderNo, userId);
+    public PaymentIntentView initiate(String orderNo, Long userId, PaymentMethod method) {
+        Payment payment = paymentPreparer.prepare(orderNo, userId, method);
         PaymentGateway.PaymentIntent intent = paymentGateway.initiate(payment);
         metrics.recordInitiated(payment.status().name());
 
@@ -95,7 +96,7 @@ public class PaymentApplicationService implements PaymentUseCase {
         eventPublisher.publishEvent(new PaymentInitiatedSignal(
                 payment.paymentNo().value(), orderNo));
         return new PaymentIntentView(payment.paymentNo().value(), orderNo,
-                intent.paymentUrl(), payment.status().name());
+                intent.paymentUrl(), payment.status().name(), payment.method().name());
     }
 
 

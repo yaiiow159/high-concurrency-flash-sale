@@ -5,6 +5,7 @@ import com.flashsale.api.adapter.in.web.security.CurrentUser;
 import com.flashsale.application.port.in.PaymentUseCase;
 import com.flashsale.application.port.in.dto.PaymentIntentView;
 import com.flashsale.application.port.in.dto.PaymentView;
+import com.flashsale.domain.payment.PaymentMethod;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -36,9 +37,12 @@ public class PaymentController {
     @Operation(summary = "發起付款", description = "回傳金流付款頁網址；結果由閘道回調決定")
     public ResponseEntity<ApiResponse<PaymentIntentView>> initiate(
             @CurrentUser Long userId,
-            @PathVariable String orderNo) {
+            @PathVariable String orderNo,
+            @RequestBody(required = false) InitiateRequest request) {
 
-        PaymentIntentView intent = paymentUseCase.initiate(orderNo, userId);
+        // 請求體選填：秒殺頁搶到後一鍵付款，不帶任何內容，走預設方式
+        PaymentMethod method = PaymentMethod.parse(request == null ? null : request.method());
+        PaymentIntentView intent = paymentUseCase.initiate(orderNo, userId, method);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok(intent));
     }
 
@@ -58,5 +62,9 @@ public class PaymentController {
     public ResponseEntity<Void> handleCallback(@RequestBody Map<String, String> parameters) {
         paymentUseCase.handleGatewayCallback(parameters);
         return ResponseEntity.ok().build();
+    }
+
+    /** 發起付款的請求體。整個選填——舊的呼叫端不帶內容，走預設方式。 */
+    public record InitiateRequest(String method) {
     }
 }

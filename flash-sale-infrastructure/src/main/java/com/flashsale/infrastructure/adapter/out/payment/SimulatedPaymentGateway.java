@@ -47,9 +47,9 @@ public class SimulatedPaymentGateway implements PaymentGateway {
     public PaymentIntent initiate(Payment payment) {
         String gatewayReference = "SIM-" + UUID.randomUUID().toString().replace("-", "");
         // 帶上 orderNo：模擬付款頁要靠它輪詢付款狀態並導回訂單
-        String paymentUrl = "%s?paymentNo=%s&orderNo=%s&amount=%s"
+        String paymentUrl = "%s?paymentNo=%s&orderNo=%s&amount=%s&method=%s"
                 .formatted(properties.simulatedCheckoutUrl(), payment.paymentNo().value(),
-                        payment.orderNo().value(), payment.amount());
+                        payment.orderNo().value(), payment.amount(), payment.method().name());
         log.info("模擬閘道已建立付款 paymentNo={}, ref={}", payment.paymentNo(), gatewayReference);
         return new PaymentIntent(gatewayReference, paymentUrl);
     }

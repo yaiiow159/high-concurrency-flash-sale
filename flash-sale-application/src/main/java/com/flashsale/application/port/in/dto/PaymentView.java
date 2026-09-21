@@ -11,6 +11,7 @@ public record PaymentView(
         String orderNo,
         BigDecimal amount,
         String status,
+        String method,
         Instant createdAt,
         Instant paidAt,
         String failureReason
@@ -22,6 +23,7 @@ public record PaymentView(
                 payment.orderNo().value(),
                 payment.amount(),
                 payment.status().name(),
+                payment.method().name(),
                 payment.createdAt(),
                 payment.paidAt(),
                 payment.failureReason());

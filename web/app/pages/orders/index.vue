@@ -149,6 +149,13 @@ seo({ title: '我的訂單', noindex: true })
                     <div class="flex flex-wrap items-center gap-2">
                       <span class="figure text-sm text-ink-muted">{{ order.orderNo }}</span>
                       <StatusBadge :status="order.status" />
+                      <!-- 只給大概的分鐘數：列表不逐秒倒數，精確的數字在訂單頁 -->
+                      <span
+                        v-if="order.status === 'PENDING_PAYMENT' && (order.paymentRemainingSeconds ?? 0) > 0"
+                        class="figure text-xs font-medium text-danger"
+                      >
+                        剩 {{ Math.ceil((order.paymentRemainingSeconds ?? 0) / 60) }} 分鐘付款
+                      </span>
                     </div>
                     <p class="mt-2 truncate font-medium">{{ summarise(order) }}</p>
                     <p class="mt-1 text-xs text-ink-faint">{{ formatDate(order.createdAt) }}</p>

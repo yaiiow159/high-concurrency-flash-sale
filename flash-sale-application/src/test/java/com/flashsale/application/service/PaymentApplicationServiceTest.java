@@ -13,6 +13,7 @@ import com.flashsale.domain.order.Order;
 import com.flashsale.domain.order.OrderChannel;
 import com.flashsale.domain.order.OrderLine;
 import com.flashsale.domain.payment.Payment;
+import com.flashsale.domain.payment.PaymentMethod;
 import com.flashsale.domain.payment.PaymentNo;
 import com.flashsale.domain.payment.PaymentStatus;
 import com.flashsale.domain.payment.event.PaymentRefundRequiredEvent;
@@ -99,7 +100,7 @@ class PaymentApplicationServiceTest {
             givenOrder(OrderStatus.PENDING_PAYMENT);
             when(paymentRepository.findByOrderNo(any())).thenReturn(Optional.empty());
 
-            PaymentIntentView intent = service.initiate(ORDER_NO, USER_ID);
+            PaymentIntentView intent = service.initiate(ORDER_NO, USER_ID, PaymentMethod.CREDIT_CARD);
 
             assertThat(intent.paymentNo()).isEqualTo(PAYMENT_NO);
             assertThat(intent.paymentUrl()).isEqualTo("https://pay.example/checkout");
@@ -111,7 +112,7 @@ class PaymentApplicationServiceTest {
             givenOrder(OrderStatus.PENDING_PAYMENT);
             when(paymentRepository.findByOrderNo(any())).thenReturn(Optional.empty());
 
-            service.initiate(ORDER_NO, USER_ID);
+            service.initiate(ORDER_NO, USER_ID, PaymentMethod.CREDIT_CARD);
 
             ArgumentCaptor<Payment> captor = ArgumentCaptor.forClass(Payment.class);
             verify(paymentRepository).save(captor.capture());
@@ -124,9 +125,44 @@ class PaymentApplicationServiceTest {
             givenOrder(OrderStatus.PENDING_PAYMENT);
             when(paymentRepository.findByOrderNo(any())).thenReturn(Optional.of(pendingPayment()));
 
-            service.initiate(ORDER_NO, USER_ID);
+            service.initiate(ORDER_NO, USER_ID, PaymentMethod.CREDIT_CARD);
 
             verify(paymentNoGenerator, never()).next();
+        }
+
+        @Test
+        @DisplayName("選的付款方式會記在付款單上，並回給前端")
+        void recordsChosenMethod() {
+            givenOrder(OrderStatus.PENDING_PAYMENT);
+            when(paymentRepository.findByOrderNo(any())).thenReturn(Optional.empty());
+
+            PaymentIntentView intent = service.initiate(ORDER_NO, USER_ID, PaymentMethod.LINE_PAY);
+
+            assertThat(intent.method()).isEqualTo("LINE_PAY");
+        }
+
+        @Test
+        @DisplayName("回頭換付款方式：沿用同一張付款單，只改方式")
+        void switchesMethodOnTheSamePayment() {
+            givenOrder(OrderStatus.PENDING_PAYMENT);
+            when(paymentRepository.findByOrderNo(any())).thenReturn(Optional.of(pendingPayment()));
+
+            PaymentIntentView intent = service.initiate(ORDER_NO, USER_ID, PaymentMethod.ATM_TRANSFER);
+
+            assertThat(intent.paymentNo()).isEqualTo(PAYMENT_NO);
+            assertThat(intent.method()).isEqualTo("ATM_TRANSFER");
+            verify(paymentNoGenerator, never()).next();
+        }
+
+        @Test
+        @DisplayName("方式沒變就不寫資料庫——連點兩次不該多一次 UPDATE")
+        void sameMethodDoesNotWrite() {
+            givenOrder(OrderStatus.PENDING_PAYMENT);
+            when(paymentRepository.findByOrderNo(any())).thenReturn(Optional.of(pendingPayment()));
+
+            service.initiate(ORDER_NO, USER_ID, PaymentMethod.CREDIT_CARD);
+
+            verify(paymentRepository, never()).save(any());
         }
 
         @Test
@@ -135,7 +171,7 @@ class PaymentApplicationServiceTest {
             givenOrder(OrderStatus.PENDING_PAYMENT);
             when(paymentRepository.findByOrderNo(any())).thenReturn(Optional.of(succeededPayment()));
 
-            assertThatThrownBy(() -> service.initiate(ORDER_NO, USER_ID))
+            assertThatThrownBy(() -> service.initiate(ORDER_NO, USER_ID, PaymentMethod.CREDIT_CARD))
                     .isInstanceOf(BusinessException.class)
                     .extracting(e -> ((BusinessException) e).errorCode())
                     .isEqualTo(ErrorCode.ORDER_NOT_PAYABLE);
@@ -146,7 +182,7 @@ class PaymentApplicationServiceTest {
         void rejectsCancelledOrder() {
             givenOrder(OrderStatus.CANCELLED);
 
-            assertThatThrownBy(() -> service.initiate(ORDER_NO, USER_ID))
+            assertThatThrownBy(() -> service.initiate(ORDER_NO, USER_ID, PaymentMethod.CREDIT_CARD))
                     .isInstanceOf(BusinessException.class)
                     .extracting(e -> ((BusinessException) e).errorCode())
                     .isEqualTo(ErrorCode.ORDER_NOT_PAYABLE);
@@ -157,7 +193,7 @@ class PaymentApplicationServiceTest {
         void hidesOthersOrders() {
             givenOrder(OrderStatus.PENDING_PAYMENT);
 
-            assertThatThrownBy(() -> service.initiate(ORDER_NO, 999L))
+            assertThatThrownBy(() -> service.initiate(ORDER_NO, 999L, PaymentMethod.CREDIT_CARD))
                     .isInstanceOf(BusinessException.class)
                     .extracting(e -> ((BusinessException) e).errorCode())
                     .isEqualTo(ErrorCode.ORDER_NOT_FOUND);

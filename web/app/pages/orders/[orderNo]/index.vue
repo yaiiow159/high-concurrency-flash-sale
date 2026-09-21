@@ -4,7 +4,7 @@ import { useReturns } from '~/composables/useReturns'
 import { useReviews } from '~/composables/useReviews'
 import { useCartStore } from '~/stores/cart'
 import { describeQueue } from '~/utils/describeQueue'
-import type { OrderView, PaymentIntentView, ShipmentView } from '~/types/api'
+import type { OrderView, PaymentIntentView, PaymentMethod, ShipmentView } from '~/types/api'
 
 /** 訂單詳情與付款。 這一頁**不做 ISR**：訂單是每個使用者專屬的資料， 被 CDN 快取等於把別人的訂單發給下一個訪客。 只有匿名且對所有人相同的內容才適合快取。 */
 const route = useRoute()
@@ -25,6 +25,11 @@ const canReturn = ref(false)
 const canReview = ref(false)
 const loadError = ref<string | null>(null)
 const paying = ref(false)
+const paymentMethod = ref<PaymentMethod>('CREDIT_CARD')
+/** 倒數歸零。關單是排程做的，最多晚三十秒——這段空窗不該還讓人按得下付款 */
+const paymentExpired = ref(false)
+const cancelOpen = ref(false)
+const cancelling = ref(false)
 
 /**
  * 四個請求<b>並行發出</b>。 它們都只需要網址上的 orderNo，彼此不相依——先前是三個接連的 await， 在 200ms 延遲的行動網路上就是 600ms 才看得到畫面，而其中 400ms 純粹是排隊等前一個回來。 出貨單、退貨資格與評價資格各自 catch：訂單還沒付款時本來就沒有出貨單， 而任一個附屬查詢失敗都不該讓整張訂單看不到。
@@ -43,6 +48,8 @@ async function load() {
   ])
 
   order.value = orderResult
+  paymentExpired.value = orderResult?.status === 'PENDING_PAYMENT'
+    && orderResult.paymentRemainingSeconds === 0
   shipment.value = shipmentResult
   canReturn.value = returnable
   canReview.value = reviewableNow
@@ -133,7 +140,7 @@ async function pay() {
     // 使用者被導到 /orders/undefined。**付款按鈕是死的，而且沒有任何錯誤**
     const intent = await request<PaymentIntentView>(
       `/api/v1/orders/${orderNo}/payments`,
-      { method: 'POST', authenticated: true, body: { method: 'CREDIT_CARD' } },
+      { method: 'POST', authenticated: true, body: { method: paymentMethod.value } },
     )
     // 導向模擬金流頁；真實金流同樣是離站，回來時靠回調而非這個導向
     window.location.href = intent.paymentUrl
@@ -143,12 +150,49 @@ async function pay() {
   }
 }
 
+/** 期限到了之後等排程關單，再重新載入一次讓狀態跟上。 */
+function onPaymentExpired() {
+  paymentExpired.value = true
+  setTimeout(() => { void load() }, 35_000)
+}
+
+async function cancelOrder() {
+  cancelling.value = true
+  try {
+    order.value = await request<OrderView>(
+      `/api/v1/orders/${orderNo}/cancel`, { method: 'POST', authenticated: true })
+    cancelOpen.value = false
+    toast.success('訂單已取消')
+  } catch (error) {
+    cancelOpen.value = false
+    // 最常見的原因是付款在途：後端的訊息已經說明了要等期限自動取消
+    toast.error(errorMessage(error, '無法取消訂單'))
+  } finally {
+    cancelling.value = false
+  }
+}
+
 onMounted(load)
 useHead({ title: `訂單 ${orderNo}` })
 </script>
 
 <template>
   <div>
+    <!-- 放在 v-if 鏈之外：夾在中間會把後面的 v-else-if 與前面的 v-if 拆開 -->
+    <ConfirmDialog
+      v-model:open="cancelOpen"
+      title="確定要取消這張訂單？"
+      confirm-label="取消訂單"
+      cancel-label="再想想"
+      :busy="cancelling"
+      @confirm="cancelOrder"
+    >
+      取消後無法復原，保留給你的庫存會釋出給其他人。
+      <template v-if="order?.channel === 'SECKILL'">
+        這是限時搶購的訂單，<b class="text-ink">取消後不保證還搶得到</b>。
+      </template>
+    </ConfirmDialog>
+
     <!-- 建立中：庫存已經是他的了，只是訂單還沒落庫。不能畫成一張空訂單 -->
     <template v-if="order?.processing">
       <PageHeader eyebrow="Order" :title="order.orderNo">
@@ -267,12 +311,36 @@ useHead({ title: `訂單 ${orderNo}` })
             size="xl"
           />
 
-          <AppButton
-            v-if="order.status === 'PENDING_PAYMENT'"
-            class="mt-6" size="lg" block :disabled="paying" @click="pay"
-          >
-            {{ paying ? '前往付款⋯' : '前往付款' }}
-          </AppButton>
+          <template v-if="order.status === 'PENDING_PAYMENT'">
+            <PaymentDeadline
+              v-if="order.paymentRemainingSeconds != null"
+              class="mt-5"
+              :remaining-seconds="order.paymentRemainingSeconds"
+              :deadline="order.paymentDeadline ?? null"
+              @expired="onPaymentExpired"
+            />
+
+            <PaymentMethodPicker
+              v-model="paymentMethod" class="mt-5" :disabled="paying || paymentExpired"
+            />
+
+            <AppButton
+              class="mt-5" size="lg" block :disabled="paying || paymentExpired" @click="pay"
+            >
+              {{ paying ? '前往付款⋯' : '前往付款' }}
+            </AppButton>
+
+            <!-- 取消是低調的文字鈕：它不是我們希望使用者做的事，但不想買的人不該只能等它自己過期 -->
+            <button
+              v-if="!paymentExpired"
+              type="button"
+              class="mt-3 block w-full text-center text-sm text-ink-muted underline-offset-4
+                     transition-colors hover:text-danger hover:underline"
+              @click="cancelOpen = true"
+            >
+              取消訂單
+            </button>
+          </template>
 
           <!--
             評價排在退貨前面，而且用 primary。
