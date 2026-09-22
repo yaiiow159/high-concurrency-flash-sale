@@ -1,9 +1,12 @@
 <script setup lang="ts">
+import { useAuthStore } from '~/stores/auth'
+
 const props = defineProps<{ productId: number, size?: 'sm' | 'md' }>()
 
 const { isWishlisted, toggle } = useWishlist()
 const busy = ref(false)
-const error = ref('')
+const toast = useToast()
+const auth = useAuthStore()
 
 const active = computed(() => isWishlisted(props.productId))
 
@@ -11,12 +14,20 @@ async function onClick() {
   if (busy.value) {
     return
   }
+  if (!auth.isAuthenticated) {
+    toast.info('登入後就能收藏商品', { label: '登入', to: '/account' })
+    return
+  }
   busy.value = true
-  error.value = ''
+  const adding = !active.value
   try {
     await toggle(props.productId)
+    if (adding) {
+      toast.success('已加入收藏', { label: '查看', to: '/wishlist' })
+    }
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : '操作失敗'
+    // 不放 title 屬性：觸控裝置上它永遠不會出現
+    toast.error(cause instanceof Error && cause.message ? cause.message : '收藏失敗，請稍後再試')
   } finally {
     busy.value = false
   }
@@ -35,7 +46,7 @@ async function onClick() {
     ]"
     :aria-pressed="active"
     :aria-label="active ? '取消收藏' : '加入收藏'"
-    :title="error || (active ? '取消收藏' : '加入收藏')"
+    :title="active ? '取消收藏' : '加入收藏'"
     :disabled="busy"
     @click.stop.prevent="onClick"
   >

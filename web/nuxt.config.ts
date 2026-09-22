@@ -65,6 +65,8 @@ export default defineNuxtConfig({
 
     /** 地址簿同理：個資進了快取的 HTML 就等於發給下一個訪客。 */
     '/addresses': { isr: false },
+    '/questions': { isr: false },
+    '/restock-alerts': { isr: false },
 
     /** 模擬付款頁帶著付款單號與金額，不快取。 */
     '/pay/**': { isr: false },

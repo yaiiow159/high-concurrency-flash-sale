@@ -1,4 +1,5 @@
 import { useApi, ApiError } from '~/composables/useApi'
+import { clearPending, deliveryUnknown, readPending, writePending } from '~/utils/seckillPending'
 import type {
   ActivityView, ChallengeView, OrderView, QualificationView, SeckillOutcome, SeckillTicket,
 } from '~/types/api'
@@ -25,6 +26,8 @@ export function useSeckill(activityId: number) {
   const submitting = ref(false)
 
   let stockTimer: ReturnType<typeof setTimeout> | null = null
+  let stockPolling = false
+  let stockInFlight = false
 
   /**
    * 以 SSR 取得的活動作為初始畫面，避免首屏空白。 存在的理由是 `activity` 對外是 readonly——只有這個 composable 能改它的狀態。頁面若能直接賦值，庫存輪詢與使用者操作就多了一個 不受控的寫入點，而那正是「畫面數字和實際庫存對不上」的來源。 <b>不覆寫已載入的資料</b>：SSR 那份可能來自 ISR 快取， 有可能比客戶端剛抓到的還舊。
@@ -46,20 +49,44 @@ export function useSeckill(activityId: number) {
   /** 庫存輪詢。 售罄後停止：再問也不會變，而售罄正是流量最大的時刻—— 此時每個瀏覽器都在輪詢，等於對自己發動一次攻擊。 */
   function startStockPolling(): void {
     stopStockPolling()
-    const tick = async () => {
-      try {
-        await loadActivity()
-      } catch {
-        // 庫存查詢失敗不影響主流程，靜默重試即可
-      }
-      if ((activity.value?.availableStock ?? 0) > 0) {
-        stockTimer = setTimeout(tick, STOCK_POLL_INTERVAL_MILLIS)
-      }
+    stockPolling = true
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    stockTimer = setTimeout(stockTick, STOCK_POLL_INTERVAL_MILLIS)
+  }
+
+  async function stockTick(): Promise<void> {
+    stockTimer = null
+    stockInFlight = true
+    try {
+      await loadActivity()
+    } catch {
+      // 庫存查詢失敗不影響主流程，靜默重試即可
+    } finally {
+      stockInFlight = false
     }
-    stockTimer = setTimeout(tick, STOCK_POLL_INTERVAL_MILLIS)
+    if (activity.value !== null && activity.value.availableStock <= 0) {
+      stopStockPolling()
+      return
+    }
+    // 分頁在背景時不排下一輪：開賣前先開好分頁放著的人很多，
+    // 他們看不到數字，卻每 2 秒打一次庫存端點
+    if (stockPolling && !document.hidden) {
+      stockTimer = setTimeout(stockTick, STOCK_POLL_INTERVAL_MILLIS)
+    }
+  }
+
+  /** 回到前景立刻補抓一次——使用者切回來的那一刻就是他要看數字的時候。 */
+  function onVisibilityChange(): void {
+    if (!document.hidden && stockPolling && stockTimer === null && !stockInFlight) {
+      void stockTick()
+    }
   }
 
   function stopStockPolling(): void {
+    stockPolling = false
+    if (import.meta.client) {
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+    }
     if (stockTimer) {
       clearTimeout(stockTimer)
       stockTimer = null
@@ -74,13 +101,19 @@ export function useSeckill(activityId: number) {
     submitting.value = true
     outcome.value = { kind: 'submitting' }
 
-    const requestId = crypto.randomUUID()
+    // 沿用上一次沒有定論的 requestId：送出途中重整或斷線，使用者會再按一次，
+    // 換新值的話那一按就是第二筆請求
+    const pending = readPending(sessionStorage, activityId, Date.now())
+    const requestId = pending?.requestId ?? crypto.randomUUID()
+    const startedAt = pending?.startedAt ?? Date.now()
+    writePending(sessionStorage, activityId, { requestId, orderNo: null, startedAt })
     try {
       const ticket = await request<SeckillTicket>('/api/v1/seckill/orders', {
         method: 'POST',
         authenticated: true,
         body: { activityId, quantity, requestId, qualificationToken: qualification.value?.token ?? null },
       })
+      writePending(sessionStorage, activityId, { requestId, orderNo: ticket.orderNo, startedAt })
       outcome.value = { kind: 'processing', orderNo: ticket.orderNo }
       await pollOrder(ticket.orderNo)
     } catch (error) {
@@ -91,6 +124,10 @@ export function useSeckill(activityId: number) {
       if (apiError.code === 'B0054' || apiError.code === 'B0055') {
         clearQualification()
         loadChallenge().catch(() => undefined)
+      }
+      // 明確被拒才作廢冪等鍵；「不知道送到沒」時要留著給下一次重試用
+      if (!deliveryUnknown(apiError.code, apiError.status)) {
+        clearPending(sessionStorage, activityId)
       }
       outcome.value = { kind: 'rejected', code: apiError.code, message: apiError.message }
     } finally {
@@ -111,6 +148,7 @@ export function useSeckill(activityId: number) {
           authenticated: true,
         })
         if (!order.processing) {
+          clearPending(sessionStorage, activityId)
           outcome.value = { kind: 'success', orderNo, order }
           return
         }
@@ -121,12 +159,32 @@ export function useSeckill(activityId: number) {
       } catch (error) {
         // 訂單建立失敗（例如進了 DLQ）時後端會回 ORDER_NOT_FOUND 並帶原因
         if (error instanceof ApiError && error.code === 'B0007') {
+          clearPending(sessionStorage, activityId)
           outcome.value = { kind: 'rejected', code: error.code, message: error.message }
           return
         }
       }
     }
+    // 逾時不清：重整後還要接得回來
     outcome.value = { kind: 'timeout', orderNo }
+  }
+
+  /** 重整後接回還沒有定論的那一筆。少了它，畫面會回到「立即搶購」，而使用者會再按一次。 */
+  async function resumePending(): Promise<void> {
+    if (!import.meta.client || submitting.value) {
+      return
+    }
+    const pending = readPending(sessionStorage, activityId, Date.now())
+    if (!pending?.orderNo) {
+      return
+    }
+    submitting.value = true
+    outcome.value = { kind: 'processing', orderNo: pending.orderNo }
+    try {
+      await pollOrder(pending.orderNo)
+    } finally {
+      submitting.value = false
+    }
   }
 
   function intervalFor(elapsedMillis: number): number {
@@ -228,6 +286,7 @@ export function useSeckill(activityId: number) {
     startStockPolling,
     stopStockPolling,
     attempt,
+    resumePending,
     reset,
     qualification: readonly(qualification),
     qualified,

@@ -3,6 +3,7 @@ import { errorMessage, useApi } from '~/composables/useApi'
 import { useReturns } from '~/composables/useReturns'
 import { useReviews } from '~/composables/useReviews'
 import { useCartStore } from '~/stores/cart'
+import { describeQueue } from '~/utils/describeQueue'
 import type { OrderView, PaymentIntentView, ShipmentView } from '~/types/api'
 
 /** 訂單詳情與付款。 這一頁**不做 ISR**：訂單是每個使用者專屬的資料， 被 CDN 快取等於把別人的訂單發給下一個訪客。 只有匿名且對所有人相同的內容才適合快取。 */
@@ -45,10 +46,51 @@ async function load() {
   shipment.value = shipmentResult
   canReturn.value = returnable
   canReview.value = reviewableNow
+  if (orderResult?.processing) {
+    void pollUntilCreated()
+  }
 }
 
+/**
+ * 秒殺訂單還在佇列裡時，後端回的是一張只有單號的「建立中」訂單。
+ * 輪詢有上限：停下來之後由使用者自己按重新整理，不讓等待的人變成第二波流量。
+ */
+const PROCESSING_POLL_INTERVAL_MS = 3_000
+const PROCESSING_POLL_LIMIT = 20
+const polling = ref(false)
+let disposed = false
+
+async function pollUntilCreated() {
+  if (polling.value) {
+    return
+  }
+  polling.value = true
+  for (let round = 0; round < PROCESSING_POLL_LIMIT && !disposed; round++) {
+    await new Promise((resolve) => setTimeout(resolve, PROCESSING_POLL_INTERVAL_MS))
+    try {
+      const latest = await request<OrderView>(`/api/v1/orders/${orderNo}`, { authenticated: true })
+      if (!latest.processing) {
+        polling.value = false
+        await load()
+        return
+      }
+      order.value = latest
+    } catch (error) {
+      // 建立失敗時後端回「訂單不存在」並帶原因，那是定論，不必再問
+      order.value = null
+      loadError.value = errorMessage(error, '訂單建立失敗')
+      break
+    }
+  }
+  polling.value = false
+}
+
+onUnmounted(() => { disposed = true })
+
+const queueHint = computed(() => describeQueue(order.value?.queue))
+
 const reordering = ref(false)
-const reorderNotice = ref<string | null>(null)
+const toast = useToast()
 
 /**
  * 再買一次：把訂單行原樣加回購物車。逐行加而不是一次送整批——
@@ -59,7 +101,6 @@ async function reorder() {
     return
   }
   reordering.value = true
-  reorderNotice.value = null
   const skipped: string[] = []
   for (const line of order.value.lines) {
     try {
@@ -70,11 +111,14 @@ async function reorder() {
   }
   reordering.value = false
   if (skipped.length === order.value.lines.length) {
-    reorderNotice.value = '這些商品目前都無法購買'
+    toast.error('這些商品目前都無法購買')
     return
   }
+  // 訊息要活過接下來的換頁，所以不能寫在這一頁的畫面裡
   if (skipped.length > 0) {
-    reorderNotice.value = `已加入購物車；「${skipped.join('」「')}」目前無法購買，已略過`
+    toast.info(`已加入購物車；「${skipped.join('」「')}」目前無法購買，已略過`)
+  } else {
+    toast.success('已全部加入購物車')
   }
   await navigateTo('/cart')
 }
@@ -105,7 +149,43 @@ useHead({ title: `訂單 ${orderNo}` })
 
 <template>
   <div>
-    <template v-if="order">
+    <!-- 建立中：庫存已經是他的了，只是訂單還沒落庫。不能畫成一張空訂單 -->
+    <template v-if="order?.processing">
+      <PageHeader eyebrow="Order" :title="order.orderNo">
+        <template #actions>
+          <StatusBadge status="PROCESSING" />
+        </template>
+      </PageHeader>
+
+      <AppCard class="mx-auto max-w-xl px-6 py-12 text-center">
+        <div
+          class="mx-auto grid h-14 w-14 place-items-center rounded-full bg-accent-soft text-accent"
+          aria-hidden="true"
+        >
+          <span
+            v-if="polling"
+            class="h-6 w-6 animate-spin rounded-full border-2 border-accent/25 border-t-accent"
+          />
+          <svg v-else viewBox="0 0 24 24" class="h-7 w-7" fill="none" stroke="currentColor" stroke-width="1.8">
+            <circle cx="12" cy="12" r="8" />
+            <path d="M12 8v4l2.5 2.5" stroke-linecap="round" />
+          </svg>
+        </div>
+        <h2 class="mt-5 text-lg font-bold" role="status">已搶到，訂單建立中</h2>
+        <p class="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-ink-muted">
+          庫存已經保留給你，不需要再搶一次。訂單正在排隊寫入，完成後這一頁會自動更新。
+        </p>
+        <p v-if="queueHint" class="figure mt-4 inline-block rounded-full bg-sunken px-3.5 py-1.5 text-xs text-ink-muted">
+          {{ queueHint }}
+        </p>
+        <div v-if="!polling" class="mt-6 flex flex-col items-center gap-2">
+          <p class="text-xs text-ink-faint">等得比預期久，已暫停自動更新。</p>
+          <AppButton variant="secondary" size="sm" @click="load">重新整理</AppButton>
+        </div>
+      </AppCard>
+    </template>
+
+    <template v-else-if="order">
       <PageHeader eyebrow="Order" :title="order.orderNo">
         <template #actions>
           <StatusBadge :status="order.status" />
@@ -216,7 +296,6 @@ useHead({ title: `訂單 ${orderNo}` })
           >
             {{ reordering ? '加入中⋯' : '再買一次' }}
           </AppButton>
-          <p v-if="reorderNotice" class="mt-2 text-xs text-ink-muted" role="status">{{ reorderNotice }}</p>
 
           <!-- 退貨是次要動作，用 secondary：它不是我們希望使用者做的事，
                但也不該藏起來讓人找不到而只好打客服 -->

@@ -38,6 +38,7 @@ async function claim(promotionId: number) {
   try {
     await request<{ claimed: boolean }>(
       `/api/v1/coupons/${promotionId}/claim`, { method: 'POST', authenticated: true })
+    useToast().success('已領取，結帳時可以直接選用', { label: '去逛逛', to: '/products' })
     await load()
   } catch (cause) {
     error.value = errorMessage(cause, '領取失敗')

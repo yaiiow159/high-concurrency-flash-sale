@@ -42,13 +42,29 @@ const result = ref<ProductSearchResult | null>(null)
 const filtered = computed(() =>
   minInput.value !== '' || maxInput.value !== '' || minRating.value !== null || inStock.value)
 const loading = ref(false)
+const loadingMore = ref(false)
 const error = ref<string | null>(null)
 
-async function run() {
-  loading.value = true
+const PAGE_SIZE = 24
+const page = ref(0)
+const hasMore = computed(() => result.value !== null && result.value.hits.length < result.value.total)
+
+/** 序號：條件換得快時，慢回來的舊結果不可以蓋掉新的。 */
+let runSeq = 0
+
+async function run(append = false) {
+  const seq = ++runSeq
+  if (append) {
+    loadingMore.value = true
+  } else {
+    loading.value = true
+    page.value = 0
+  }
   error.value = null
   try {
-    const params = new URLSearchParams({ q: keyword.value })
+    const params = new URLSearchParams({
+      q: keyword.value, page: String(page.value), size: String(PAGE_SIZE),
+    })
     if (brand.value) {
       params.set('brand', brand.value)
     }
@@ -67,12 +83,32 @@ async function run() {
     if (sort.value !== 'RELEVANCE') {
       params.set('sort', sort.value)
     }
-    result.value = await request<ProductSearchResult>(`/api/v1/search/products?${params}`)
+    const batch = await request<ProductSearchResult>(`/api/v1/search/products?${params}`)
+    if (seq !== runSeq) {
+      return
+    }
+    result.value = append && result.value
+      ? { ...batch, hits: [...result.value.hits, ...batch.hits] }
+      : batch
   } catch (cause) {
-    error.value = errorMessage(cause, '搜尋失敗')
+    if (seq === runSeq) {
+      error.value = errorMessage(cause, append ? '載入更多失敗' : '搜尋失敗')
+      // 下一頁沒拿到就退回去，再按一次才會重新要同一頁
+      if (append) {
+        page.value -= 1
+      }
+    }
   } finally {
-    loading.value = false
+    if (seq === runSeq) {
+      loading.value = false
+      loadingMore.value = false
+    }
   }
+}
+
+async function loadMore() {
+  page.value += 1
+  await run(true)
 }
 
 /** 送出時把條件寫進網址，讓結果可以被分享與回上一頁 */
@@ -365,8 +401,18 @@ watchEffect(() => {
         </li>
       </ul>
 
+      <!-- 頁數不進網址：分享出去的連結應該從第一頁開始，而不是停在某個人捲到的位置 -->
+      <div v-if="hasMore" class="mt-8 flex flex-col items-center gap-2">
+        <p class="figure text-xs text-ink-faint">
+          已顯示 {{ result.hits.length.toLocaleString() }} / {{ result.total.toLocaleString() }}
+        </p>
+        <AppButton variant="secondary" :disabled="loadingMore" @click="loadMore">
+          {{ loadingMore ? '載入中⋯' : '載入更多' }}
+        </AppButton>
+      </div>
+
       <EmptyState
-        v-else
+        v-else-if="result.hits.length === 0"
         title="沒有符合的商品"
         hint="換個關鍵字，或直接瀏覽全部商品。"
       >

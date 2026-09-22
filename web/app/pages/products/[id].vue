@@ -130,7 +130,7 @@ const { state, place, reset } = useCheckout()
 const cart = useCartStore()
 
 const addingToCart = ref(false)
-const cartMessage = ref<string | null>(null)
+const toast = useToast()
 
 /** 加入購物車。未登入也能用——內容放在 localStorage，登入後自動併入。 這讓「先逛再登入」成為可能，而不是逼使用者一進站就登入。 */
 async function addToCart() {
@@ -138,12 +138,11 @@ async function addToCart() {
     return
   }
   addingToCart.value = true
-  cartMessage.value = null
   try {
     await cart.addItem(selectedSku.value.skuId, quantity.value)
-    cartMessage.value = '已加入購物車'
+    toast.success('已加入購物車', { label: '去結帳', to: '/cart' })
   } catch (cause) {
-    cartMessage.value = errorMessage(cause, '加入購物車失敗')
+    toast.error(errorMessage(cause, '加入購物車失敗'))
   } finally {
     addingToCart.value = false
   }
@@ -247,6 +246,13 @@ const selectedSku = computed<SkuView | null>(
 )
 
 const quantity = ref(1)
+/** 後端只在庫存偏低時才給確切數字；那正是需要擋的時候——「僅剩 3 件」旁邊不該選得到 10 件。 */
+const maxQuantity = computed(() => Math.max(1, selectedStock.value?.available ?? 999))
+watch(maxQuantity, (max) => {
+  if (quantity.value > max) {
+    quantity.value = max
+  }
+})
 const submitting = computed(() => state.value.kind === 'submitting')
 const canBuy = computed(
   () => auth.isAuthenticated
@@ -270,7 +276,6 @@ async function buy() {
 
 // 換規格後先前的訊息就不再適用，留著只會誤導
 watch(selectedSkuId, () => {
-  cartMessage.value = null
   if (state.value.kind === 'failed') {
     reset()
   }
@@ -425,7 +430,7 @@ watchEffect(() => {
 
           <section class="mt-5 flex flex-wrap items-center gap-4">
             <h2 class="text-sm font-semibold">數量</h2>
-            <QuantityStepper v-model="quantity" :max="999" />
+            <QuantityStepper v-model="quantity" :max="maxQuantity" :disabled="soldOut" />
             <p
               v-if="stockHint"
               class="text-sm"
@@ -502,10 +507,6 @@ watchEffect(() => {
             可以先加入購物車，登入後會自動併入你的帳號。
           </p>
 
-          <p v-if="cartMessage" class="mt-3 text-sm text-ok" role="status">
-            {{ cartMessage }}
-            <NuxtLink to="/cart" class="font-medium text-accent hover:underline">查看購物車 →</NuxtLink>
-          </p>
           <p
             v-if="state.kind === 'failed'"
             class="mt-3 rounded-sm border border-danger/40 bg-danger-soft p-3 text-sm text-danger"
